@@ -82,8 +82,10 @@ class SaddlePointProblem:
 
         for k in range(max_iters):
 
-            # 1. Check stopping criterion
             max_vars_prev = [v.value for v in self.max_vars]
+
+            # 1. Check stopping criterion
+            # TODO
 
             # 2. Maximization
             max_obj, max_constr = self.fix_vars(self.min_vars)
