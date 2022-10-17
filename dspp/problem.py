@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import numpy as np
+
 import cvxpy as cp
 
 
@@ -76,27 +78,26 @@ class SaddlePointProblem:
         assert len(self.min_vars) > 0
         assert len(self.max_vars) > 0
 
-    def _solve_DR(self, max_iters: int = 50, alpha=0.5):
+    def _solve_DR(self, max_iters: int = 50, alpha=0.5, eps: float = 1e-4):
 
         self.initialize_variables()
 
         for k in range(max_iters):
 
             max_vars_prev = [v.value for v in self.max_vars]
+            min_vars_prev = [v.value for v in self.min_vars]
 
-            # 1. Check stopping criterion
-            # TODO
-
-            # 2. Maximization
+            # 1. Maximization
             max_obj, max_constr = self.fix_vars(self.min_vars)
             prox_terms = [cp.sum_squares(v - v.value) for v in self.max_vars]
             max_obj -= 1 / (2 * alpha) * cp.sum(cp.hstack(prox_terms))
             maximization_problem = cp.Problem(cp.Maximize(max_obj), max_constr)
             maximization_problem.solve()
+            assert maximization_problem.status == cp.OPTIMAL
 
             max_vars_post_solve = [v.value for v in self.max_vars]
 
-            # 3. Minimization
+            # 2. Minimization
             for max_var_i, max_var_prev_i in zip(self.max_vars, max_vars_prev):
                 max_var_i.value = 2 * max_var_i.value - max_var_prev_i
 
@@ -105,11 +106,17 @@ class SaddlePointProblem:
             min_obj += 1 / (2 * alpha) * cp.sum(cp.hstack(prox_terms))
             minimization_problem = cp.Problem(cp.Minimize(min_obj), min_constr)
             minimization_problem.solve()
+            assert maximization_problem.status == cp.OPTIMAL
 
             for max_var_i, max_var_post_solve_i in zip(self.max_vars, max_vars_post_solve):
                 max_var_i.value = max_var_post_solve_i
 
-            print(self.min_vars[0].value, self.max_vars[0].value)
+            # 3. Check stopping criterion
+            prev_array = np.hstack([v.flatten() for v in max_vars_prev + min_vars_prev])
+            current_array = np.hstack([v.value.flatten() for v in self.max_vars + self.min_vars])
+            delta = np.linalg.norm(prev_array - current_array, np.inf)
+            if delta <= eps:
+                break
 
     def initialize_variables(self):
         _, min_constr = self.fix_vars(self.max_vars)
