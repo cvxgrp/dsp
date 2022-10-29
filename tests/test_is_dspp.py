@@ -5,7 +5,7 @@ import pytest
 import cvxpy as cp
 from dspp.nemirovski import minimax_to_min, KRepresentation, switch_convex_concave, \
     log_sum_exp_K_repr, K_repr_generalized_bilinear
-from dspp.problem import SaddlePointProblem
+from dspp.problem import SaddlePointProblem, MinimizeMaximize, SaddleProblem
 
 
 # def test_matrix_game():
@@ -37,10 +37,54 @@ from dspp.problem import SaddlePointProblem
 #     assert np.allclose(y.value, np.array([0.5, 0.5]))
 
 
-def test_minimax_to_min():
+def test_matrix_game_nemirovski():
     n = 2
 
-    A = np.eye(n)
+    x = cp.Variable(n, nonneg=True, name='x')
+    y = cp.Variable(n, nonneg=True, name='y')
+
+    X_constraints = [
+        -1 <= x, x <= 1,
+        # x == z,
+    ]
+    Y_constraints = [
+        -1 <= y, y <= 1,
+        # y == z
+    ]
+
+    K = K_repr_generalized_bilinear(x, y)
+    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
+    min_prob.solve()
+    print(min_prob.status, min_prob.value)
+    for v in min_prob.variables():
+        print(v, v.name(), v.value)
+
+
+def test_matrix_game_nemirovski_new():
+    n = 2
+
+    x = cp.Variable(n, name='x')
+    y = cp.Variable(n, name='y')
+
+    F_x = x + 0.5
+    F_y = y + 0.5
+
+    objective = MinimizeMaximize(F_x @ F_y)
+    constraints = [
+        -1 <= x, x <= 1,
+        -1 <= y, y <= 1
+    ]
+    prob = SaddleProblem(objective, constraints)
+    prob.solve()
+
+    print(prob.status)
+    for v in prob.variables():
+        print(prob.value)
+        print(v, v.name(), v.value)
+
+
+def test_minimax_to_min():
+    n = 2
 
     x = cp.Variable(n)
     xx = cp.Variable(n)
@@ -77,7 +121,7 @@ def test_minimax_to_min():
     )
 
     switched_K = switch_convex_concave(K)
-    min_prob = minimax_to_min(switched_K, Y_constraints, X_constraints)
+    min_prob = cp.Problem(*minimax_to_min(switched_K, Y_constraints, X_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
     # assert np.allclose(x.value, np.array([0.5, 0.5]))
@@ -100,7 +144,7 @@ def test_minimax_to_min_weighted_log_sum_exp():
         y == 0.5
     ]
 
-    min_prob = minimax_to_min(K, X_constraints, Y_constraints)
+    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
 
@@ -141,7 +185,7 @@ def test_weighted_log_sum_exp_with_switching():
     ]
 
     K_switched = switch_convex_concave(K)
-    min_prob = minimax_to_min(K_switched, Y_constraints, X_constraints)
+    min_prob = cp.Problem(*minimax_to_min(K_switched, Y_constraints, X_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
     assert np.isclose(min_prob.value, -np.log(n * np.e))
@@ -163,7 +207,7 @@ def test_weighted_sum_exp(n):
         y == 1
     ]
 
-    min_prob = minimax_to_min(K, X_constraints, Y_constraints)
+    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
     assert np.isclose(min_prob.value, n * np.e)
@@ -186,7 +230,7 @@ def test_weighted_sum_exp_with_switching():
     ]
 
     K = switch_convex_concave(K)
-    min_prob = minimax_to_min(K, Y_constraints, X_constraints)
+    min_prob = cp.Problem(*minimax_to_min(K, Y_constraints, X_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
     assert np.isclose(min_prob.value, -n * np.e)
@@ -250,7 +294,7 @@ def test_robust_ols():
     Y_constraints = [cp.sum(wgts) == N, wgts <= 2, wgts >= 0.5]
 
     K = K_repr_generalized_bilinear(loss, wgts)
-    min_prob = minimax_to_min(K, X_constraints, Y_constraints)
+    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
     adversarial_vals = theta_hat.value

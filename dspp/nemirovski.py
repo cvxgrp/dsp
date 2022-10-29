@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import prod
 
 import numpy as np
 import scipy.sparse as sp
@@ -9,13 +8,14 @@ import cvxpy as cp
 from cvxpy import SOC
 from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
+from cvxpy.problems.objective import Objective
 
 
 @dataclass
 class KRepresentation:
     f: cp.Variable
     t: cp.Variable
-    u_or_Q: cp.Variable | np.ndarray
+    u_or_Q: cp.Variable | sp.base
     x: cp.Variable
     y: cp.Variable
     constraints: list[Constraint]
@@ -33,9 +33,11 @@ def switch_convex_concave(K_in: KRepresentation) -> KRepresentation:
     if isinstance(K_in.u_or_Q, cp.Variable):
         var_list.append(K_in.u_or_Q)
 
-    var_to_mat_mapping, const_vec, u_bar, u_bar_const = get_dual_constraints(K_in.constraints,
-                                                                             var_list,
-                                                                             dual_name='sym_dual')
+    var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(K_in.constraints,
+                                                                             var_list
+                                                                             )
+    u_bar = cp.Variable(len(const_vec))
+    u_bar_const = add_cone_constraints(u_bar, cone_dims)
 
     if isinstance(K_in.u_or_Q, cp.Variable):
         assert var_to_mat_mapping['eta'].size == 0
@@ -103,8 +105,10 @@ def log_sum_exp_K_repr(x: cp.Variable, y: cp.Variable):
 
 def minimax_to_min(K: KRepresentation,
                    X_constraints: list[Constraint],
-                   Y_constraints: list[Constraint]) -> cp.Problem:
-    var_id_to_mat, e, lamb, lamb_const = get_dual_constraints(Y_constraints, [K.y])
+                   Y_constraints: list[Constraint]) -> (Objective, list[Constraint]):
+    var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints, [K.y])
+    lamb = cp.Variable(len(e))
+    lamb_const = add_cone_constraints(lamb, cone_dims)
 
     C = var_id_to_mat[K.y.id]
     D = var_id_to_mat['eta']
@@ -120,8 +124,7 @@ def minimax_to_min(K: KRepresentation,
     if D.shape[1] > 0:
         constraints.append(D.T @ lamb == 0)
 
-    problem = cp.Problem(obj, constraints)
-    return problem
+    return obj, constraints
 
 
 def K_repr_generalized_bilinear(F: cp.Expression, y: cp.Variable) -> KRepresentation:
@@ -141,9 +144,7 @@ def K_repr_generalized_bilinear(F: cp.Expression, y: cp.Variable) -> KRepresenta
         f >= F
     ]
 
-    var_to_mat_mapping, s_bar, _, _ = get_dual_constraints(constraints, [x, f, t])
-    # R_bar = var_to_mat_mapping[x.id]
-    # S_bar = var_to_mat_mapping[f.id]
+    var_to_mat_mapping, _, _, = get_cone_repr(constraints, [x, f, t])
     T_bar = var_to_mat_mapping['eta']
 
     return KRepresentation(
@@ -156,7 +157,7 @@ def K_repr_generalized_bilinear(F: cp.Expression, y: cp.Variable) -> KRepresenta
     )
 
 
-def get_dual_constraints(const: list[Constraint], vars: list[cp.Variable], dual_name='dual_var'):
+def get_cone_repr(const: list[Constraint], vars: list[cp.Variable]):
     assert set(vars) <= {v for c in const for v in c.variables()}
     aux_prob = cp.Problem(cp.Minimize(0), const)
     solver_opts = {"use_quad_obj": False}
@@ -173,7 +174,6 @@ def get_dual_constraints(const: list[Constraint], vars: list[cp.Variable], dual_
 
     var_id_to_col = problem_data[0]['param_prob'].var_id_to_col
 
-    # end_inds = sorted(var_id_to_col.values()) + [len(b)]
     var_to_mat_mapping = {}
     for v in vars:
         start_ind = var_id_to_col[v.id]
@@ -184,27 +184,28 @@ def get_dual_constraints(const: list[Constraint], vars: list[cp.Variable], dual_
 
     var_to_mat_mapping['eta'] = -A[:, unused_mask]
 
-    lamb = cp.Variable(A.shape[0], name=dual_name)
-    lamb_const = []
-
     cone_dims = problem_data[0]['dims']
+
+    return var_to_mat_mapping, const_vec, cone_dims
+
+def add_cone_constraints(s, cone_dims) -> list[Constraint]:
+    s_const = []
 
     offset = 0
     if cone_dims.zero > 0:
-        const_vec[:cone_dims.zero] = const_vec[:cone_dims.zero]  # TODO: check
         offset += cone_dims.zero
     if cone_dims.nonneg > 0:
-        lamb_const.append(lamb[offset:offset + cone_dims.nonneg] >= 0)
+        s_const.append(s[offset:offset + cone_dims.nonneg] >= 0)
         offset += cone_dims.nonneg
     if len(cone_dims.soc) > 0:
         for soc_dim in cone_dims.soc:
-            lamb_const.append(SOC(t=lamb[offset], X=lamb[offset + 1:offset + soc_dim + 1]))
+            s_const.append(SOC(t=s[offset], X=s[offset + 1:offset + soc_dim + 1]))
             offset += soc_dim
     if cone_dims.exp > 0:
-        tau = lamb[offset + 2::3]  # z (in cvxpy) -> t -> tau
-        sigma = lamb[offset + 1::3]  # y (in cvxpy) -> s -> sigma
-        rho = -lamb[offset::3]  # x (in cvxpy) -> r -> -rho
-        lamb_const.extend([
+        tau = s[offset + 2::3]  # z (in cvxpy) -> t -> tau
+        sigma = s[offset + 1::3]  # y (in cvxpy) -> s -> sigma
+        rho = -s[offset::3]  # x (in cvxpy) -> r -> -rho
+        s_const.extend([
             tau >= 0,
             rho >= 0,
             sigma >= cp.rel_entr(rho, tau) - rho
@@ -212,7 +213,7 @@ def get_dual_constraints(const: list[Constraint], vars: list[cp.Variable], dual_
     if len(cone_dims.p3d) > 0 or len(cone_dims.psd) > 0:
         raise NotImplementedError
 
-    return var_to_mat_mapping, const_vec, lamb, lamb_const
+    return s_const
 
 
 def get_original_variable_cols(variables, prob_canon) -> list[int]:
