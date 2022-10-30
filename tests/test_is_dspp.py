@@ -4,8 +4,8 @@ import pytest
 
 import cvxpy as cp
 from dspp.nemirovski import minimax_to_min, KRepresentation, switch_convex_concave, \
-    log_sum_exp_K_repr, K_repr_generalized_bilinear
-from dspp.problem import SaddlePointProblem, MinimizeMaximize, SaddleProblem
+    log_sum_exp_K_repr, K_repr_y_Fx, K_repr_x_Gy, K_repr_ax
+from dspp.problem import MinimizeMaximize, SaddleProblem
 
 
 # def test_matrix_game():
@@ -37,30 +37,75 @@ from dspp.problem import SaddlePointProblem, MinimizeMaximize, SaddleProblem
 #     assert np.allclose(y.value, np.array([0.5, 0.5]))
 
 
-def test_matrix_game_nemirovski():
+def test_matrix_game_y_Fx():
     n = 2
 
-    x = cp.Variable(n, nonneg=True, name='x')
-    y = cp.Variable(n, nonneg=True, name='y')
+    x = cp.Variable(n, name='x')
+    y = cp.Variable(n, name='y')
+    xx = cp.Variable(n, name='xx')
 
     X_constraints = [
-        -1 <= x, x <= 1,
-        # x == z,
+        -1 <= xx, xx <= 1,
+        xx <= x, xx >= x,
     ]
     Y_constraints = [
         -1 <= y, y <= 1,
-        # y == z
     ]
 
-    K = K_repr_generalized_bilinear(x, y)
-    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
-    min_prob.solve()
-    print(min_prob.status, min_prob.value)
-    for v in min_prob.variables():
+    F = x + 0.5
+
+    K = K_repr_y_Fx(F, y)
+    prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
+    prob.solve()
+    assert np.isclose(prob.value, 0)
+    print(prob.status, prob.value)
+    for v in prob.variables():
         print(v, v.name(), v.value)
 
 
-def test_matrix_game_nemirovski_new():
+def test_matrix_game_x_Gy():
+    n = 2
+
+    x = cp.Variable(n, name='x')
+    y = cp.Variable(n, name='y')
+    yy = cp.Variable(n, name='yy')
+
+    X_constraints = [
+        -1 <= x, x <= 1,
+    ]
+    Y_constraints = [
+        -1 <= yy, yy <= 1,
+        yy <= y, y <= yy
+    ]
+
+    F = y + 0.5
+
+    K = K_repr_x_Gy(F, x)
+    prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
+    prob.solve()
+    assert np.isclose(prob.value, 0)
+    print(prob.status, prob.value)
+    for v in prob.variables():
+        print(v, v.name(), v.value)
+
+
+@pytest.mark.parametrize('a,expected', [(cp.exp, np.exp(1)), (cp.square, 1)])
+def test_ax(a, expected):
+    x = cp.Variable()
+    y = cp.Variable()
+    ax = a(x)
+
+    X_const = [1 <= x, x <= 2]
+    Y_const = [y == 0]
+
+    K = K_repr_ax(ax, y)
+    prob = cp.Problem(*minimax_to_min(K, X_const, Y_const))
+    prob.solve()
+    assert prob.status == cp.OPTIMAL
+    assert np.isclose(prob.value, expected)
+
+
+def test_matrix_game_nemirovski_Fx_Gy():
     n = 2
 
     x = cp.Variable(n, name='x')
@@ -76,6 +121,7 @@ def test_matrix_game_nemirovski_new():
     ]
     prob = SaddleProblem(objective, constraints)
     prob.solve()
+    assert np.isclose(prob.value, 0)
 
     print(prob.status)
     for v in prob.variables():
@@ -198,7 +244,7 @@ def test_weighted_sum_exp(n):
 
     F = cp.exp(x)
 
-    K = K_repr_generalized_bilinear(F, y)
+    K = K_repr_y_Fx(F, y)
 
     X_constraints = [
         x == 1
@@ -220,7 +266,7 @@ def test_weighted_sum_exp_with_switching():
 
     F = cp.exp(x)
 
-    K = K_repr_generalized_bilinear(F, y)
+    K = K_repr_y_Fx(F, y)
 
     X_constraints = [
         x == 1
@@ -293,11 +339,14 @@ def test_robust_ols():
     X_constraints = []
     Y_constraints = [cp.sum(wgts) == N, wgts <= 2, wgts >= 0.5]
 
-    K = K_repr_generalized_bilinear(loss, wgts)
+    K = K_repr_y_Fx(loss, wgts)
     min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
     adversarial_vals = theta_hat.value
+
+    assert ols_vals[0] < adversarial_vals[0]
+    assert ols_vals[1] > adversarial_vals[1]
 
     # import matplotlib.pyplot as plt
     # plt.figure()

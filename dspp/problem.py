@@ -5,8 +5,7 @@ import numpy as np
 import cvxpy as cp
 from cvxpy.atoms.affine.binary_operators import MulExpression
 from cvxpy.constraints.constraint import Constraint
-from dspp.nemirovski import minimax_to_min, get_cone_repr, add_cone_constraints, \
-    K_repr_generalized_bilinear
+from dspp.nemirovski import minimax_to_min, K_repr_x_Gy
 
 
 class MinimizeMaximize:
@@ -17,9 +16,10 @@ class MinimizeMaximize:
         self.G_y: cp.Expression = inner_product.args[1]
         self.x_vars = self.F_x.variables()
         self.y_vars = self.G_y.variables()
-        self._validate_arguments()
+        self._validate_arguments(inner_product)
 
-    def _validate_arguments(self):
+    def _validate_arguments(self, inner_product):
+        assert inner_product.shape == ()
         assert self.F_x.is_convex()
         assert self.G_y.is_concave()
         # assert (self.F_x.is_nonneg() and self.G_y.is_nonneg())
@@ -39,29 +39,33 @@ class SaddleProblem(cp.Problem):
         self._validate_arguments()
         self.x_constraints, self.y_constraints = self._split_constraints(constraints)
 
+        # x = self.x_vars[0]
+        #
+        # dual_constr_x = [self.minmax_objective.F_x <= z]
+        #
+        # var_to_mat_mapping, s_hat, cone_dims = get_cone_repr(dual_constr_x, [z, x])
+        #
+        # R_hat = var_to_mat_mapping[x.id]
+        # S_hat = var_to_mat_mapping[z.id]
+        # Q_hat = var_to_mat_mapping['eta']
+        #
+        # x_cone_repr = R_hat @ x + S_hat @ z + s_hat
+        # if Q_hat.shape[1] > 0:
+        #     v = cp.Variable(Q_hat.shape[1])
+        #     x_cone_repr += Q_hat @ v
+        #
+        # x_cone_const = add_cone_constraints(x_cone_repr, cone_dims)
+
+
         z = cp.Variable(self.minmax_objective.F_x.shape)
-        x = self.x_vars[0]
+        epigraph_constraint = [z >= self.minmax_objective.F_x]
 
-        dual_constr_x = [self.minmax_objective.F_x <= z]
-
-        var_to_mat_mapping, s_hat, cone_dims = get_cone_repr(self.x_constraints + dual_constr_x,
-                                                             [z, x])
-        R_hat = var_to_mat_mapping[x.id]
-        S_hat = var_to_mat_mapping[z.id]
-        Q_hat = var_to_mat_mapping['eta']
-
-        x_cone_repr = R_hat @ x + S_hat @ z + s_hat
-        if Q_hat.shape[1] > 0:
-            v = cp.Variable(Q_hat.shape[1])
-            x_cone_repr += Q_hat @ v
-
-        x_cone_const = add_cone_constraints(x_cone_repr, cone_dims)
-
-        K = K_repr_generalized_bilinear(self.minmax_objective.G_y, z)
-
+        K = K_repr_x_Gy(self.minmax_objective.G_y, z)
         single_obj, constraints = minimax_to_min(K,
-                                                 self.y_constraints,
-                                                 x_cone_const)
+                                                 self.x_constraints + epigraph_constraint,
+                                                 self.y_constraints
+                                                 )
+
         super().__init__(single_obj, constraints)
 
     def _validate_arguments(self):
@@ -93,6 +97,9 @@ class SaddleProblem(cp.Problem):
         assert len(x_constraints) + len(y_constraints) == n_constraints
         assert not (x_constraints_vars & y_constraints_vars)
         return x_constraints, y_constraints
+
+    def solve(self):
+        super(SaddleProblem, self).solve()
 
 
 class SaddlePointProblem:

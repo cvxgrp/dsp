@@ -34,8 +34,8 @@ def switch_convex_concave(K_in: KRepresentation) -> KRepresentation:
         var_list.append(K_in.u_or_Q)
 
     var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(K_in.constraints,
-                                                                             var_list
-                                                                             )
+                                                             var_list
+                                                             )
     u_bar = cp.Variable(len(const_vec))
     u_bar_const = add_cone_constraints(u_bar, cone_dims)
 
@@ -127,7 +127,7 @@ def minimax_to_min(K: KRepresentation,
     return obj, constraints
 
 
-def K_repr_generalized_bilinear(F: cp.Expression, y: cp.Variable) -> KRepresentation:
+def K_repr_y_Fx(F: cp.Expression, y: cp.Variable) -> KRepresentation:
     assert F.is_convex()
     assert len(F.variables()) == 1
     x = F.variables()[0]
@@ -137,7 +137,7 @@ def K_repr_generalized_bilinear(F: cp.Expression, y: cp.Variable) -> KRepresenta
     # assert y.is_nonneg()
 
     f = cp.Variable(F.size, name='f_bilin')
-    t = cp.Variable(name='t_bilin')
+    t = cp.Variable(name='t_bilin_y_Fx')
 
     constraints = [
         t == 0,
@@ -157,6 +157,130 @@ def K_repr_generalized_bilinear(F: cp.Expression, y: cp.Variable) -> KRepresenta
     )
 
 
+def K_repr_x_Gy(G: cp.Expression, x: cp.Variable) -> KRepresentation:
+    assert G.is_concave()
+    assert len(G.variables()) == 1
+    y = G.variables()[0]
+    assert G.ndim == 1
+    assert x.ndim == 1
+    assert G.shape == x.shape
+    # assert x.is_nonneg()
+
+    w = cp.Variable(G.size, name='w_bilin')
+
+    constraints = [
+        w <= G
+    ]
+
+    var_to_mat_mapping_dual, s, cone_dims, = get_cone_repr(constraints, [y, w])
+    Q_bar = var_to_mat_mapping_dual['eta']
+    S_bar = var_to_mat_mapping_dual[w.id]
+    R_bar = var_to_mat_mapping_dual[y.id]
+
+    lamb = cp.Variable(len(s))
+    lamb_constr = add_cone_constraints(lamb, cone_dims)
+
+    f = cp.Variable(y.size, name='f_bilin_x_Gy')
+    t = cp.Variable(name='t_bilin_x_Gy')
+
+    K_constr = [
+        f + R_bar.T @ lamb == 0,
+        s @ lamb == t,
+        S_bar.T @ lamb == x,
+        *lamb_constr
+    ]
+
+    if Q_bar.shape[1] > 0:
+        K_constr.append(Q_bar.T @ lamb == 0)
+
+    var_to_mat_mapping_final, _, _ = get_cone_repr(K_constr, [f, t, x])
+    Q = var_to_mat_mapping_final['eta']
+
+    return KRepresentation(
+        f=f,
+        t=t,
+        u_or_Q= Q,
+        x=x,
+        y=y,
+        constraints=K_constr
+    )
+
+
+def K_repr_ax(a: cp.Expression, y: cp.Variable) -> KRepresentation:
+    assert len(a.variables()) == 1
+    assert a.is_convex()
+    x = a.variables()[0]
+    assert a.ndim == 0
+
+    f = cp.Variable(a.size, name='f_ax')
+    t = cp.Variable(name='t_ax')
+
+    constraints = [
+        t >= a,
+        f == 0
+    ]
+
+    var_to_mat_mapping, _, _, = get_cone_repr(constraints, [x, f, t])
+    Q_bar = var_to_mat_mapping['eta']
+
+    return KRepresentation(
+        f=f,
+        t=t,
+        u_or_Q=Q_bar,
+        x=x,
+        y=y,
+        constraints=constraints
+    )
+
+
+def K_repr_by(b_neg: cp.Expression, x: cp.Variable) -> KRepresentation:
+    assert len(b_neg.variables()) == 1
+    assert b_neg.is_concave()
+    y = b_neg.variables()[0]
+    assert b_neg.ndim == 0
+
+    b = -b_neg
+
+    f = cp.Variable(b.size, name='f_by')
+    t_primal = cp.Variable(name='t_by_primal')
+
+    constraints = [
+        t_primal >= b,
+        f == 0
+    ]
+
+    var_to_mat_mapping, s_bar, _, = get_cone_repr(constraints, [x, f, t_primal])
+    R_bar = var_to_mat_mapping[y.id]
+    p_bar = var_to_mat_mapping[t_primal.id]
+    Q_bar = var_to_mat_mapping['eta']
+
+    f = cp.Variable(R_bar.shape[1])
+    u = cp.Variable(p_bar.shape[0])
+    t = cp.Variable(name='t_by')
+
+    K_constr = [
+        f == R_bar.T @ u,
+        t == s_bar @ u,
+        p_bar.T @ u + 1 == 0,
+    ]
+
+    if Q_bar.shape[1] > 0:
+        K_constr.append(Q_bar.T @ u == 0)
+
+    var_to_mat_mapping_final, _, _ = get_cone_repr(K_constr, [f, t, x])
+    assert var_to_mat_mapping_final[x.id].shape[1] == 0
+    Q = var_to_mat_mapping_final['eta']
+
+    return KRepresentation(
+        f=f,
+        t=t,
+        u_or_Q=Q,
+        x=x,
+        y=y,
+        constraints=K_constr
+    )
+
+
 def get_cone_repr(const: list[Constraint], vars: list[cp.Variable]):
     assert set(vars) <= {v for c in const for v in c.variables()}
     aux_prob = cp.Problem(cp.Minimize(0), const)
@@ -168,7 +292,8 @@ def get_cone_repr(const: list[Constraint], vars: list[cp.Variable]):
 
     problem_data = aux_prob.get_problem_data(solver_opts=solver_opts, solver=cp.SCS)
 
-    Ab = problem_data[0]['param_prob'].A.toarray().reshape((-1, prob_canon.x.size + 1), order="F")  # TODO: keep sparsity
+    Ab = problem_data[0]['param_prob'].A.toarray().reshape((-1, prob_canon.x.size + 1),
+                                                           order="F")  # TODO: keep sparsity
     A, const_vec = Ab[:, :-1], Ab[:, -1]
     unused_mask = np.ones(A.shape[1], dtype=bool)
 
@@ -187,6 +312,7 @@ def get_cone_repr(const: list[Constraint], vars: list[cp.Variable]):
     cone_dims = problem_data[0]['dims']
 
     return var_to_mat_mapping, const_vec, cone_dims
+
 
 def add_cone_constraints(s, cone_dims) -> list[Constraint]:
     s_const = []
