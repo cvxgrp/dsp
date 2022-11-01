@@ -107,13 +107,13 @@ def minimax_to_min(K: KRepresentation,
                    X_constraints: list[Constraint],
                    Y_constraints: list[Constraint]) -> (Objective, list[Constraint]):
     var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints, [K.y])
-    lamb = cp.Variable(len(e))
-    lamb_const = add_cone_constraints(lamb, cone_dims)
+    lamb = cp.Variable(len(e), name='lamb')
+    lamb_const = add_cone_constraints(lamb, cone_dims, dual=True)
 
     C = var_id_to_mat[K.y.id]
     D = var_id_to_mat['eta']
 
-    obj = cp.Minimize(e @ lamb + K.t)
+    obj = cp.Minimize(lamb @ e + K.t)
 
     constraints = [
         *K.constraints,
@@ -241,34 +241,34 @@ def K_repr_by(b_neg: cp.Expression, x: cp.Variable) -> KRepresentation:
 
     b = -b_neg
 
-    f = cp.Variable(b.size, name='f_by')
     t_primal = cp.Variable(name='t_by_primal')
 
     constraints = [
         t_primal >= b,
-        f == 0
     ]
 
-    var_to_mat_mapping, s_bar, _, = get_cone_repr(constraints, [x, f, t_primal])
+    var_to_mat_mapping, s_bar, cone_dims, = get_cone_repr(constraints, [y, t_primal])
+
     R_bar = var_to_mat_mapping[y.id]
     p_bar = var_to_mat_mapping[t_primal.id]
     Q_bar = var_to_mat_mapping['eta']
 
-    f = cp.Variable(R_bar.shape[1])
-    u = cp.Variable(p_bar.shape[0])
+    f = cp.Variable(R_bar.shape[1], name='f_by')
+    u = cp.Variable(p_bar.shape[0], name='u_by')
     t = cp.Variable(name='t_by')
 
     K_constr = [
-        f == R_bar.T @ u,
+        f == -R_bar.T @ u,
         t == s_bar @ u,
         p_bar.T @ u + 1 == 0,
+        *add_cone_constraints(u, cone_dims, dual=True)
     ]
 
     if Q_bar.shape[1] > 0:
         K_constr.append(Q_bar.T @ u == 0)
 
-    var_to_mat_mapping_final, _, _ = get_cone_repr(K_constr, [f, t, x])
-    assert var_to_mat_mapping_final[x.id].shape[1] == 0
+    var_to_mat_mapping_final, second_const, second_cone_dims = get_cone_repr(K_constr, [f, t])
+    # assert var_to_mat_mapping_final[x.id].shape[1] == 0
     Q = var_to_mat_mapping_final['eta']
 
     return KRepresentation(
@@ -314,30 +314,42 @@ def get_cone_repr(const: list[Constraint], vars: list[cp.Variable]):
     return var_to_mat_mapping, const_vec, cone_dims
 
 
-def add_cone_constraints(s, cone_dims) -> list[Constraint]:
+def add_cone_constraints(s, cone_dims, dual: bool) -> list[Constraint]:
     s_const = []
 
     offset = 0
     if cone_dims.zero > 0:
+        if not dual:
+            s_const.append(s[:cone_dims.zero] == 0)
         offset += cone_dims.zero
     if cone_dims.nonneg > 0:
         s_const.append(s[offset:offset + cone_dims.nonneg] >= 0)
         offset += cone_dims.nonneg
     if len(cone_dims.soc) > 0:
         for soc_dim in cone_dims.soc:
-            s_const.append(SOC(t=s[offset], X=s[offset + 1:offset + soc_dim + 1]))
+            s_const.append(SOC(t=s[offset], X=s[offset + 1:offset + soc_dim]))
             offset += soc_dim
     if cone_dims.exp > 0:
-        tau = s[offset + 2::3]  # z (in cvxpy) -> t -> tau
-        sigma = s[offset + 1::3]  # y (in cvxpy) -> s -> sigma
-        rho = -s[offset::3]  # x (in cvxpy) -> r -> -rho
-        s_const.extend([
-            tau >= 0,
-            rho >= 0,
-            sigma >= cp.rel_entr(rho, tau) - rho
-        ])
+        if dual:
+            tau = s[offset + 2::3]  # z (in cvxpy) -> t -> tau
+            sigma = s[offset + 1::3]  # y (in cvxpy) -> s -> sigma
+            rho = -s[offset::3]  # x (in cvxpy) -> r -> -rho
+            s_const.extend([
+                tau >= 0,
+                rho >= 0,
+                sigma >= cp.rel_entr(rho, tau) - rho
+            ])
+        else:
+            x = s[offset::3]
+            y = s[offset + 1::3]
+            z = s[offset + 2::3]
+            s_const.append(ExpCone(x, y, z))
+
+        offset += 3 * cone_dims.exp
     if len(cone_dims.p3d) > 0 or len(cone_dims.psd) > 0:
         raise NotImplementedError
+
+    assert offset == s.size
 
     return s_const
 

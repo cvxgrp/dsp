@@ -4,7 +4,8 @@ import pytest
 
 import cvxpy as cp
 from dspp.nemirovski import minimax_to_min, KRepresentation, switch_convex_concave, \
-    log_sum_exp_K_repr, K_repr_y_Fx, K_repr_x_Gy, K_repr_ax
+    log_sum_exp_K_repr, K_repr_y_Fx, K_repr_x_Gy, K_repr_ax, K_repr_by, add_cone_constraints, \
+    get_cone_repr
 from dspp.problem import MinimizeMaximize, SaddleProblem
 
 
@@ -89,13 +90,13 @@ def test_matrix_game_x_Gy():
         print(v, v.name(), v.value)
 
 
-@pytest.mark.parametrize('a,expected', [(cp.exp, np.exp(1)), (cp.square, 1)])
+@pytest.mark.parametrize('a,expected', [(cp.exp, np.exp(2)), (cp.square, 4)])
 def test_ax(a, expected):
     x = cp.Variable()
     y = cp.Variable()
     ax = a(x)
 
-    X_const = [1 <= x, x <= 2]
+    X_const = [2 <= x, x <= 4]
     Y_const = [y == 0]
 
     K = K_repr_ax(ax, y)
@@ -103,6 +104,70 @@ def test_ax(a, expected):
     prob.solve()
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, expected)
+
+
+@pytest.mark.parametrize('b_neg', [lambda y: cp.exp(y), lambda y:cp.inv_pos(y),
+                                            (lambda y: cp.square(y)),
+                                            (lambda y:cp.abs(y)),
+                                            (lambda y:-cp.log(y))])
+@pytest.mark.parametrize('y_val', range(-2, 3))
+def test_by(b_neg, y_val):
+
+    expected = -b_neg(y_val).value
+
+    x = cp.Variable(name='x')
+    y = cp.Variable(name='y')
+
+    by = -b_neg(y)
+
+    if by.domain and y_val <= 0:
+        return  # skip test
+
+    X_const = [x == 0]
+    Y_const = [y == y_val]
+
+    K = K_repr_by(by, x)
+    prob = cp.Problem(*minimax_to_min(K, X_const, Y_const))
+    prob.solve()
+    assert prob.status == cp.OPTIMAL
+    assert np.isclose(prob.value, expected, atol=1e-6)
+
+
+@pytest.mark.parametrize('y_val', range(-3, 3))
+def test_epigraph_exp(y_val):
+    y = cp.Variable(name='y')
+    b = cp.square(cp.square(y))
+
+    t_primal = cp.Variable(name='t_by_primal')
+
+    constraints = [
+        t_primal >= b,
+    ]
+
+    var_to_mat_mapping, s_bar, cone_dims, = get_cone_repr(constraints, [y, t_primal])
+
+    R_bar = var_to_mat_mapping[y.id]
+    p_bar = var_to_mat_mapping[t_primal.id]
+    Q_bar = var_to_mat_mapping['eta']
+
+    s_bar = s_bar.reshape(-1, 1)
+    u_temp = cp.Variable((Q_bar.shape[1], 1))
+
+    Ax_b = s_bar - (R_bar * y + t_primal * p_bar + Q_bar @ u_temp)
+
+    prob = cp.Problem(cp.Minimize(t_primal),
+                      [*add_cone_constraints(Ax_b, cone_dims, dual=False), y == y_val])
+    prob.solve()
+    assert prob.status == cp.OPTIMAL
+    assert np.isclose(prob.value, y_val**4)
+
+    u = cp.Variable((Q_bar.shape[0], 1))
+    max_prob = cp.Problem(cp.Maximize((R_bar.T @ u) * y_val - s_bar.T @ u),
+                          [-u.T @ p_bar == 1, Q_bar.T @ u == 0] + add_cone_constraints(u, cone_dims,
+                                                                                       dual=True))
+    max_prob.solve()
+    assert max_prob.status == cp.OPTIMAL
+    assert np.isclose(max_prob.value, y_val**4, atol=1e-7)
 
 
 def test_matrix_game_nemirovski_Fx_Gy():
