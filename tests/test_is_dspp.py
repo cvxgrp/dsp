@@ -470,3 +470,17 @@ def test_variable():
     problem = SaddleProblem(obj, constraints)
     problem.solve()
     assert problem.value == 10
+
+
+def test_sum():
+    x = cp.Variable()
+    y = cp.Variable()
+
+    obj = MinimizeMaximize(x + y, minimization_vars={x}, maximization_vars={y})
+    constraints = [
+        -1 <= x, x <= 1,
+        -2 <= y, y <= 2
+    ]
+    problem = SaddleProblem(obj, constraints)
+    problem.solve()
+    assert problem.value == 1

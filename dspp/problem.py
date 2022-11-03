@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 import cvxpy as cp
+from cvxpy.atoms.affine.add_expr import AddExpression
 from cvxpy.constraints.constraint import Constraint
 from dspp.nemirovski import minimax_to_min, KRepresentation, K_repr_by
 
@@ -57,6 +58,12 @@ class Parser:
                                           f'Specify curvature of these variable as '
                                           f'maximization or minimization variable in '
                                           f'MinimizeMaximize.')
+        elif isinstance(expr, cp.Expression):
+            if isinstance(expr, AddExpression):
+                K_reprs = [self.parse_expr(arg) for arg in expr.args]
+                return KRepresentation.sum_of_K_reprs(K_reprs)
+            else:
+                raise TypeError(f'Cannot parse {expr=}')
         else:
             raise TypeError(f'Cannot parse {expr=}')
 
