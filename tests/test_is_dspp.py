@@ -5,8 +5,8 @@ import pytest
 import cvxpy as cp
 from dspp.nemirovski import minimax_to_min, KRepresentation, switch_convex_concave, \
     log_sum_exp_K_repr, K_repr_y_Fx, K_repr_x_Gy, K_repr_ax, K_repr_by, add_cone_constraints, \
-    get_cone_repr
-from dspp.problem import MinimizeMaximize, SaddleProblem
+    get_cone_repr, SwitchableKRepresentation
+from dspp.problem import MinimizeMaximize, SaddleProblem, AffineVariableError
 
 
 # def test_matrix_game():
@@ -58,10 +58,8 @@ def test_matrix_game_y_Fx():
     K = K_repr_y_Fx(F, y)
     prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
     prob.solve()
+    assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, 0)
-    print(prob.status, prob.value)
-    for v in prob.variables():
-        print(v, v.name(), v.value)
 
 
 def test_matrix_game_x_Gy():
@@ -99,7 +97,7 @@ def test_ax(a, expected):
     X_const = [2 <= x, x <= 4]
     Y_const = [y == 0]
 
-    K = K_repr_ax(ax, y)
+    K = K_repr_ax(ax)
     prob = cp.Problem(*minimax_to_min(K, X_const, Y_const))
     prob.solve()
     assert prob.status == cp.OPTIMAL
@@ -126,7 +124,7 @@ def test_by(b_neg, y_val):
     X_const = [x == 0]
     Y_const = [y == y_val]
 
-    K = K_repr_by(by, x)
+    K = K_repr_by(by)
     prob = cp.Problem(*minimax_to_min(K, X_const, Y_const))
     prob.solve()
     assert prob.status == cp.OPTIMAL
@@ -222,7 +220,7 @@ def test_minimax_to_min():
         u == 0,
         t == 0
     ]
-    K = KRepresentation(
+    K = SwitchableKRepresentation(
         f=f,
         t=t,
         u_or_Q=u,
@@ -236,9 +234,22 @@ def test_minimax_to_min():
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
     # assert np.allclose(x.value, np.array([0.5, 0.5]))
-    for v in min_prob.variables():
-        print(v, v.value)
     # assert np.allclose(y.value, np.array([0.5, 0.5]))
+
+
+def test_saddle_composition():
+    x = cp.Variable()
+    y = cp.Variable()
+
+    objective = MinimizeMaximize(x + x*y)
+    constraints = [
+        -1 <= x, x <= 1,
+        -1 <= y, y <= 1
+    ]
+    prob = SaddleProblem(objective, constraints)
+    prob.solve()
+    assert prob.status == cp.OPTIMAL
+    assert np.isclose(prob.value, 0)
 
 
 def test_minimax_to_min_weighted_log_sum_exp():
@@ -324,14 +335,13 @@ def test_weighted_sum_exp(n):
     assert np.isclose(min_prob.value, n * np.e)
 
 
-def test_weighted_sum_exp_with_switching():
-    n = 2
+@pytest.mark.parametrize('n', [1, 2, 3, 4, 20])
+def test_weighted_sum_exp_with_switching(n):
+
     x = cp.Variable(n, name='x')
     y = cp.Variable(n, name='y', nonneg=True)
 
-    F = cp.exp(x)
-
-    K = K_repr_y_Fx(F, y)
+    K = K_repr_y_Fx(cp.exp(y), x)  # We want the final problem to be concave in y
 
     X_constraints = [
         x == 1
@@ -340,11 +350,25 @@ def test_weighted_sum_exp_with_switching():
         y == 1,
     ]
 
-    K = switch_convex_concave(K)
-    min_prob = cp.Problem(*minimax_to_min(K, Y_constraints, X_constraints))
+    # We do not need this case in practice, as we rather construct x_Gy instead, see below
+
+    var_to_mat_mapping, _, _, = get_cone_repr(K.constraints, K.constraints[0].variables())
+    Q = var_to_mat_mapping['eta']
+    K = SwitchableKRepresentation(K.f, K.t, K.x, K.y, K.constraints, Q)
+
+    K_switched = switch_convex_concave(K)
+
+    min_prob = cp.Problem(*minimax_to_min(K_switched, X_constraints, Y_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
     assert np.isclose(min_prob.value, -n * np.e)
+
+    # Using x_Gy instead of switched y_Fx
+    K_x_Gy = K_repr_x_Gy(-cp.exp(y), x)
+    min_prob_x_Gy = cp.Problem(*minimax_to_min(K_x_Gy, X_constraints, Y_constraints))
+    min_prob_x_Gy.solve()
+    assert min_prob_x_Gy.status == cp.OPTIMAL
+    assert np.isclose(min_prob_x_Gy.value, -n * np.e)
 
 
 # def test_scalar_bilinear():
@@ -421,3 +445,28 @@ def test_robust_ols():
     # plt.plot(A[:, 1], A @ ols_vals, label='OLS', color='orange')
     # plt.legend()
     # plt.show()
+
+
+def test_constant():
+    obj = MinimizeMaximize(10)
+    problem = SaddleProblem(obj)
+    problem.solve()
+    assert problem.value == 10
+
+
+def test_variable():
+    k = cp.Variable(name='k')
+    with pytest.raises(AffineVariableError, match='Specify curvature'):
+        MinimizeMaximize(k)
+
+    constraints = [-10 <= k, k <= 10]
+
+    obj = MinimizeMaximize(k, minimization_vars={k})
+    problem = SaddleProblem(obj, constraints)
+    problem.solve()
+    assert problem.value == -10
+
+    obj = MinimizeMaximize(k, maximization_vars={k})
+    problem = SaddleProblem(obj, constraints)
+    problem.solve()
+    assert problem.value == 10

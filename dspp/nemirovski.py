@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 
 import numpy as np
@@ -11,17 +12,71 @@ from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
 
 
-@dataclass
 class KRepresentation:
-    f: cp.Variable
-    t: cp.Variable
-    u_or_Q: cp.Variable | sp.base
-    x: cp.Variable
-    y: cp.Variable
-    constraints: list[Constraint]
+
+    def __init__(self, f: cp.Expression | cp.Variable,
+                 t: cp.Expression | cp.Variable,
+                 x: cp.Expression | cp.Variable,
+                 y: cp.Expression | cp.Variable,
+                 constraints: list[Constraint],
+                 offset: float = 0.0):
+        self.f = f
+        self.t = t
+        self.x = x
+        self.y = y
+        self.constraints = constraints
+        self.offset = offset
+
+    @classmethod
+    def sum_of_K_reprs(cls, reprs: list[KRepresentation]) -> KRepresentation:
+        assert len(reprs) >= 1
+
+        f = cp.sum([K.f for K in reprs])
+        t = cp.sum([K.t for K in reprs])
+
+        all_constraints = [K.constraints for K in reprs]
+        constraints = list(itertools.chain.from_iterable(all_constraints))
+
+        x = cp.sum([K.x for K in reprs])
+        y = cp.sum([K.y for K in reprs])
+        offset = np.sum([K.offset for K in reprs])
+
+        return KRepresentation(
+            f=f,
+            t=t,
+            x=x,
+            y=y,
+            constraints=constraints,
+            offset=offset
+        )
+
+    @classmethod
+    def constant_repr(cls, value: float | int) -> KRepresentation:
+        return KRepresentation(
+            f=cp.Constant(0),
+            t=cp.Constant(0),
+            x=cp.Constant(0),
+            y=cp.Constant(0),
+            constraints=[],
+            offset=float(value),
+        )
 
 
-def switch_convex_concave(K_in: KRepresentation) -> KRepresentation:
+@dataclass
+class SwitchableKRepresentation(KRepresentation):
+
+    def __init__(self, f: cp.Expression | cp.Variable,
+                 t: cp.Expression | cp.Variable,
+                 x: cp.Expression | cp.Variable,
+                 y: cp.Expression | cp.Variable,
+                 constraints: list[Constraint],
+                 u_or_Q: cp.Variable | sp.base,
+                 offset: float = 0.0):
+        super().__init__(f, t, x, y, constraints, offset)
+        self.u_or_Q = u_or_Q
+
+
+def switch_convex_concave(K_in: SwitchableKRepresentation) -> KRepresentation:
     # Turn phi(x,y) into \bar{phi}(\bar{x},\bar{y}) = -phi(x,y)
     # with \bar{x} = y, \bar{y} = x
 
@@ -37,7 +92,7 @@ def switch_convex_concave(K_in: KRepresentation) -> KRepresentation:
                                                              var_list
                                                              )
     u_bar = cp.Variable(len(const_vec))
-    u_bar_const = add_cone_constraints(u_bar, cone_dims)
+    u_bar_const = add_cone_constraints(u_bar, cone_dims, dual=True)
 
     if isinstance(K_in.u_or_Q, cp.Variable):
         assert var_to_mat_mapping['eta'].size == 0
@@ -47,7 +102,6 @@ def switch_convex_concave(K_in: KRepresentation) -> KRepresentation:
         assert var_to_mat_mapping['eta'].shape == Q.shape
 
     P = var_to_mat_mapping[K_in.f.id]
-    p = var_to_mat_mapping[K_in.t.id].flatten()
     R = var_to_mat_mapping[K_in.x.id]
     s = const_vec
 
@@ -59,16 +113,20 @@ def switch_convex_concave(K_in: KRepresentation) -> KRepresentation:
     constraints = [
         f_bar == -R.T @ u_bar,
         t_bar == s @ u_bar,
-        Q.T @ u_bar == 0,
-        p @ u_bar + 1 == 0,
         P.T @ u_bar + x_bar == 0,
         *u_bar_const
     ]
 
+    if len(K_in.t.variables()) > 0:
+        p = var_to_mat_mapping[K_in.t.id].flatten()
+        constraints.append(p @ u_bar + 1 == 0,)
+
+    if Q.shape[1] > 0:
+        constraints.append(Q.T @ u_bar == 0)
+
     return KRepresentation(
         f=f_bar,
         t=t_bar,
-        u_or_Q=u_bar,
         x=x_bar,
         y=y_bar,
         constraints=constraints
@@ -93,38 +151,47 @@ def log_sum_exp_K_repr(x: cp.Variable, y: cp.Variable):
         t >= -u - 1
     ]
 
-    return KRepresentation(
+    return SwitchableKRepresentation(
         f=f,
         t=t,
-        u_or_Q=u,
         x=x,
         y=y,
-        constraints=constraints
+        constraints=constraints,
+        u_or_Q=u
     )
 
 
 def minimax_to_min(K: KRepresentation,
                    X_constraints: list[Constraint],
                    Y_constraints: list[Constraint]) -> (Objective, list[Constraint]):
-    var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints, [K.y])
-    lamb = cp.Variable(len(e), name='lamb')
-    lamb_const = add_cone_constraints(lamb, cone_dims, dual=True)
 
-    C = var_id_to_mat[K.y.id]
-    D = var_id_to_mat['eta']
-
-    obj = cp.Minimize(lamb @ e + K.t)
+    # Convex part
+    obj = K.t + K.offset
 
     constraints = [
         *K.constraints,
-        C.T @ lamb == K.f,
-        *lamb_const,
         *X_constraints,
     ]
-    if D.shape[1] > 0:
-        constraints.append(D.T @ lamb == 0)
 
-    return obj, constraints
+    # Concave part
+    # this case is only skipped if K.y is zero, i.e., if it's a purely convex problem
+    if len(K.y.variables()) > 0:
+        var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints, [K.y])
+        lamb = cp.Variable(len(e), name='lamb')
+        lamb_const = add_cone_constraints(lamb, cone_dims, dual=True)
+
+        C = var_id_to_mat[K.y.id]
+        D = var_id_to_mat['eta']
+
+        if D.shape[1] > 0:
+            constraints.append(D.T @ lamb == 0)
+
+        constraints += [C.T @ lamb == K.f,
+                        *lamb_const]
+
+        obj += lamb @ e
+
+    return cp.Minimize(obj), constraints
 
 
 def K_repr_y_Fx(F: cp.Expression, y: cp.Variable) -> KRepresentation:
@@ -137,20 +204,15 @@ def K_repr_y_Fx(F: cp.Expression, y: cp.Variable) -> KRepresentation:
     # assert y.is_nonneg()
 
     f = cp.Variable(F.size, name='f_bilin')
-    t = cp.Variable(name='t_bilin_y_Fx')
+    # t = cp.Variable(name='t_bilin_y_Fx')
 
     constraints = [
-        t == 0,
         f >= F
     ]
 
-    var_to_mat_mapping, _, _, = get_cone_repr(constraints, [x, f, t])
-    T_bar = var_to_mat_mapping['eta']
-
     return KRepresentation(
         f=f,
-        t=t,
-        u_or_Q=T_bar,
+        t=cp.Constant(0),
         x=x,
         y=y,
         constraints=constraints
@@ -178,7 +240,7 @@ def K_repr_x_Gy(G: cp.Expression, x: cp.Variable) -> KRepresentation:
     R_bar = var_to_mat_mapping_dual[y.id]
 
     lamb = cp.Variable(len(s))
-    lamb_constr = add_cone_constraints(lamb, cone_dims)
+    lamb_constr = add_cone_constraints(lamb, cone_dims, dual=True)
 
     f = cp.Variable(y.size, name='f_bilin_x_Gy')
     t = cp.Variable(name='t_bilin_x_Gy')
@@ -193,20 +255,16 @@ def K_repr_x_Gy(G: cp.Expression, x: cp.Variable) -> KRepresentation:
     if Q_bar.shape[1] > 0:
         K_constr.append(Q_bar.T @ lamb == 0)
 
-    var_to_mat_mapping_final, _, _ = get_cone_repr(K_constr, [f, t, x])
-    Q = var_to_mat_mapping_final['eta']
-
     return KRepresentation(
         f=f,
         t=t,
-        u_or_Q= Q,
         x=x,
         y=y,
         constraints=K_constr
     )
 
 
-def K_repr_ax(a: cp.Expression, y: cp.Variable) -> KRepresentation:
+def K_repr_ax(a: cp.Expression) -> KRepresentation:
     assert len(a.variables()) == 1
     assert a.is_convex()
     x = a.variables()[0]
@@ -220,20 +278,16 @@ def K_repr_ax(a: cp.Expression, y: cp.Variable) -> KRepresentation:
         f == 0
     ]
 
-    var_to_mat_mapping, _, _, = get_cone_repr(constraints, [x, f, t])
-    Q_bar = var_to_mat_mapping['eta']
-
     return KRepresentation(
         f=f,
         t=t,
-        u_or_Q=Q_bar,
         x=x,
-        y=y,
+        y=cp.Constant(0),
         constraints=constraints
     )
 
 
-def K_repr_by(b_neg: cp.Expression, x: cp.Variable) -> KRepresentation:
+def K_repr_by(b_neg: cp.Expression) -> KRepresentation:
     assert len(b_neg.variables()) == 1
     assert b_neg.is_concave()
     y = b_neg.variables()[0]
@@ -267,22 +321,17 @@ def K_repr_by(b_neg: cp.Expression, x: cp.Variable) -> KRepresentation:
     if Q_bar.shape[1] > 0:
         K_constr.append(Q_bar.T @ u == 0)
 
-    var_to_mat_mapping_final, second_const, second_cone_dims = get_cone_repr(K_constr, [f, t])
-    # assert var_to_mat_mapping_final[x.id].shape[1] == 0
-    Q = var_to_mat_mapping_final['eta']
-
     return KRepresentation(
         f=f,
         t=t,
-        u_or_Q=Q,
-        x=x,
+        x=cp.Constant(0),
         y=y,
         constraints=K_constr
     )
 
 
-def get_cone_repr(const: list[Constraint], vars: list[cp.Variable]):
-    assert set(vars) <= {v for c in const for v in c.variables()}
+def get_cone_repr(const: list[Constraint], exprs: list[cp.Variable | cp.Expression]):
+    assert {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}
     aux_prob = cp.Problem(cp.Minimize(0), const)
     solver_opts = {"use_quad_obj": False}
     chain = aux_prob._construct_chain(solver_opts=solver_opts)
@@ -300,11 +349,17 @@ def get_cone_repr(const: list[Constraint], vars: list[cp.Variable]):
     var_id_to_col = problem_data[0]['param_prob'].var_id_to_col
 
     var_to_mat_mapping = {}
-    for v in vars:
-        start_ind = var_id_to_col[v.id]
-        end_ind = start_ind + v.size
-        original_cols = np.arange(start_ind, end_ind)
-        var_to_mat_mapping[v.id] = -A[:, original_cols]
+    for e in exprs:
+        if not e.variables():
+            continue
+
+        original_cols = np.array([], dtype=int)
+        for v in e.variables():
+            start_ind = var_id_to_col[v.id]
+            end_ind = start_ind + v.size
+            original_cols = np.append(original_cols, np.arange(start_ind, end_ind))
+
+        var_to_mat_mapping[e.id] = -A[:, original_cols]
         unused_mask[original_cols] = 0
 
     var_to_mat_mapping['eta'] = -A[:, unused_mask]
@@ -352,16 +407,3 @@ def add_cone_constraints(s, cone_dims, dual: bool) -> list[Constraint]:
     assert offset == s.size
 
     return s_const
-
-
-def get_original_variable_cols(variables, prob_canon) -> list[int]:
-    end_inds = sorted(prob_canon.var_id_to_col.values()) + [prob_canon.x.shape[0]]
-
-    main_var_inds = []
-
-    for var in variables:
-        start_ind = prob_canon.var_id_to_col[var.id]
-        end_ind = end_inds[end_inds.index(start_ind) + 1]
-        main_var_inds.append(range(start_ind, end_ind))
-
-    return np.hstack(main_var_inds)

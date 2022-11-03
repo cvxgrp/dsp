@@ -3,66 +3,113 @@ from __future__ import annotations
 import numpy as np
 
 import cvxpy as cp
-from cvxpy.atoms.affine.binary_operators import MulExpression
 from cvxpy.constraints.constraint import Constraint
-from dspp.nemirovski import minimax_to_min, K_repr_x_Gy
+from dspp.nemirovski import minimax_to_min, KRepresentation, K_repr_by
+
+
+class AffineVariableError(Exception):
+    pass
+
+
+class Parser:
+    def __init__(self, convex_vars: set[cp.Variable],
+                 concave_vars: set[cp.Variable],
+                 _K_repr: KRepresentation | None = None):
+        self._convex_vars = convex_vars
+        self._concave_vars = concave_vars
+        self._affine_vars = {}
+
+    @property
+    def convex_vars(self):
+        assert not self._affine_vars, self._affine_error_message()
+        return self._convex_vars
+
+    @property
+    def concave_vars(self):
+        assert not self._affine_vars, self._affine_error_message()
+        return self._concave_vars
+
+    def _affine_error_message(self) -> str:
+        return f'Cannot resolve curvature of variables {[v.name() for v in self._affine_vars]}. ' \
+               f'Specify curvature of these variables as ' \
+               f'MinimizeMaximize(expr, minimization_vars, maximization_vars).'
+
+    def parse_expr(self, expr: cp.Expression) -> KRepresentation:
+        if isinstance(expr, cp.Constant):
+            assert expr.shape == ()
+            return KRepresentation.constant_repr(expr.value)
+        elif isinstance(expr, (float, int)):
+            return KRepresentation.constant_repr(expr)
+        elif isinstance(expr, cp.Variable):
+            assert expr.shape == ()
+            if expr in self._convex_vars:
+                return KRepresentation(
+                    f=cp.Constant(0),
+                    t=expr,
+                    x=cp.Constant(0),
+                    y=cp.Constant(0),
+                    constraints=[],
+                )
+            elif expr in self._concave_vars:
+                return K_repr_by(expr)
+            else:
+                raise AffineVariableError(f'Variable {expr.name()} is affine in the objective.'
+                                          f'Specify curvature of these variable as '
+                                          f'maximization or minimization variable in '
+                                          f'MinimizeMaximize.')
+        else:
+            raise TypeError(f'Cannot parse {expr=}')
 
 
 class MinimizeMaximize:
 
-    def __init__(self, inner_product: cp.Expression):
-        assert isinstance(inner_product, MulExpression)
-        self.F_x: cp.Expression = inner_product.args[0]
-        self.G_y: cp.Expression = inner_product.args[1]
-        self.x_vars = self.F_x.variables()
-        self.y_vars = self.G_y.variables()
-        self._validate_arguments(inner_product)
+    def __init__(self, expr: cp.Expression, minimization_vars=None, maximization_vars=None):
 
-    def _validate_arguments(self, inner_product):
-        assert inner_product.shape == ()
-        assert self.F_x.is_convex()
-        assert self.G_y.is_concave()
-        # assert (self.F_x.is_nonneg() and self.G_y.is_nonneg())
-               # (self.F_x.is_nonpos() and self.F_y.is_nonpos())
-        assert not (set(self.x_vars) & set(self.y_vars))
-        assert len(self.x_vars) == 1
-        assert len(self.y_vars) == 1
+        self._validate_arguments(expr)
+
+        if minimization_vars is None:
+            minimization_vars = set()
+        else:
+            minimization_vars = set(minimization_vars)
+
+        if maximization_vars is None:
+            maximization_vars = set()
+        else:
+            maximization_vars = set(maximization_vars)
+
+        parser = Parser(minimization_vars, maximization_vars)
+
+        self.K_repr = parser.parse_expr(expr)
+        self.x_vars = parser.convex_vars
+        self.y_vars = parser.concave_vars
+        self._validate_arguments(expr)
+
+    @staticmethod
+    def _validate_arguments(expr):
+        if isinstance(expr, cp.Expression):
+            assert expr.shape == ()
+        elif isinstance(expr, (float, int)):
+            pass
+        else:
+            raise TypeError(f'Cannot parse {expr=}')
 
 
 class SaddleProblem(cp.Problem):
     def __init__(self, objective: MinimizeMaximize, constraints=None):
-        if constraints is None:
-            constraints = []
         self.minmax_objective = objective
+        self._validate_arguments()
         self.x_vars = objective.x_vars
         self.y_vars = objective.y_vars
-        self._validate_arguments()
+
+        if constraints is None:
+            constraints = []
+        else:
+            constraints = list(constraints)  # copy
+
         self.x_constraints, self.y_constraints = self._split_constraints(constraints)
 
-        # x = self.x_vars[0]
-        #
-        # dual_constr_x = [self.minmax_objective.F_x <= z]
-        #
-        # var_to_mat_mapping, s_hat, cone_dims = get_cone_repr(dual_constr_x, [z, x])
-        #
-        # R_hat = var_to_mat_mapping[x.id]
-        # S_hat = var_to_mat_mapping[z.id]
-        # Q_hat = var_to_mat_mapping['eta']
-        #
-        # x_cone_repr = R_hat @ x + S_hat @ z + s_hat
-        # if Q_hat.shape[1] > 0:
-        #     v = cp.Variable(Q_hat.shape[1])
-        #     x_cone_repr += Q_hat @ v
-        #
-        # x_cone_const = add_cone_constraints(x_cone_repr, cone_dims)
-
-
-        z = cp.Variable(self.minmax_objective.F_x.shape)
-        epigraph_constraint = [z >= self.minmax_objective.F_x]
-
-        K = K_repr_x_Gy(self.minmax_objective.G_y, z)
-        single_obj, constraints = minimax_to_min(K,
-                                                 self.x_constraints + epigraph_constraint,
+        single_obj, constraints = minimax_to_min(self.minmax_objective.K_repr,
+                                                 self.x_constraints,
                                                  self.y_constraints
                                                  )
 
