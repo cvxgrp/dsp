@@ -50,6 +50,16 @@ class KRepresentation:
             offset=offset
         )
 
+    def scalar_multiply(self, scalar: float) -> KRepresentation:
+        return KRepresentation(
+            f=self.f * scalar,
+            t=self.t * scalar,
+            x=self.x,
+            y=self.y,
+            constraints=self.constraints,
+            offset=self.offset * scalar
+        )
+
     @classmethod
     def constant_repr(cls, value: float | int) -> KRepresentation:
         return KRepresentation(
@@ -76,95 +86,9 @@ class SwitchableKRepresentation(KRepresentation):
         self.u_or_Q = u_or_Q
 
 
-def switch_convex_concave(K_in: SwitchableKRepresentation) -> KRepresentation:
-    # Turn phi(x,y) into \bar{phi}(\bar{x},\bar{y}) = -phi(x,y)
-    # with \bar{x} = y, \bar{y} = x
-
-    assert isinstance(K_in.u_or_Q, (cp.Variable, np.ndarray))
-
-    var_list = [K_in.f,
-                K_in.t,
-                K_in.x]
-    if isinstance(K_in.u_or_Q, cp.Variable):
-        var_list.append(K_in.u_or_Q)
-
-    var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(K_in.constraints,
-                                                             var_list
-                                                             )
-    u_bar = cp.Variable(len(const_vec))
-    u_bar_const = add_cone_constraints(u_bar, cone_dims, dual=True)
-
-    if isinstance(K_in.u_or_Q, cp.Variable):
-        assert var_to_mat_mapping['eta'].size == 0
-        Q = var_to_mat_mapping[K_in.u_or_Q.id]
-    else:
-        Q = K_in.u_or_Q
-        assert var_to_mat_mapping['eta'].shape == Q.shape
-
-    P = var_to_mat_mapping[K_in.f.id]
-    R = var_to_mat_mapping[K_in.x.id]
-    s = const_vec
-
-    f_bar = cp.Variable(K_in.x.size, name='f_bar')
-    t_bar = cp.Variable(name='t_bar')
-    x_bar = K_in.y
-    y_bar = K_in.x
-
-    constraints = [
-        f_bar == -R.T @ u_bar,
-        t_bar == s @ u_bar,
-        P.T @ u_bar + x_bar == 0,
-        *u_bar_const
-    ]
-
-    if len(K_in.t.variables()) > 0:
-        p = var_to_mat_mapping[K_in.t.id].flatten()
-        constraints.append(p @ u_bar + 1 == 0,)
-
-    if Q.shape[1] > 0:
-        constraints.append(Q.T @ u_bar == 0)
-
-    return KRepresentation(
-        f=f_bar,
-        t=t_bar,
-        x=x_bar,
-        y=y_bar,
-        constraints=constraints
-    )
-
-
-def log_sum_exp_K_repr(x: cp.Variable, y: cp.Variable):
-    # log sum_i y_i exp(x_i)
-    # min. f, t, u    f @ y + t
-    # subject to      f >= exp(x+u)
-    #                 t >= -u-1
-
-    assert len(x.shape) == 1
-    assert x.shape == y.shape
-
-    f = cp.Variable(y.size, name='f')
-    t = cp.Variable(name='t')
-    u = cp.Variable(name='u')
-
-    constraints = [
-        ExpCone(x + u, np.ones(f.size), f),
-        t >= -u - 1
-    ]
-
-    return SwitchableKRepresentation(
-        f=f,
-        t=t,
-        x=x,
-        y=y,
-        constraints=constraints,
-        u_or_Q=u
-    )
-
-
 def minimax_to_min(K: KRepresentation,
                    X_constraints: list[Constraint],
                    Y_constraints: list[Constraint]) -> (Objective, list[Constraint]):
-
     # Convex part
     obj = K.t + K.offset
 
@@ -270,7 +194,7 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
     x = a.variables()[0]
     assert a.ndim == 0
 
-    f = cp.Variable(a.size, name='f_ax')
+    f = cp.Variable(name='f_ax')  # TODO: can we remove this variable?
     t = cp.Variable(name='t_ax')
 
     constraints = [
@@ -287,7 +211,21 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
     )
 
 
-def K_repr_by(b_neg: cp.Expression) -> KRepresentation:
+class LocalToGlob:
+    def __init__(self, variables: list[cp.Variable]):
+        offset = 0
+
+        for var in variables:
+            assert var.ndim <= 1 or (var.ndim == 2 and min(var.shape) == 1)
+            # TODO: ensure matrix variables are flattened correctly
+
+            self.var_to_glob = {var.id: (offset, offset + var.size)}
+            offset += var.size
+
+        self.size = offset
+
+
+def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
     assert len(b_neg.variables()) == 1
     assert b_neg.is_concave()
     y = b_neg.variables()[0]
@@ -303,7 +241,10 @@ def K_repr_by(b_neg: cp.Expression) -> KRepresentation:
 
     var_to_mat_mapping, s_bar, cone_dims, = get_cone_repr(constraints, [y, t_primal])
 
-    R_bar = var_to_mat_mapping[y.id]
+    R_bar_local = var_to_mat_mapping[y.id]
+
+    R_bar = np.zeros((R_bar_local.shape[0], local_to_glob.size))
+
     p_bar = var_to_mat_mapping[t_primal.id]
     Q_bar = var_to_mat_mapping['eta']
 

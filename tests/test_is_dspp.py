@@ -3,9 +3,9 @@ import numpy as np
 import pytest
 
 import cvxpy as cp
-from dspp.nemirovski import minimax_to_min, KRepresentation, switch_convex_concave, \
-    log_sum_exp_K_repr, K_repr_y_Fx, K_repr_x_Gy, K_repr_ax, K_repr_by, add_cone_constraints, \
-    get_cone_repr, SwitchableKRepresentation
+from dspp.atoms import ConvexConcaveAtom, switch_convex_concave, WeightedLogSumExp
+from dspp.nemirovski import minimax_to_min, K_repr_y_Fx, K_repr_x_Gy, K_repr_ax, K_repr_by, \
+    add_cone_constraints, get_cone_repr, SwitchableKRepresentation
 from dspp.problem import MinimizeMaximize, SaddleProblem, AffineVariableError
 
 
@@ -229,6 +229,7 @@ def test_minimax_to_min():
         constraints=constraints
     )
 
+
     switched_K = switch_convex_concave(K)
     min_prob = cp.Problem(*minimax_to_min(switched_K, Y_constraints, X_constraints))
     min_prob.solve()
@@ -257,7 +258,9 @@ def test_minimax_to_min_weighted_log_sum_exp():
     x = cp.Variable(n, name='x')
     y = cp.Variable(n, name='y')
 
-    K = log_sum_exp_K_repr(x, y)
+    wlse = WeightedLogSumExp(x, y)
+
+    K = wlse.get_K_repr()
 
     X_constraints = [
         x == 1
@@ -280,7 +283,9 @@ def test_eval_weighted_log_sum_exp(x_val, y_val, n):
     y_value = np.ones(n) * y_val
     x_value = np.ones(n) * x_val
 
-    K = log_sum_exp_K_repr(x, y)
+    wlse = WeightedLogSumExp(x, y)
+
+    K = wlse.get_K_repr()
 
     prob = cp.Problem(cp.Minimize(K.f @ y_value + K.t),
                       [
@@ -297,7 +302,7 @@ def test_weighted_log_sum_exp_with_switching():
     x = cp.Variable(n, name='x')
     y = cp.Variable(n, name='y')
 
-    K = log_sum_exp_K_repr(x, y)
+    wsle = WeightedLogSumExp(x, y)
 
     X_constraints = [
         x == 1
@@ -306,7 +311,7 @@ def test_weighted_log_sum_exp_with_switching():
         y == 1
     ]
 
-    K_switched = switch_convex_concave(K)
+    K_switched = switch_convex_concave(wsle.get_K_repr())
     min_prob = cp.Problem(*minimax_to_min(K_switched, Y_constraints, X_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
@@ -456,31 +461,86 @@ def test_constant():
 
 def test_variable():
     k = cp.Variable(name='k')
-    with pytest.raises(AffineVariableError, match='Specify curvature'):
-        MinimizeMaximize(k)
-
     constraints = [-10 <= k, k <= 10]
 
-    obj = MinimizeMaximize(k, minimization_vars={k})
+    obj = MinimizeMaximize(k)
+    with pytest.raises(ValueError, match="Cannot split"):
+        SaddleProblem(obj, constraints)
+
+    with pytest.raises(AssertionError, match="Cannot resolve"):
+        SaddleProblem(obj, [])
+
+    problem = SaddleProblem(obj, constraints, minimization_vars={k})
+    problem.solve()
+    assert problem.value == -10
+
+    problem = SaddleProblem(obj, constraints, maximization_vars={k})
+    problem.solve()
+    assert problem.value == 10
+
+    # No need to specify when convex/concave terms are present
+    obj = MinimizeMaximize(k + 1e-10 * cp.pos(k))
     problem = SaddleProblem(obj, constraints)
     problem.solve()
     assert problem.value == -10
 
-    obj = MinimizeMaximize(k, maximization_vars={k})
+    obj = MinimizeMaximize(k - 1e-10 * cp.pos(k))
     problem = SaddleProblem(obj, constraints)
     problem.solve()
-    assert problem.value == 10
+    assert np.isclose(problem.value, 10)
 
 
 def test_sum():
     x = cp.Variable()
     y = cp.Variable()
 
-    obj = MinimizeMaximize(x + y, minimization_vars={x}, maximization_vars={y})
+    obj = MinimizeMaximize(x + y)
     constraints = [
         -1 <= x, x <= 1,
         -2 <= y, y <= 2
     ]
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddleProblem(obj, constraints, minimization_vars={x}, maximization_vars={y})
     problem.solve()
     assert problem.value == 1
+
+
+def test_mixed_curvature_affine():
+
+    x = cp.Variable()
+    y = cp.Variable()
+
+    obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + np.array([1, 2]) @ cp.vstack([x, y]))
+
+    with pytest.raises(AssertionError, match="convex and concave"):
+        SaddleProblem(obj)
+
+
+def test_indeterminate_problem():
+    x = cp.Variable()
+    y = cp.Variable()
+    z = cp.Variable()
+    obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + z)
+    with pytest.raises(AssertionError, match="Cannot resolve"):
+        SaddleProblem(obj)
+
+    prob = SaddleProblem(obj, minimization_vars={z})
+    assert prob.x_vars == {x, z}
+    assert prob.y_vars == {y}
+
+
+def test_stacked_variables():
+    x1 = cp.Variable(2)
+    x2 = cp.Variable()
+    y1 = cp.Variable()
+    y2 = cp.Variable(2)
+
+    obj = MinimizeMaximize(cp.sum(cp.exp(x1)) + cp.square(x2) + cp.log(y1) + cp.sum(cp.sqrt(y2)))
+    constraints = [
+        -1 <= x1, x1 <= 1,
+        -2 <= x2, x2 <= 2,
+        1 <= y1, y1 <= 3,
+        1 <= y2, y2 <= 3
+    ]
+    problem = SaddleProblem(obj, constraints)
+    problem.solve()
+    assert np.isclose(problem.value, 2*np.exp(-1) + np.log(3) + 2*np.sqrt(3))
