@@ -38,6 +38,9 @@ class Parser:
             assert isinstance(expr, ConvexConcaveAtom)
             self.add_to_convex_vars(expr.get_convex_variables())
             self.add_to_concave_vars(expr.get_concave_variables())
+        elif isinstance(expr, AddExpression):
+            for arg in expr.args:
+                self.split_up_variables(arg)
         elif expr.is_affine():
             if set(expr.variables()) & self.convex_vars:
                 self.add_to_convex_vars(expr.variables())
@@ -49,9 +52,6 @@ class Parser:
             self.add_to_convex_vars(expr.variables())
         elif expr.is_concave():
             self.add_to_concave_vars(expr.variables())
-        elif isinstance(expr, AddExpression):
-            for arg in expr.args:
-                self.split_up_variables(arg)
         else:
             raise ValueError(f'Cannot parse {expr=} with {expr.curvature=}.')
 
@@ -89,6 +89,9 @@ class Parser:
                 return K_repr_by(expr, local_to_glob)
             else:
                 raise ValueError
+        elif isinstance(expr, dspp_atoms):
+            assert isinstance(expr, ConvexConcaveAtom)
+            return expr.get_K_repr(local_to_glob)
         elif isinstance(expr, cp.Expression):
             if isinstance(expr, AddExpression):
                 K_reprs = [self.parse_expr(arg, local_to_glob) for arg in expr.args]

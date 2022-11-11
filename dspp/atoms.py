@@ -6,14 +6,14 @@ import numpy as np
 
 import cvxpy as cp
 from cvxpy.constraints import ExpCone
-from dspp.nemirovski import SwitchableKRepresentation, KRepresentation, add_cone_constraints, \
+from dspp.nemirovski import LocalToGlob, SwitchableKRepresentation, KRepresentation, add_cone_constraints, \
     get_cone_repr
 
 
 class ConvexConcaveAtom(ABC):
 
     @abstractmethod
-    def get_K_repr(self) -> KRepresentation:
+    def get_K_repr(self) -> SwitchableKRepresentation:
         pass
 
     @abstractmethod
@@ -31,45 +31,58 @@ class ConvexConcaveAtom(ABC):
         return False
 
 
-class SwitchableConvexConcaveAtom(ConvexConcaveAtom, ABC):
+class WeightedLogSumExp(ConvexConcaveAtom):
 
-    @abstractmethod
-    def get_K_repr(self) -> SwitchableKRepresentation:
-        pass
-
-
-class WeightedLogSumExp(SwitchableConvexConcaveAtom):
-
-    def __init__(self, x: cp.Variable, y: cp.Variable):
+    def __init__(self, x: cp.Expression, y: cp.Expression):
         # log sum_i y_i exp(x_i)
         # min. f, t, u    f @ y + t
         # subject to      f >= exp(x+u)
         #                 t >= -u-1
 
-        assert isinstance(x, cp.Variable), "x must be a cvxpy.Variable, expressions can be used" \
-                                           " but not supported yet"
-        assert isinstance(y, cp.Variable), "y must be a cvxpy.Variable, expressions can be used" \
-                                           " but not supported yet"
+        assert isinstance(x, cp.Expression)
+        assert isinstance(y, cp.Expression)
+        assert x.is_affine(), "x must be affine"
+        assert y.is_affine(), "y must be affine"
+        assert y.is_nonneg(), "y must be nonneg"
 
         self.x = x
         self.y = y
 
-        assert len(x.shape) == 1
-        assert x.shape == y.shape
+        assert (len(x.shape) <= 1 or (len(x.shape) == 2 and min(x.shape) == 1)) #TODO: implement matrix inputs
+        assert (x.shape == y.shape or x.size == y.size)
 
-    def get_K_repr(self) -> SwitchableKRepresentation:
-        f = cp.Variable(self.y.size, name='f')
+    def get_K_repr(self, local_to_glob : LocalToGlob) -> SwitchableKRepresentation:
+        f_local = cp.Variable(self.y.size, name='f')
         t = cp.Variable(name='t')
         u = cp.Variable(name='u')
 
         constraints = [
-            ExpCone(self.x + u, np.ones(f.size), f),
+            ExpCone(self.x + u, np.ones(f_local.size), f_local),
             t >= -u - 1
         ]
 
+        y_vars = self.y.variables()
+        y_aux = cp.Variable(self.y.shape)
+        var_to_mat_mapping, c, cone_dims, = get_cone_repr([y_aux == self.y], [*y_vars, y_aux])
+
+        # get the equality constraints
+        rows = cone_dims.zero
+    
+        B = np.zeros((rows,local_to_glob.size))
+        for y in y_vars:
+            start, end = local_to_glob.var_to_glob[y.id]
+            B[:,start:end] = -var_to_mat_mapping[y.id][:rows]
+
+        c = c[:rows]
+
+        # f.T @ (B @ y_vars + c) = (B.T@f).T @ y_vars + f@c
+
+        # TODO: adding t with an expression means the dimensions dont make sense
+        # for p later in switching, lets make a new variable and a constraint
+
         return SwitchableKRepresentation(
-            f=f,
-            t=t,
+            f=B.T@f_local,
+            t=t + f_local@c,
             x=self.x,
             y=self.y,
             constraints=constraints,
@@ -127,7 +140,7 @@ def switch_convex_concave(K_in: SwitchableKRepresentation) -> KRepresentation:
 
     if len(K_in.t.variables()) > 0:
         p = var_to_mat_mapping[K_in.t.id].flatten()
-        constraints.append(p @ u_bar + 1 == 0, )
+        constraints.append(p @ u_bar + 1 == 0)
 
     if Q.shape[1] > 0:
         constraints.append(Q.T @ u_bar == 0)

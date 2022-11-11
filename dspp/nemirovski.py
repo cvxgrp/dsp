@@ -213,22 +213,27 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
 
 class LocalToGlob:
     def __init__(self, variables: list[cp.Variable]):
+        
+        self.size = sum(var.size for var in variables)
+        # self.y_global = cp.Variable(self.size)
+        # self.y_global_constraints = []
+        
         offset = 0
-
         for var in variables:
             assert var.ndim <= 1 or (var.ndim == 2 and min(var.shape) == 1)
             # TODO: ensure matrix variables are flattened correctly
 
             self.var_to_glob = {var.id: (offset, offset + var.size)}
+            # self.y_global_constraints += [self.y_global[offset, offset+var.size] == var]
             offset += var.size
 
-        self.size = offset
+        
 
 
 def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
-    assert len(b_neg.variables()) == 1
+    # assert len(b_neg.variables()) == 1
     assert b_neg.is_concave()
-    y = b_neg.variables()[0]
+    y_vars = b_neg.variables()
     assert b_neg.ndim == 0
 
     b = -b_neg
@@ -239,18 +244,20 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
         t_primal >= b,
     ]
 
-    var_to_mat_mapping, s_bar, cone_dims, = get_cone_repr(constraints, [y, t_primal])
-
-    R_bar_local = var_to_mat_mapping[y.id]
-
-    R_bar = np.zeros((R_bar_local.shape[0], local_to_glob.size))
+    var_to_mat_mapping, s_bar, cone_dims, = get_cone_repr(constraints, [*y_vars, t_primal])
 
     p_bar = var_to_mat_mapping[t_primal.id]
     Q_bar = var_to_mat_mapping['eta']
 
-    f = cp.Variable(R_bar.shape[1], name='f_by')
     u = cp.Variable(p_bar.shape[0], name='u_by')
     t = cp.Variable(name='t_by')
+    
+    R_bar = np.zeros((p_bar.shape[0], local_to_glob.size))
+    f = cp.Variable(p_bar.shape[0], name='f_by')
+    
+    for y in y_vars:
+        start, end = local_to_glob.var_to_glob[y.id]
+        R_bar[:, start:end] = var_to_mat_mapping[y.id]
 
     K_constr = [
         f == -R_bar.T @ u,
