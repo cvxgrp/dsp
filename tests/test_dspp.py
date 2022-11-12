@@ -302,24 +302,49 @@ def test_eval_weighted_log_sum_exp_affine_sum():
     assert min_prob.status == cp.OPTIMAL
     assert np.isclose(min_prob.value, np.log((sum(a)*y_val+1)*np.exp(x_val)))
 
-@pytest.mark.parametrize('x_val,y_val,c',[(0,1,1),(1,0.5,1),(1,1,1),(5,5,2),(3,2,3)])
-def test_wlse_multi_var_parse(x_val, y_val,c):
+
+@pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1), (1, 0.5, 1), (1, 1, 1), (5, 5, 2), (3, 2, 3)])
+def test_wlse_multi_var(x_val, y_val, c):
     x1 = cp.Variable(nonneg=True)
     x2 = cp.Variable()
 
     y = cp.Variable(3, nonneg=True)
 
     a = np.array([2, 1])
-    wlse = WeightedLogSumExp(a@y[:2]+c, x1)
+    wlse = WeightedLogSumExp(x1, a@y[:2]+c)
 
-    obj = MinimizeMaximize(-wlse + cp.exp(x2) + cp.log(y[2]))
+    obj = MinimizeMaximize(wlse + cp.exp(x2) + cp.log(y[2]))
     x_constraints = [x1 >= x_val, x2 >= x_val]
     y_constraints = [y <= y_val]
 
     prob = SaddleProblem(obj, x_constraints + y_constraints)
     prob.solve()
     assert prob.status == cp.OPTIMAL
-    assert np.isclose(prob.value, -np.log((sum(a)*y_val+c)*np.exp(x_val))+np.exp(x_val)+np.log(y_val))
+    assert np.isclose(prob.value, np.log((sum(a)*y_val+c) *
+                      np.exp(x_val))+np.exp(x_val)+np.log(y_val))
+
+
+@pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1)])
+def test_neg_wlse(x_val, y_val, c):
+    x1 = cp.Variable(nonneg=True)
+    # x2 = cp.Variable()
+
+    # y = cp.Variable(3, nonneg=True)
+    y1 = cp.Variable(nonneg=True)
+
+    # a = np.array([2, 1])
+    # wlse = WeightedLogSumExp(x1, a@y[:2]+c)
+    wlse = WeightedLogSumExp(y1, x1)
+
+    # obj = MinimizeMaximize(wlse + cp.exp(x2) + cp.log(y[2]))
+    obj = MinimizeMaximize(-wlse)
+    x_constraints = [10 >= x1, x1 >= x_val]  # , x2 >= x_val]
+    y_constraints = [.1 <= y1, y1 <= y_val]
+
+    prob = SaddleProblem(obj, x_constraints + y_constraints)
+    prob.solve()
+    assert prob.status == cp.OPTIMAL
+    assert np.isclose(prob.value, -np.log(x_val*np.exp(y_val)))
 
 
 def test_weighted_log_sum_exp_with_switching():
@@ -338,7 +363,7 @@ def test_weighted_log_sum_exp_with_switching():
 
     ltg = LocalToGlob([y])
 
-    K_switched = switch_convex_concave(wsle.get_K_repr(ltg))
+    K_switched = switch_convex_concave(wsle.get_K_repr(ltg, switched=False))
     min_prob = cp.Problem(*minimax_to_min(K_switched, Y_constraints, X_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
