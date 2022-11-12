@@ -3,9 +3,9 @@ from __future__ import annotations
 import itertools
 from dataclasses import dataclass
 
+import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
-import cvxpy as cp
 from cvxpy import SOC
 from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
@@ -253,7 +253,7 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
     t = cp.Variable(name='t_by')
     
     R_bar = np.zeros((p_bar.shape[0], local_to_glob.size))
-    f = cp.Variable(p_bar.shape[0], name='f_by')
+    f = cp.Variable(local_to_glob.size, name='f_by')
     
     for y in y_vars:
         start, end = local_to_glob.var_to_glob[y.id]
@@ -355,3 +355,22 @@ def add_cone_constraints(s, cone_dims, dual: bool) -> list[Constraint]:
     assert offset == s.size
 
     return s_const
+
+def affine_to_canon(y_expr : cp.Expression, local_to_glob : LocalToGlob) -> (np.ndarray, np.ndarray):
+    y_vars = y_expr.variables()
+    y_aux = cp.Variable(y_expr.shape)
+    var_to_mat_mapping, c, cone_dims, = get_cone_repr([y_aux == y_expr], [*y_vars, y_aux])
+
+    # get the equality constraints
+    rows = cone_dims.zero
+    assert rows == y_expr.size
+
+    B = np.zeros((rows,local_to_glob.size))
+    for y in y_vars:
+        start, end = local_to_glob.var_to_glob[y.id]
+        B[:,start:end] = -var_to_mat_mapping[y.id][:rows]
+
+    c = c[:rows]
+
+    return B, c
+

@@ -9,8 +9,8 @@ from cvxpy import multiply
 from cvxpy.atoms.affine.add_expr import AddExpression
 from cvxpy.constraints.constraint import Constraint
 from dspp.atoms import dspp_atoms, ConvexConcaveAtom, switch_convex_concave
-from dspp.nemirovski import minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob
-
+from dspp.cone_transforms import minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob
+from cvxpy.atoms.affine.unary_operators import NegExpression
 
 class AffineVariableError(Exception):
     pass
@@ -52,6 +52,22 @@ class Parser:
             self.add_to_convex_vars(expr.variables())
         elif expr.is_concave():
             self.add_to_concave_vars(expr.variables())
+        elif isinstance(expr, NegExpression):
+            dspp_atom = expr.args[0]
+            assert isinstance(dspp_atom, ConvexConcaveAtom)
+            self.add_to_concave_vars(dspp_atom.get_convex_variables())
+            self.add_to_convex_vars(dspp_atom.get_concave_variables())
+        elif isinstance(expr, multiply):
+            s = expr.args[0]
+            assert isinstance(s, cp.Constant)
+            dspp_atom = expr.args[1]
+            assert isinstance(dspp_atom, ConvexConcaveAtom)
+            if s.is_nonneg():
+                self.add_to_convex_vars(dspp_atom.get_convex_variables())
+                self.add_to_concave_vars(dspp_atom.get_concave_variables())
+            else:
+                self.add_to_concave_vars(dspp_atom.get_convex_variables())
+                self.add_to_convex_vars(dspp_atom.get_concave_variables())
         else:
             raise ValueError(f'Cannot parse {expr=} with {expr.curvature=}.')
 
@@ -68,6 +84,7 @@ class Parser:
                                                     'convex and concave set.'
         self.affine_vars -= variables
         self.concave_vars |= variables
+        
 
     def parse_expr(self, expr: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
         if isinstance(expr, cp.Constant):
@@ -110,6 +127,10 @@ class Parser:
                 return K_repr_ax(expr)
             elif expr.is_concave():
                 return K_repr_by(expr, local_to_glob)
+            elif isinstance(expr, NegExpression):
+                dspp_atom = expr.args[0]
+                assert isinstance(dspp_atom, ConvexConcaveAtom)
+                return dspp_atom.get_K_repr(local_to_glob, switched=True)
             elif isinstance(expr, multiply):
                 assert expr.shape == ()
                 assert len(expr.args) == 2

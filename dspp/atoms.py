@@ -6,11 +6,12 @@ import numpy as np
 
 import cvxpy as cp
 from cvxpy.constraints import ExpCone
-from dspp.nemirovski import LocalToGlob, SwitchableKRepresentation, KRepresentation, add_cone_constraints, \
+from cvxpy.atoms.atom import Atom
+from dspp.cone_transforms import LocalToGlob, SwitchableKRepresentation, KRepresentation, add_cone_constraints, affine_to_canon, \
     get_cone_repr
 
 
-class ConvexConcaveAtom(ABC):
+class ConvexConcaveAtom(Atom, ABC):
 
     @abstractmethod
     def get_K_repr(self) -> SwitchableKRepresentation:
@@ -24,13 +25,18 @@ class ConvexConcaveAtom(ABC):
     def get_concave_variables(self) -> list[cp.Variable]:
         pass
 
-    def is_convex(self):
+    def is_atom_convex(self):
         return False
 
-    def is_concave(self):
+    def is_atom_concave(self):
         return False
 
+    def graph_implementation(self, arg_objs, shape: Tuple[int, ...], data=None) -> Tuple[lo.LinOp, List['Constraint']]:
+        raise NotImplementedError
 
+    def _grad(self, values):
+        raise NotImplementedError
+    
 class WeightedLogSumExp(ConvexConcaveAtom):
 
     def __init__(self, x: cp.Expression, y: cp.Expression):
@@ -51,58 +57,105 @@ class WeightedLogSumExp(ConvexConcaveAtom):
         assert (len(x.shape) <= 1 or (len(x.shape) == 2 and min(x.shape) == 1)) #TODO: implement matrix inputs
         assert (x.shape == y.shape or x.size == y.size)
 
-    def get_K_repr(self, local_to_glob : LocalToGlob) -> SwitchableKRepresentation:
+        super().__init__(x, y)
+
+    def get_K_repr(self, local_to_glob : LocalToGlob, switched = False) -> SwitchableKRepresentation:
         f_local = cp.Variable(self.y.size, name='f')
         t = cp.Variable(name='t')
         u = cp.Variable(name='u')
 
         constraints = [
-            ExpCone(self.x + u, np.ones(f_local.size), f_local),
+            ExpCone(cp.reshape(self.x + u, (f_local.size,)), np.ones(f_local.size), f_local),
             t >= -u - 1
         ]
 
-        y_vars = self.y.variables()
-        y_aux = cp.Variable(self.y.shape)
-        var_to_mat_mapping, c, cone_dims, = get_cone_repr([y_aux == self.y], [*y_vars, y_aux])
 
-        # get the equality constraints
-        rows = cone_dims.zero
-        assert rows == self.y.size
-    
-        B = np.zeros((rows,local_to_glob.size))
-        for y in y_vars:
-            start, end = local_to_glob.var_to_glob[y.id]
-            B[:,start:end] = -var_to_mat_mapping[y.id][:rows]
+        if switched:
+            var_to_mat_mapping, s, cone_dims, = get_cone_repr(constraints, [f_local, t, self.x])
+            Q = var_to_mat_mapping['eta']
 
-        c = c[:rows]
+            K_repr_pre_switch = SwitchableKRepresentation(
+                f = f_local,
+                t = t,
+                y = self.y,
+                x = self.x,
+                u_or_Q = Q,
+                constraints=constraints
+            )
 
-        # f.T @ (B @ y_vars + c) = (B.T@f).T @ y_vars + f@c
-
-        t_global = cp.Variable()
-        constraints += [t_global == t + f_local@c]
-
-        f_global = cp.Variable(local_to_glob.size)
-        constraints += [f_global == B.T@f_local]
+            K_repr_local = switch_convex_concave(K_repr_pre_switch)
+            local_constr = K_repr_local.constraints
 
 
-        # TODO: deal with affine x expr similar to y
-        var_to_mat_mapping, s, cone_dims, = get_cone_repr(constraints, [f_global, t_global, self.x])
-        Q = var_to_mat_mapping['eta']
-        
-        return SwitchableKRepresentation(
-            f=f_global,
-            t=t_global,
-            x=self.x,
-            y=self.y,
-            constraints=constraints,
-            u_or_Q=Q
-        )
+            B, c = affine_to_canon(K_repr_local.y, local_to_glob)
+
+            # f.T @ (B @ y_vars + c) = (B.T@f).T @ y_vars + f@c
+
+            FuckMap = np.zeros((K_repr_local.y.size, sum(v.size for v in K_repr_local.y.variables())))
+            offset = 0
+            for v in K_repr_local.y.variables():
+                start,end = local_to_glob.var_to_glob[v.id]
+                FuckMap[:, offset:offset+v.size] = B[:,start:end] #TODO: wtf is B
+
+            # entries in f correspond to unpacked variables in y
+            # rows of B correspond to entries of y
+            # columns of B correspond to all y variables
+
+            # B.T       all var --> y
+            # FuckMap   y --> v_var     B[:,[s1]]
+
+            t_global = cp.Variable()
+            local_constr += [t_global == K_repr_local.t + K_repr_local.f@FuckMap.T@c] # TODO: fix dimension of c
+
+            f_global = cp.Variable(local_to_glob.size)
+
+            local_constr += [f_global == B.T@FuckMap@K_repr_local.f]
+
+            return KRepresentation(
+                f=f_global,
+                t=t_global,
+                x=K_repr_local.x,
+                y=K_repr_local.y,
+                constraints=local_constr,    
+            )
+        else:
+            B, c = affine_to_canon(self.y, local_to_glob) if not switched else ()
+
+            # f.T @ (B @ y_vars + c) = (B.T@f).T @ y_vars + f@c
+
+            t_global = cp.Variable()
+            constraints += [t_global == t + f_local@c]
+
+            f_global = cp.Variable(local_to_glob.size)
+            constraints += [f_global == B.T@f_local]            
+
+            return KRepresentation(
+                f=f_global,
+                t=t_global,
+                x=self.x,
+                y=self.y,
+                constraints=constraints,
+            )
 
     def get_convex_variables(self) -> list[cp.Variable]:
-        return [self.x]
+        return self.x.variables()
 
     def get_concave_variables(self) -> list[cp.Variable]:
-        return [self.y]
+        return self.y.variables()
+
+    def shape_from_args(self) -> Tuple[int, ...]:
+        return ()
+
+    def sign_from_args(self) -> Tuple[bool, bool]:
+        return (False, False)
+
+    def is_incr(self, idx) -> bool:
+        return True # increasing in both arguments since y nonneg
+
+    def is_decr(self, idx) -> bool:
+        return False
+
+    
 
 
 def switch_convex_concave(K_in: SwitchableKRepresentation) -> KRepresentation:
@@ -135,7 +188,7 @@ def switch_convex_concave(K_in: SwitchableKRepresentation) -> KRepresentation:
     R = var_to_mat_mapping[K_in.x.id]
     s = const_vec
 
-    f_bar = cp.Variable(K_in.x.size, name='f_bar')
+    f_bar = cp.Variable(sum(v.size for v in K_in.x.variables()), name='f_bar')
     t_bar = cp.Variable(name='t_bar')
     x_bar = K_in.y
     y_bar = K_in.x
