@@ -67,6 +67,7 @@ class WeightedLogSumExp(ConvexConcaveAtom):
 
         # get the equality constraints
         rows = cone_dims.zero
+        assert rows == self.y.size
     
         B = np.zeros((rows,local_to_glob.size))
         for y in y_vars:
@@ -77,16 +78,24 @@ class WeightedLogSumExp(ConvexConcaveAtom):
 
         # f.T @ (B @ y_vars + c) = (B.T@f).T @ y_vars + f@c
 
-        # TODO: adding t with an expression means the dimensions dont make sense
-        # for p later in switching, lets make a new variable and a constraint
+        t_global = cp.Variable()
+        constraints += [t_global == t + f_local@c]
 
+        f_global = cp.Variable(local_to_glob.size)
+        constraints += [f_global == B.T@f_local]
+
+
+        # TODO: deal with affine x expr similar to y
+        var_to_mat_mapping, s, cone_dims, = get_cone_repr(constraints, [f_global, t_global, self.x])
+        Q = var_to_mat_mapping['eta']
+        
         return SwitchableKRepresentation(
-            f=B.T@f_local,
-            t=t + f_local@c,
+            f=f_global,
+            t=t_global,
             x=self.x,
             y=self.y,
             constraints=constraints,
-            u_or_Q=u
+            u_or_Q=Q
         )
 
     def get_convex_variables(self) -> list[cp.Variable]:
