@@ -64,21 +64,24 @@ class WeightedLogSumExp(ConvexConcaveAtom):
         t = cp.Variable(name='t')
         u = cp.Variable(name='u')
 
+        dummy_x = cp.Variable(self.x.size, name='dummy_x')
+        x = self.x if not switched else dummy_x
+
         constraints = [
-            ExpCone(cp.reshape(self.x + u, (f_local.size,)), np.ones(f_local.size), f_local),
+            ExpCone(cp.reshape(x + u, (f_local.size,)), np.ones(f_local.size), f_local),
             t >= -u - 1
         ]
 
 
         if switched:
-            var_to_mat_mapping, s, cone_dims, = get_cone_repr(constraints, [f_local, t, self.x])
+            var_to_mat_mapping, s, cone_dims, = get_cone_repr(constraints, [f_local, t, x])
             Q = var_to_mat_mapping['eta']
 
             K_repr_pre_switch = SwitchableKRepresentation(
                 f = f_local,
                 t = t,
                 y = self.y,
-                x = self.x,
+                x = x,
                 u_or_Q = Q,
                 constraints=constraints
             )
@@ -87,15 +90,15 @@ class WeightedLogSumExp(ConvexConcaveAtom):
             local_constr = K_repr_local.constraints
 
 
-            B, c = affine_to_canon(K_repr_local.y, local_to_glob)
+            B, c = affine_to_canon(self.x, local_to_glob) # self.x is outer yexpr
 
             # f.T @ (B @ y_vars + c) = (B.T@f).T @ y_vars + f@c
 
-            FuckMap = np.zeros((K_repr_local.y.size, sum(v.size for v in K_repr_local.y.variables())))
-            offset = 0
-            for v in K_repr_local.y.variables():
-                start,end = local_to_glob.var_to_glob[v.id]
-                FuckMap[:, offset:offset+v.size] = B[:,start:end] #TODO: wtf is B
+            # FuckMap = np.zeros((K_repr_local.y.size, sum(v.size for v in K_repr_local.y.variables())))
+            # offset = 0
+            # for v in K_repr_local.y.variables():
+            #     start,end = local_to_glob.var_to_glob[v.id]
+            #     FuckMap[:, offset:offset+v.size] = B[:,start:end] #TODO: wtf is B
 
             # entries in f correspond to unpacked variables in y
             # rows of B correspond to entries of y
@@ -104,18 +107,18 @@ class WeightedLogSumExp(ConvexConcaveAtom):
             # B.T       all var --> y
             # FuckMap   y --> v_var     B[:,[s1]]
 
-            t_global = cp.Variable()
-            local_constr += [t_global == K_repr_local.t + K_repr_local.f@FuckMap.T@c] # TODO: fix dimension of c
+            t_global = cp.Variable(name='t_wlse_switched')
+            local_constr += [t_global == K_repr_local.t + K_repr_local.f@c] # TODO: fix dimension of c
 
-            f_global = cp.Variable(local_to_glob.size)
+            f_global = cp.Variable(local_to_glob.size, name='f_wlse_switched')
 
-            local_constr += [f_global == B.T@FuckMap@K_repr_local.f]
+            local_constr += [f_global == B.T@K_repr_local.f]
 
             return KRepresentation(
                 f=f_global,
                 t=t_global,
                 x=K_repr_local.x,
-                y=K_repr_local.y,
+                y=self.x, # self.x is outer y_expr
                 constraints=local_constr,    
             )
         else:
@@ -164,6 +167,7 @@ def switch_convex_concave(K_in: SwitchableKRepresentation) -> KRepresentation:
     # with \bar{x} = y, \bar{y} = x
 
     assert isinstance(K_in.u_or_Q, (cp.Variable, np.ndarray))
+    assert isinstance(K_in.x, cp.Variable)
 
     var_list = [K_in.f,
                 K_in.t,

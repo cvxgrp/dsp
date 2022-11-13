@@ -78,7 +78,7 @@ def test_ax(a, expected):
                                    (lambda y: cp.square(y)),
                                    (lambda y:cp.abs(y)),
                                    (lambda y:-cp.log(y))])
-@pytest.mark.parametrize('y_val', range(-2, 3))
+@pytest.mark.parametrize('y_val', range(1, 4))
 def test_by(b_neg, y_val):
 
     expected = -b_neg(y_val).value
@@ -223,27 +223,6 @@ def test_saddle_composition():
     assert np.isclose(prob.value, 0)
 
 
-def test_minimax_to_min_weighted_log_sum_exp():
-    n = 2
-    x = cp.Variable(n, name='x')
-    y = cp.Variable(n, name='y')
-
-    wlse = WeightedLogSumExp(x, y)
-
-    K = wlse.get_K_repr()
-
-    X_constraints = [
-        x == 1
-    ]
-    Y_constraints = [
-        y == 0.5
-    ]
-
-    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
-    min_prob.solve()
-    assert min_prob.status == cp.OPTIMAL
-
-
 @pytest.mark.parametrize('x_val,y_val,n',
                          [(1, 1, 2), (2, 2, 2), (0.5, 3, 5), (2, 6, 20), (6, .1, 1)])
 def test_eval_weighted_log_sum_exp(x_val, y_val, n):
@@ -324,6 +303,26 @@ def test_wlse_multi_var(x_val, y_val, c):
                       np.exp(x_val))+np.exp(x_val)+np.log(y_val))
 
 
+@pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1), (1, 0.5, 1), (5, 5, 2), (3, 2, 3)])
+def test_wlse_multi_var_switching(x_val, y_val, c):
+    y1 = cp.Variable()
+    y2 = cp.Variable()
+
+    x = cp.Variable(3, nonneg=True)
+
+    a = 2
+    wlse = WeightedLogSumExp(a*y1+a*y2+c, cp.sum(x[1:]))
+
+    obj = MinimizeMaximize(-wlse + cp.exp(x[0]) + cp.log(y1))
+    x_constraints = [x == x_val]
+    y_constraints = [y1 == y_val, y2 == y_val]
+
+    prob = SaddleProblem(obj, x_constraints + y_constraints)
+    prob.solve()
+    assert prob.status == cp.OPTIMAL
+    assert np.isclose(prob.value, -np.log(2*x_val*np.exp(2*a*y_val+c))+np.exp(x_val)+np.log(y_val))
+
+
 @pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1)])
 def test_neg_wlse(x_val, y_val, c):
     x1 = cp.Variable(nonneg=True)
@@ -338,8 +337,8 @@ def test_neg_wlse(x_val, y_val, c):
 
     # obj = MinimizeMaximize(wlse + cp.exp(x2) + cp.log(y[2]))
     obj = MinimizeMaximize(-wlse)
-    x_constraints = [10 >= x1, x1 >= x_val]  # , x2 >= x_val]
-    y_constraints = [.1 <= y1, y1 <= y_val]
+    x_constraints = [x_val >= x1]  # , x2 >= x_val]
+    y_constraints = [y_val <= y1]
 
     prob = SaddleProblem(obj, x_constraints + y_constraints)
     prob.solve()
@@ -349,25 +348,30 @@ def test_neg_wlse(x_val, y_val, c):
 
 def test_weighted_log_sum_exp_with_switching():
     n = 2
-    x = cp.Variable(n, name='x')
-    y = cp.Variable(n, name='y', nonneg=True)
+    x = cp.Variable(n, name='x_outer', nonneg=True)
+    y = cp.Variable(n, name='y_outer', nonneg=True)
 
-    wsle = WeightedLogSumExp(x, y)
+    a = np.ones(n)
+
+    wsle = WeightedLogSumExp(a@y+1, a@x+1)
+
+    x_val = 1
+    y_val = 3
 
     X_constraints = [
-        x == 1
+        x <= x_val
     ]
     Y_constraints = [
-        y == 1
+        y >= y_val
     ]
 
     ltg = LocalToGlob([y])
 
-    K_switched = switch_convex_concave(wsle.get_K_repr(ltg, switched=False))
-    min_prob = cp.Problem(*minimax_to_min(K_switched, Y_constraints, X_constraints))
+    K_switched = wsle.get_K_repr(ltg, switched=True)  # -log(x exp(y))
+    min_prob = cp.Problem(*minimax_to_min(K_switched, X_constraints, Y_constraints))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
-    assert np.isclose(min_prob.value, -np.log(n * np.e))
+    assert np.isclose(min_prob.value, -np.log((n*x_val+1) * np.exp(n*y_val+1)))
 
 
 @pytest.mark.parametrize('n', [1, 2, 3, 4, 20])
@@ -568,14 +572,14 @@ def test_mixed_curvature_affine():
 
 
 def test_indeterminate_problem():
-    x = cp.Variable()
-    y = cp.Variable()
-    z = cp.Variable()
+    x = cp.Variable(name='x')
+    y = cp.Variable(name='y')
+    z = cp.Variable(name='z')
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + z)
     with pytest.raises(AssertionError, match="Cannot resolve"):
         SaddleProblem(obj)
 
-    prob = SaddleProblem(obj, minimization_vars={z})
+    prob = SaddleProblem(obj, minimization_vars={z},constraints= [y >= 0])
     assert prob.x_vars == {x, z}
     assert prob.y_vars == {y}
 

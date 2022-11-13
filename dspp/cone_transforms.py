@@ -217,13 +217,14 @@ class LocalToGlob:
         self.size = sum(var.size for var in variables)
         # self.y_global = cp.Variable(self.size)
         # self.y_global_constraints = []
-        
+        self.var_to_glob = dict()
+
         offset = 0
         for var in variables:
             assert var.ndim <= 1 or (var.ndim == 2 and min(var.shape) == 1)
             # TODO: ensure matrix variables are flattened correctly
 
-            self.var_to_glob = {var.id: (offset, offset + var.size)}
+            self.var_to_glob[var.id] = (offset, offset + var.size)
             # self.y_global_constraints += [self.y_global[offset, offset+var.size] == var]
             offset += var.size
 

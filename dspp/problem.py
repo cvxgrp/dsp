@@ -233,6 +233,7 @@ class SaddleProblem(cp.Problem):
 
     def solve(self):
         super(SaddleProblem, self).solve()
+        #TODO: populate y vals by solving additional optimization problem
 
 
 class SaddlePointProblem:
