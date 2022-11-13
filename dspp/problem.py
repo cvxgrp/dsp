@@ -12,6 +12,7 @@ from dspp.atoms import dspp_atoms, ConvexConcaveAtom, switch_convex_concave
 from dspp.cone_transforms import minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob
 from cvxpy.atoms.affine.unary_operators import NegExpression
 
+
 class AffineVariableError(Exception):
     pass
 
@@ -32,7 +33,7 @@ class Parser:
         self.affine_vars = set()
 
     def split_up_variables(self, expr: cp.Expression | ConvexConcaveAtom):
-        if expr.is_constant():
+        if isinstance(expr, cp.Constant) or isinstance(expr, (float, int)):
             return
         elif isinstance(expr, dspp_atoms):
             assert isinstance(expr, ConvexConcaveAtom)
@@ -81,10 +82,9 @@ class Parser:
     def add_to_concave_vars(self, variables: Iterable[cp.Variable]):
         variables = set(variables)
         assert not (variables & self.convex_vars), 'Cannot add variables to both ' \
-                                                    'convex and concave set.'
+                                                   'convex and concave set.'
         self.affine_vars -= variables
         self.concave_vars |= variables
-        
 
     def parse_expr(self, expr: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
         if isinstance(expr, cp.Constant):
@@ -137,7 +137,8 @@ class Parser:
                 assert expr.args[0].is_constant()
                 assert isinstance(expr.args[1], ConvexConcaveAtom)
                 if expr.args[0].is_nonneg():
-                    return self.parse_expr(expr.args[1], local_to_glob).scalar_multiply(expr.args[0].value)
+                    return self.parse_expr(expr.args[1], local_to_glob).scalar_multiply(
+                        expr.args[0].value)
                 elif expr.args[0].is_nonpos():
                     K_repr_pos = self.parse_expr(expr.args[1], local_to_glob)
                     switched_K_repr = switch_convex_concave(K_repr_pos)
@@ -233,7 +234,7 @@ class SaddleProblem(cp.Problem):
 
     def solve(self):
         super(SaddleProblem, self).solve()
-        #TODO: populate y vals by solving additional optimization problem
+        # TODO: populate y vals by solving additional optimization problem
 
 
 class SaddlePointProblem:
@@ -363,7 +364,7 @@ class SaddlePointProblem:
                 current_array = np.hstack(
                     [np.mean(v, axis=0).flatten() for v in min_vars_hist + max_vars_hist])
 
-                plot_array[k-1] = current_array
+                plot_array[k - 1] = current_array
 
                 if k > 1:
                     delta = np.linalg.norm(plot_array[k - 2] - current_array, np.inf)
@@ -415,7 +416,7 @@ class SaddlePointProblem:
         for min_var_i, min_var_prev_i in zip(self.min_vars, min_vars_pre_validation):
             min_var_i.value = min_var_prev_i
 
-        gap = abs(maximization_obj_value-minimization_obj_value)
+        gap = abs(maximization_obj_value - minimization_obj_value)
         print(f'Saddle point objective gap: {gap:.6f},\n'
               f'max. obj.={maximization_obj_value:.6f},\n'
               f'min. obj.={minimization_obj_value:.6f}')

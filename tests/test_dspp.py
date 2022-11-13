@@ -228,13 +228,14 @@ def test_saddle_composition():
 def test_eval_weighted_log_sum_exp(x_val, y_val, n):
     x = cp.Variable(n)
 
-    y = cp.Variable(n)
+    y = cp.Variable(n, nonneg=True)
     y_value = np.ones(n) * y_val
     x_value = np.ones(n) * x_val
 
     wlse = WeightedLogSumExp(x, y)
 
-    K = wlse.get_K_repr()
+    lgt = LocalToGlob([y])
+    K = wlse.get_K_repr(lgt)
 
     prob = cp.Problem(cp.Minimize(K.f @ y_value + K.t),
                       [
