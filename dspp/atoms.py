@@ -26,6 +26,10 @@ class ConvexConcaveAtom(Atom, ABC):
     def get_concave_variables(self) -> list[cp.Variable]:
         pass
 
+    @abstractmethod
+    def get_concave_objective(self) -> cp.Expression:
+        pass
+
     def is_atom_convex(self):
         return False
 
@@ -57,10 +61,17 @@ class WeightedLogSumExp(ConvexConcaveAtom):
         self.y = y
 
         assert (len(x.shape) <= 1 or (
-                    len(x.shape) == 2 and min(x.shape) == 1))  # TODO: implement matrix inputs
+            len(x.shape) == 2 and min(x.shape) == 1))  # TODO: implement matrix inputs
         assert (x.shape == y.shape or x.size == y.size)
 
         super().__init__(x, y)
+
+    def get_concave_objective(self) -> cp.Expression:
+        assert self.x.value is not None
+        arg = cp.reshape(self.y, (self.y.size,),
+                         order='F') @ np.reshape(self.x.value, (self.x.size,), order='F')
+
+        return cp.log(arg)
 
     def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> SwitchableKRepresentation:
         f_local = cp.Variable(self.y.size, name='f')

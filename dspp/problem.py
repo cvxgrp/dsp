@@ -151,6 +151,47 @@ class Parser:
             raise TypeError(f'Cannot parse {expr=}')
 
 
+    def get_concave_objective(self, expr: cp.Expression) -> cp.Expression:
+        if isinstance(expr, (float, int,cp.Constant)):
+            return expr
+        elif isinstance(expr, cp.Variable):
+            if expr in self.convex_vars:
+                return expr.value
+            elif expr in self.concave_vars:
+                return expr
+            else:
+                raise ValueError
+        elif isinstance(expr, dspp_atoms):
+            return expr.get_concave_objective()
+        elif isinstance(expr, cp.Expression):
+            if isinstance(expr, AddExpression):
+                return cp.sum([self.get_concave_objective(arg) for arg in expr.args])
+            elif expr.is_affine():
+                if set(expr.variables()) <= self.convex_vars:
+                    return expr.value
+                elif set(expr.variables()) <= self.concave_vars:
+                    return expr
+                else:
+                    raise ValueError('Affine expressions may not contain variables of mixed '
+                                     'curvature.')
+            elif expr.is_convex():
+                return expr.value
+            elif expr.is_concave():
+                return expr
+            elif isinstance(expr, NegExpression):
+                raise NotImplementedError
+            elif isinstance(expr, multiply):
+                if expr.args[0].is_nonneg():
+                    raise NotImplementedError
+                elif expr.args[0].is_nonpos():
+                    raise NotImplementedError
+                else:
+                    raise ValueError
+            else:
+                raise TypeError(f'Cannot parse {expr=}')
+        else:
+            raise TypeError(f'Cannot parse {expr=}')
+
 class MinimizeMaximize:
 
     def __init__(self, expr: cp.Expression):
@@ -181,7 +222,6 @@ class SaddleProblem(cp.Problem):
         self.x_constraints, self.y_constraints = self._split_constraints(constraints, parser)
 
         assert not parser.affine_vars, affine_error_message(parser.affine_vars)
-        # TODO assert convex + concave variables are all the variables of the problem
 
         self.x_vars = parser.convex_vars
         self.y_vars = parser.concave_vars
@@ -189,6 +229,7 @@ class SaddleProblem(cp.Problem):
         local_to_glob_y = LocalToGlob(self.y_vars)
 
         K_repr = parser.parse_expr(objective.expr, local_to_glob_y)
+        self.parser = parser
 
         single_obj, constraints = minimax_to_min(K_repr,
                                                  self.x_constraints,
@@ -196,6 +237,8 @@ class SaddleProblem(cp.Problem):
                                                  )
 
         super().__init__(single_obj, constraints)
+
+        self._concave_problem = None
 
     def _validate_arguments(self):
         assert isinstance(self.minmax_objective, MinimizeMaximize)
@@ -234,7 +277,22 @@ class SaddleProblem(cp.Problem):
 
     def solve(self):
         super(SaddleProblem, self).solve()
-        # TODO: populate y vals by solving additional optimization problem
+        assert self.status == cp.OPTIMAL
+        self.solve_for_concave_vars()
+
+    def solve_for_concave_vars(self):
+        concave_obj = self.parser.get_concave_objective(self.minmax_objective.expr)
+        concave_problem = cp.Problem(cp.Maximize(concave_obj), self.y_constraints)
+        concave_problem.solve()
+        self._concave_problem = concave_problem
+        assert concave_problem.status == cp.OPTIMAL
+
+    @property
+    def concave_problem(self):
+        assert self._concave_problem is not None, "The concave problem is only formed during " \
+                                                  "SaddleProblem.solve()"
+        return self._concave_problem
+
 
 
 class SaddlePointProblem:

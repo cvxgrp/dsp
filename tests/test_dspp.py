@@ -94,12 +94,11 @@ def test_by(b_neg, y_val):
     X_const = [x == 0]
     Y_const = [y == y_val]
 
-    loc_to_glob = LocalToGlob([y])
-    K = K_repr_by(by, loc_to_glob)
-    prob = cp.Problem(*minimax_to_min(K, X_const, Y_const))
+    prob = SaddleProblem(MinimizeMaximize(by), X_const + Y_const, minimization_vars={x})
     prob.solve()
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, expected, atol=1e-6)
+    assert np.isclose(y.value, y_val)
 
 
 @pytest.mark.parametrize('y_val', range(-3, 3))
@@ -302,6 +301,7 @@ def test_wlse_multi_var(x_val, y_val, c):
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, np.log((sum(a)*y_val+c) *
                       np.exp(x_val))+np.exp(x_val)+np.log(y_val))
+    assert np.allclose(y.value, y_val)
 
 
 @pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1), (1, 0.5, 1), (5, 5, 2), (3, 2, 3)])
