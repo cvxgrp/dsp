@@ -1,4 +1,5 @@
 from __future__ import annotations
+import abc
 
 import itertools
 from dataclasses import dataclass
@@ -40,6 +41,9 @@ class KRepresentation:
         x = cp.sum([K.x for K in reprs])
         y = cp.sum([K.y for K in reprs])
         offset = np.sum([K.offset for K in reprs])
+        # TODO: pretty sure all of this is wrong/ but also we dont need the y or
+        # x field at this point. ACTUALLY, we just need the y variables. 
+
 
         return KRepresentation(
             f=f,
@@ -143,31 +147,32 @@ def K_repr_y_Fx(F: cp.Expression, y: cp.Variable) -> KRepresentation:
     )
 
 
-def K_repr_x_Gy(G: cp.Expression, x: cp.Variable) -> KRepresentation:
+def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) -> KRepresentation:
     assert G.is_concave()
-    assert len(G.variables()) == 1
-    y = G.variables()[0]
-    assert G.ndim == 1
-    assert x.ndim == 1
     assert G.shape == x.shape
-    # assert x.is_nonneg()
 
+    y_vars = G.variables()
     w = cp.Variable(G.size, name='w_bilin')
 
     constraints = [
         w <= G
     ]
 
-    var_to_mat_mapping_dual, s, cone_dims, = get_cone_repr(constraints, [y, w])
+    var_to_mat_mapping_dual, s, cone_dims, = get_cone_repr(constraints, [*y_vars, w])
     Q_bar = var_to_mat_mapping_dual['eta']
     S_bar = var_to_mat_mapping_dual[w.id]
-    R_bar = var_to_mat_mapping_dual[y.id]
 
     lamb = cp.Variable(len(s))
     lamb_constr = add_cone_constraints(lamb, cone_dims, dual=True)
 
-    f = cp.Variable(y.size, name='f_bilin_x_Gy')
     t = cp.Variable(name='t_bilin_x_Gy')
+
+    R_bar = np.zeros((S_bar.shape[0], local_to_glob.size))
+    f = cp.Variable(local_to_glob.size, name='f_xGy')
+
+    for y in y_vars:
+        start, end = local_to_glob.var_to_glob[y.id]
+        R_bar[:, start:end] = var_to_mat_mapping_dual[y.id]
 
     K_constr = [
         f + R_bar.T @ lamb == 0,
@@ -213,7 +218,7 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
 
 class LocalToGlob:
     def __init__(self, variables: list[cp.Variable]):
-        
+
         self.size = sum(var.size for var in variables)
         # self.y_global = cp.Variable(self.size)
         # self.y_global_constraints = []
@@ -227,8 +232,6 @@ class LocalToGlob:
             self.var_to_glob[var.id] = (offset, offset + var.size)
             # self.y_global_constraints += [self.y_global[offset, offset+var.size] == var]
             offset += var.size
-
-        
 
 
 def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
@@ -252,10 +255,10 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
 
     u = cp.Variable(p_bar.shape[0], name='u_by')
     t = cp.Variable(name='t_by')
-    
+
     R_bar = np.zeros((p_bar.shape[0], local_to_glob.size))
     f = cp.Variable(local_to_glob.size, name='f_by')
-    
+
     for y in y_vars:
         start, end = local_to_glob.var_to_glob[y.id]
         R_bar[:, start:end] = var_to_mat_mapping[y.id]
@@ -276,6 +279,36 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
         x=cp.Constant(0),
         y=y,
         constraints=K_constr
+    )
+
+
+def K_repr_FxGy(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
+    z = cp.Variable(Fx.shape)
+    constraints = [z >= Fx]
+
+    K_repr_zGy = K_repr_x_Gy(Gy, z, local_to_glob)
+
+    return KRepresentation(
+        f=K_repr_zGy.f,
+        t=K_repr_zGy.t,
+        x=Fx,
+        y=Gy,
+        constraints=constraints + K_repr_zGy.constraints
+    )
+
+
+def K_repr_bilin(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
+    # Fx = Ax + b, Gy = Cy + d
+    # Fx@Gy = Fx.T @ (C y + d)
+
+    C, d = affine_to_canon(Gy, local_to_glob)
+
+    return KRepresentation(
+        f=C.T @ Fx,
+        t=Fx.T @ d,
+        x=Fx,
+        y=Gy,
+        constraints=[]
     )
 
 
@@ -357,7 +390,8 @@ def add_cone_constraints(s, cone_dims, dual: bool) -> list[Constraint]:
 
     return s_const
 
-def affine_to_canon(y_expr : cp.Expression, local_to_glob : LocalToGlob) -> (np.ndarray, np.ndarray):
+
+def affine_to_canon(y_expr: cp.Expression, local_to_glob: LocalToGlob) -> (np.ndarray, np.ndarray):
     y_vars = y_expr.variables()
     y_aux = cp.Variable(y_expr.shape)
     var_to_mat_mapping, c, cone_dims, = get_cone_repr([y_aux == y_expr], [*y_vars, y_aux])
@@ -366,12 +400,11 @@ def affine_to_canon(y_expr : cp.Expression, local_to_glob : LocalToGlob) -> (np.
     rows = cone_dims.zero
     assert rows == y_expr.size
 
-    B = np.zeros((rows,local_to_glob.size))
+    B = np.zeros((rows, local_to_glob.size))
     for y in y_vars:
         start, end = local_to_glob.var_to_glob[y.id]
-        B[:,start:end] = -var_to_mat_mapping[y.id][:rows]
+        B[:, start:end] = -var_to_mat_mapping[y.id][:rows]
 
     c = c[:rows]
 
     return B, c
-

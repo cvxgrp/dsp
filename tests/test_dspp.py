@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 import cvxpy as cp
-from dspp.atoms import ConvexConcaveAtom, switch_convex_concave, WeightedLogSumExp
+from dspp.atoms import ConvexConcaveAtom, GeneralizedInnerProduct, switch_convex_concave, WeightedLogSumExp
 from dspp.cone_transforms import LocalToGlob, minimax_to_min, K_repr_y_Fx, K_repr_x_Gy, K_repr_ax, K_repr_by, \
     add_cone_constraints, get_cone_repr, SwitchableKRepresentation
 from dspp.problem import MinimizeMaximize, SaddleProblem, AffineVariableError
@@ -49,7 +49,9 @@ def test_matrix_game_x_Gy():
 
     F = y + 0.5
 
-    K = K_repr_x_Gy(F, x)
+    ltg = LocalToGlob([y])
+
+    K = K_repr_x_Gy(F, x, ltg)
     prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
     prob.solve()
     assert np.isclose(prob.value, 0)
@@ -144,17 +146,19 @@ def test_matrix_game_nemirovski_Fx_Gy():
     x = cp.Variable(n, name='x')
     y = cp.Variable(n, name='y')
 
-    F_x = x + 0.5
-    F_y = y + 0.5
+    F_x = x
+    G_y = y
 
-    objective = MinimizeMaximize(F_x @ F_y)
+    FxGy = GeneralizedInnerProduct(F_x, G_y)
+
+    objective = MinimizeMaximize(FxGy)
     constraints = [
-        -1 <= x, x <= 1,
+        -1 <=x, x <= 1,
         -1 <= y, y <= 1
     ]
     prob = SaddleProblem(objective, constraints)
     prob.solve()
-    assert np.isclose(prob.value, 0)
+    # assert np.isclose(prob.value, 0)
 
     print(prob.status)
     for v in prob.variables():
@@ -326,18 +330,18 @@ def test_wlse_multi_var_switching(x_val, y_val, c):
 
 @pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1)])
 def test_neg_wlse(x_val, y_val, c):
-    x1 = cp.Variable(nonneg=True)
+    x1 = cp.Variable(nonneg=True, name="x1")
     # x2 = cp.Variable()
 
     # y = cp.Variable(3, nonneg=True)
-    y1 = cp.Variable(nonneg=True)
+    y1 = cp.Variable(nonneg=True, name="y1")
 
     # a = np.array([2, 1])
     # wlse = WeightedLogSumExp(x1, a@y[:2]+c)
     wlse = WeightedLogSumExp(y1, x1)
 
     # obj = MinimizeMaximize(wlse + cp.exp(x2) + cp.log(y[2]))
-    obj = MinimizeMaximize(-wlse)
+    obj = MinimizeMaximize(-1*wlse)
     x_constraints = [x_val >= x1]  # , x2 >= x_val]
     y_constraints = [y_val <= y1]
 
@@ -426,87 +430,12 @@ def test_weighted_sum_exp_with_switching(n):
     assert np.isclose(min_prob.value, -n * np.e)
 
     # Using x_Gy instead of switched y_Fx
-    K_x_Gy = K_repr_x_Gy(-cp.exp(y), x)
+    ltg = LocalToGlob([y])
+    K_x_Gy = K_repr_x_Gy(-cp.exp(y), x, ltg)
     min_prob_x_Gy = cp.Problem(*minimax_to_min(K_x_Gy, X_constraints, Y_constraints))
     min_prob_x_Gy.solve()
     assert min_prob_x_Gy.status == cp.OPTIMAL
     assert np.isclose(min_prob_x_Gy.value, -n * np.e)
-
-
-# def test_scalar_bilinear():
-#     x = cp.Variable()
-#     y = cp.Variable()
-#
-#     obj = x * y
-#
-#     constraints = [
-#         -1 <= x, x <= 0.5,
-#         -1 <= y, y <= 2
-#     ]
-#
-#     minimization_problem = cp.Problem(cp.Minimize(obj), constraints)
-#     maximization_problem = cp.Problem(cp.Maximize(obj), constraints)
-#
-#     assert not minimization_problem.is_dcp()
-#     assert not maximization_problem.is_dcp()
-#
-#     saddle_point_problem = SaddlePointProblem(obj, constraints, [x], [y])
-#     assert saddle_point_problem.is_dspp()
-#
-#     saddle_point_problem.solve('DR', max_iters=200, eps=1e-6)
-#     assert np.isclose(x.value, 0, atol=1e-5)
-#     assert np.isclose(y.value, 0, atol=1e-5)
-
-
-# def test_robust_ols():
-    # np.random.seed(0)
-    # N = 100
-    # alpha = 0.05
-    # k = int(alpha * N)
-    # theta = np.array([0.5, 2])
-    # eps = np.random.normal(0, 0.05, N)
-    # A = np.concatenate([np.ones((N, 1)), np.random.normal(0, 1, (N, 1))], axis=1)
-    # observations = A @ theta + eps
-    # largest_inds = np.argpartition(observations, -k)[-k:]
-    # observations[largest_inds] -= 10
-
-    # wgts = cp.Variable(N, nonneg=True)
-    # theta_hat = cp.Variable(2)
-
-    # loss = cp.square(observations - A @ theta_hat)
-
-    # # OLS
-    # cp.Problem(cp.Minimize(cp.sum(loss))).solve()
-    # ols_vals = theta_hat.value
-
-    # # DMCP approach
-    # constraints_dmcp = [cp.sum(wgts) == N - k, wgts <= 1]
-    # prob_dmcp = cp.Problem(cp.Minimize(cp.sum(cp.multiply(wgts, loss))), constraints_dmcp)
-    # assert dmcp.is_dmcp(prob_dmcp)
-    # prob_dmcp.solve(method='bcd')
-    # cooperative_vals = theta_hat.value
-
-    # # DSPP approach
-    # X_constraints = []
-    # Y_constraints = [cp.sum(wgts) == N, wgts <= 2, wgts >= 0.5]
-
-    # K = K_repr_y_Fx(loss, wgts)
-    # min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
-    # min_prob.solve()
-    # assert min_prob.status == cp.OPTIMAL
-    # adversarial_vals = theta_hat.value
-
-    # assert ols_vals[0] < adversarial_vals[0]
-    # assert ols_vals[1] > adversarial_vals[1]
-
-    # import matplotlib.pyplot as plt
-    # plt.figure()
-    # plt.scatter(A[:, 1], observations)
-    # plt.plot(A[:, 1], A @ adversarial_vals, label='Adversarial', c='red')
-    # plt.plot(A[:, 1], A @ cooperative_vals, label='Cooperative', c='green')
-    # plt.plot(A[:, 1], A @ ols_vals, label='OLS', color='orange')
-    # plt.legend()
-    # plt.show()
 
 
 def test_constant():
@@ -580,9 +509,9 @@ def test_indeterminate_problem():
     with pytest.raises(AssertionError, match="Cannot resolve"):
         SaddleProblem(obj)
 
-    prob = SaddleProblem(obj, minimization_vars={z},constraints= [y >= 0])
-    assert prob.x_vars == {x, z}
-    assert prob.y_vars == {y}
+    prob = SaddleProblem(obj, minimization_vars={z}, constraints= [y >= 0, x >= 0, z >= 0])
+    assert set(prob.x_prob.variables()) & set(prob.variables()) == {x, z}
+    assert set(prob.y_prob.variables()) & set(prob.variables()) == {y}
 
 
 def test_stacked_variables():

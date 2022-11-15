@@ -7,7 +7,7 @@ import numpy as np
 import cvxpy as cp
 from cvxpy.constraints import ExpCone
 from cvxpy.atoms.atom import Atom
-from dspp.cone_transforms import LocalToGlob, SwitchableKRepresentation, KRepresentation, \
+from dspp.cone_transforms import K_repr_FxGy, K_repr_bilin, LocalToGlob, SwitchableKRepresentation, KRepresentation, \
     add_cone_constraints, affine_to_canon, \
     get_cone_repr
 
@@ -15,7 +15,7 @@ from dspp.cone_transforms import LocalToGlob, SwitchableKRepresentation, KRepres
 class ConvexConcaveAtom(Atom, ABC):
 
     @abstractmethod
-    def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> SwitchableKRepresentation:
+    def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
         pass
 
     @abstractmethod
@@ -27,7 +27,7 @@ class ConvexConcaveAtom(Atom, ABC):
         pass
 
     @abstractmethod
-    def get_concave_objective(self) -> cp.Expression:
+    def get_concave_objective(self, switched: bool) -> cp.Expression:
         pass
 
     def is_atom_convex(self):
@@ -41,6 +41,66 @@ class ConvexConcaveAtom(Atom, ABC):
 
     def _grad(self, values):
         raise NotImplementedError
+
+class GeneralizedInnerProduct(ConvexConcaveAtom):
+
+    def __init__(self, Fx : cp.Expression, Gy : cp.Expression) -> None:
+        assert isinstance(Fx, cp.Expression)
+        assert isinstance(Gy, cp.Expression)
+        
+        if not (Fx.is_affine() and Gy.is_affine()):
+            assert Fx.is_convex(), "Fx must be convex"
+            assert Fx.is_nonneg(), "Fx must be non-negative"
+            assert Gy.is_concave(), "Gy must be concave"
+            assert Gy.is_nonneg(), "Gy must be non-negative"
+            self.bilinear = False
+        else:
+            self.bilinear = True
+
+        self.Fx = Fx
+        self.Gy = Gy
+
+        assert (len(Fx.shape) <= 1 or (
+            len(Fx.shape) == 2 and min(Fx.shape) == 1))  # TODO: implement matrix inputs
+        assert (Fx.shape == Gy.shape or Fx.size == Gy.size)
+        
+        super().__init__(Fx, Gy)
+
+    def get_concave_objective(self, switched=False) -> cp.Expression:
+        Fx = self.Fx if not switched else self.Gy
+        assert Fx.value is not None
+        Fx = np.reshape(Fx.value, (Fx.size,), order='F')
+
+        Gy = self.Gy if not switched else self.Fx
+        Gy = cp.reshape(Gy, (Gy.size,), order='F')
+
+        return Fx@Gy if not switched else -Fx@Gy
+            
+
+    def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
+        if self.bilinear:
+            return K_repr_bilin(self.Fx, self.Gy, local_to_glob) if not switched else K_repr_bilin(self.Gy, self.Fx, local_to_glob)
+        else:
+            return K_repr_FxGy(self.Fx, self.Gy, local_to_glob) if not switched else K_repr_FxGy(self.Gy, self.Fx, local_to_glob)
+
+
+    def get_convex_variables(self) -> list[cp.Variable]:
+        return self.Fx.variables()
+
+    def get_concave_variables(self) -> list[cp.Variable]:
+        return self.Gy.variables()
+
+    def shape_from_args(self) -> tuple[int, ...]:
+        return ()
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        return (True, False)
+
+    def is_incr(self, idx) -> bool:
+        return False  # increasing in both arguments since y nonneg
+
+    def is_decr(self, idx) -> bool:
+        return False
 
 
 class WeightedLogSumExp(ConvexConcaveAtom):
@@ -66,14 +126,23 @@ class WeightedLogSumExp(ConvexConcaveAtom):
 
         super().__init__(x, y)
 
-    def get_concave_objective(self) -> cp.Expression:
-        assert self.x.value is not None
-        arg = cp.reshape(self.y, (self.y.size,),
-                         order='F') @ np.reshape(self.x.value, (self.x.size,), order='F')
+    def get_concave_objective(self, switched=False, eps=1e-6) -> cp.Expression:
+        x = self.x if not switched else self.y
+        assert x.value is not None
+        x = np.reshape(x.value, (x.size,), order='F')
 
-        return cp.log(arg)
+        y = self.y if not switched else self.x
+        y = cp.reshape(y, (y.size,), order='F')
 
-    def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> SwitchableKRepresentation:
+        if not switched:
+            arg = y @ np.exp(x)
+            return cp.log(arg)
+        else:
+            nonneg = np.where(x > eps)[0]
+            arg = y[nonneg] + np.log(x)[nonneg]
+            return -cp.log_sum_exp(arg)
+
+    def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
         f_local = cp.Variable(self.y.size, name='f')
         t = cp.Variable(name='t')
         u = cp.Variable(name='u')
@@ -228,6 +297,3 @@ def switch_convex_concave(K_in: SwitchableKRepresentation) -> KRepresentation:
         y=y_bar,
         constraints=constraints
     )
-
-
-dspp_atoms = (WeightedLogSumExp,)
