@@ -5,11 +5,12 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 import cvxpy as cp
-from cvxpy.constraints import ExpCone
 from cvxpy.atoms.atom import Atom
-from dspp.cone_transforms import K_repr_FxGy, K_repr_bilin, LocalToGlob, SwitchableKRepresentation, KRepresentation, \
-    add_cone_constraints, affine_to_canon, \
-    get_cone_repr
+from cvxpy.constraints import ExpCone
+from dspp.cone_transforms import K_repr_FxGy, K_repr_bilin, LocalToGlob, \
+    KRepresentation, \
+    affine_to_canon, \
+    get_cone_repr, switch_convex_concave
 
 
 class ConvexConcaveAtom(Atom, ABC):
@@ -159,34 +160,18 @@ class WeightedLogSumExp(ConvexConcaveAtom):
             var_to_mat_mapping, s, cone_dims, = get_cone_repr(constraints, [f_local, t, x])
             Q = var_to_mat_mapping['eta']
 
-            K_repr_pre_switch = SwitchableKRepresentation(
+            K_repr_pre_switch = KRepresentation(
                 f=f_local,
                 t=t,
-                y=self.y,
-                x=x,
-                u_or_Q=Q,
                 constraints=constraints
             )
 
-            K_repr_local = switch_convex_concave(K_repr_pre_switch)
+            K_repr_local = switch_convex_concave(K_repr_pre_switch, x, self.y, Q)
             local_constr = K_repr_local.constraints
 
             B, c = affine_to_canon(self.x, local_to_glob)  # self.x is outer yexpr
 
             # f.T @ (B @ y_vars + c) = (B.T@f).T @ y_vars + f@c
-
-            # FuckMap = np.zeros((K_repr_local.y.size, sum(v.size for v in K_repr_local.y.variables())))
-            # offset = 0
-            # for v in K_repr_local.y.variables():
-            #     start,end = local_to_glob.var_to_glob[v.id]
-            #     FuckMap[:, offset:offset+v.size] = B[:,start:end] #TODO: wtf is B
-
-            # entries in f correspond to unpacked variables in y
-            # rows of B correspond to entries of y
-            # columns of B correspond to all y variables
-
-            # B.T       all var --> y
-            # FuckMap   y --> v_var     B[:,[s1]]
 
             t_global = cp.Variable(name='t_wlse_switched')
             local_constr += [
@@ -199,8 +184,6 @@ class WeightedLogSumExp(ConvexConcaveAtom):
             return KRepresentation(
                 f=f_global,
                 t=t_global,
-                x=K_repr_local.x,
-                y=self.x,  # self.x is outer y_expr
                 constraints=local_constr,
             )
         else:
@@ -217,8 +200,6 @@ class WeightedLogSumExp(ConvexConcaveAtom):
             return KRepresentation(
                 f=f_global,
                 t=t_global,
-                x=self.x,
-                y=self.y,
                 constraints=constraints,
             )
 
@@ -239,61 +220,3 @@ class WeightedLogSumExp(ConvexConcaveAtom):
 
     def is_decr(self, idx) -> bool:
         return False
-
-
-def switch_convex_concave(K_in: SwitchableKRepresentation) -> KRepresentation:
-    # Turn phi(x,y) into \bar{phi}(\bar{x},\bar{y}) = -phi(x,y)
-    # with \bar{x} = y, \bar{y} = x
-
-    assert isinstance(K_in.u_or_Q, (cp.Variable, np.ndarray))
-    assert isinstance(K_in.x, cp.Variable)
-
-    var_list = [K_in.f,
-                K_in.t,
-                K_in.x]
-    if isinstance(K_in.u_or_Q, cp.Variable):
-        var_list.append(K_in.u_or_Q)
-
-    var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(K_in.constraints,
-                                                             var_list
-                                                             )
-    u_bar = cp.Variable(len(const_vec))
-    u_bar_const = add_cone_constraints(u_bar, cone_dims, dual=True)
-
-    if isinstance(K_in.u_or_Q, cp.Variable):
-        assert var_to_mat_mapping['eta'].size == 0
-        Q = var_to_mat_mapping[K_in.u_or_Q.id]
-    else:
-        Q = K_in.u_or_Q
-        assert var_to_mat_mapping['eta'].shape == Q.shape
-
-    P = var_to_mat_mapping[K_in.f.id]
-    R = var_to_mat_mapping[K_in.x.id]
-    s = const_vec
-
-    f_bar = cp.Variable(sum(v.size for v in K_in.x.variables()), name='f_bar')
-    t_bar = cp.Variable(name='t_bar')
-    x_bar = K_in.y
-    y_bar = K_in.x
-
-    constraints = [
-        f_bar == -R.T @ u_bar,
-        t_bar == s @ u_bar,
-        P.T @ u_bar + x_bar == 0,
-        *u_bar_const
-    ]
-
-    if len(K_in.t.variables()) > 0:
-        p = var_to_mat_mapping[K_in.t.id].flatten()
-        constraints.append(p @ u_bar + 1 == 0)
-
-    if Q.shape[1] > 0:
-        constraints.append(Q.T @ u_bar == 0)
-
-    return KRepresentation(
-        f=f_bar,
-        t=t_bar,
-        x=x_bar,
-        y=y_bar,
-        constraints=constraints
-    )

@@ -2,34 +2,10 @@ import numpy as np
 import pytest
 
 import cvxpy as cp
-from dspp.atoms import ConvexConcaveAtom, GeneralizedInnerProduct, switch_convex_concave, WeightedLogSumExp
-from dspp.cone_transforms import LocalToGlob, minimax_to_min, K_repr_y_Fx, K_repr_x_Gy, K_repr_ax, K_repr_by, \
-    add_cone_constraints, get_cone_repr, SwitchableKRepresentation
-from dspp.problem import MinimizeMaximize, SaddleProblem, AffineVariableError
-
-
-def test_matrix_game_y_Fx():
-    n = 2
-
-    x = cp.Variable(n, name='x')
-    y = cp.Variable(n, name='y')
-    xx = cp.Variable(n, name='xx')
-
-    X_constraints = [
-        -1 <= xx, xx <= 1,
-        xx <= x, xx >= x,
-    ]
-    Y_constraints = [
-        -1 <= y, y <= 1,
-    ]
-
-    F = x + 0.5
-
-    K = K_repr_y_Fx(F, y)
-    prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
-    prob.solve()
-    assert prob.status == cp.OPTIMAL
-    assert np.isclose(prob.value, 0)
+from dspp.atoms import GeneralizedInnerProduct, switch_convex_concave, WeightedLogSumExp
+from dspp.cone_transforms import LocalToGlob, minimax_to_min, K_repr_x_Gy, K_repr_ax, \
+    add_cone_constraints, get_cone_repr, KRepresentation
+from dspp.problem import MinimizeMaximize, SaddleProblem
 
 
 def test_matrix_game_x_Gy():
@@ -49,10 +25,10 @@ def test_matrix_game_x_Gy():
 
     F = y + 0.5
 
-    ltg = LocalToGlob([y])
+    ltg = LocalToGlob([y, yy])
 
     K = K_repr_x_Gy(F, x, ltg)
-    prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
+    prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints, [y, yy], ltg))
     prob.solve()
     assert np.isclose(prob.value, 0)
     print(prob.status, prob.value)
@@ -70,19 +46,19 @@ def test_ax(a, expected):
     Y_const = [y == 0]
 
     K = K_repr_ax(ax)
-    prob = cp.Problem(*minimax_to_min(K, X_const, Y_const))
+    local_to_glob = LocalToGlob([y])
+    prob = cp.Problem(*minimax_to_min(K, X_const, Y_const, [y], local_to_glob))
     prob.solve()
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, expected)
 
 
-@pytest.mark.parametrize('b_neg', [lambda y: cp.exp(y), lambda y:cp.inv_pos(y),
+@pytest.mark.parametrize('b_neg', [lambda y: cp.exp(y), lambda y: cp.inv_pos(y),
                                    (lambda y: cp.square(y)),
-                                   (lambda y:cp.abs(y)),
-                                   (lambda y:-cp.log(y))])
+                                   (lambda y: cp.abs(y)),
+                                   (lambda y: -cp.log(y))])
 @pytest.mark.parametrize('y_val', range(1, 4))
 def test_by(b_neg, y_val):
-
     expected = -b_neg(y_val).value
 
     x = cp.Variable(name='x')
@@ -129,7 +105,7 @@ def test_epigraph_exp(y_val):
                       [*add_cone_constraints(Ax_b, cone_dims, dual=False), y == y_val])
     prob.solve()
     assert prob.status == cp.OPTIMAL
-    assert np.isclose(prob.value, y_val**4)
+    assert np.isclose(prob.value, y_val ** 4)
 
     u = cp.Variable((Q_bar.shape[0], 1))
     max_prob = cp.Problem(cp.Maximize((R_bar.T @ u) * y_val - s_bar.T @ u),
@@ -137,7 +113,7 @@ def test_epigraph_exp(y_val):
                                                                                        dual=True))
     max_prob.solve()
     assert max_prob.status == cp.OPTIMAL
-    assert np.isclose(max_prob.value, y_val**4, atol=1e-7)
+    assert np.isclose(max_prob.value, y_val ** 4, atol=1e-7)
 
 
 def test_matrix_game_nemirovski_Fx_Gy():
@@ -146,76 +122,26 @@ def test_matrix_game_nemirovski_Fx_Gy():
     x = cp.Variable(n, name='x')
     y = cp.Variable(n, name='y')
 
-    F_x = x
-    G_y = y
+    F_x = x + 0.5
+    G_y = y + 0.5
 
     FxGy = GeneralizedInnerProduct(F_x, G_y)
 
     objective = MinimizeMaximize(FxGy)
     constraints = [
-        -1 <=x, x <= 1,
+        -1 <= x, x <= 1,
         -1 <= y, y <= 1
     ]
     prob = SaddleProblem(objective, constraints)
     prob.solve()
-    # assert np.isclose(prob.value, 0)
-
-    print(prob.status)
-    for v in prob.variables():
-        print(prob.value)
-        print(v, v.name(), v.value)
-
-
-def test_minimax_to_min():
-    n = 2
-
-    x = cp.Variable(n)
-    xx = cp.Variable(n)
-    y = cp.Variable(n)
-    yy = cp.Variable(n)
-
-    X_constraints = [
-        cp.sum(xx) == 1,
-        xx >= 0,
-        x == xx
-    ]
-
-    Y_constraints = [
-        cp.sum(yy) == 1,
-        yy >= 0,
-        y == yy
-    ]
-
-    f = cp.Variable(x.size)
-    t = cp.Variable()
-    u = cp.Variable()
-    constraints = [
-        f == x,
-        u == 0,
-        t == 0
-    ]
-    K = SwitchableKRepresentation(
-        f=f,
-        t=t,
-        u_or_Q=u,
-        x=x,
-        y=y,
-        constraints=constraints
-    )
-
-    switched_K = switch_convex_concave(K)
-    min_prob = cp.Problem(*minimax_to_min(switched_K, Y_constraints, X_constraints))
-    min_prob.solve()
-    assert min_prob.status == cp.OPTIMAL
-    # assert np.allclose(x.value, np.array([0.5, 0.5]))
-    # assert np.allclose(y.value, np.array([0.5, 0.5]))
+    assert np.isclose(prob.value, 0)
 
 
 def test_saddle_composition():
     x = cp.Variable()
     y = cp.Variable()
 
-    objective = MinimizeMaximize(x + x*y)
+    objective = MinimizeMaximize(x + x * y)
     constraints = [
         -1 <= x, x <= 1,
         -1 <= y, y <= 1
@@ -244,7 +170,7 @@ def test_eval_weighted_log_sum_exp(x_val, y_val, n):
                       [
                           *K.constraints,
                           x == x_value,
-    ])
+                      ])
     prob.solve()
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, np.log(np.exp(x_value) @ y_value))
@@ -256,12 +182,12 @@ def test_eval_weighted_log_sum_exp_affine_sum():
     x_val = 1
 
     x = cp.Variable(n)
-    y = cp.Variable(n+1, nonneg=True)
-    y_value = np.ones(n+1) * y_val
+    y = cp.Variable(n + 1, nonneg=True)
+    y_value = np.ones(n + 1) * y_val
     x_value = np.ones(n) * x_val
 
     a = np.array([2, 1])
-    wlse = WeightedLogSumExp(x, a@y+1)
+    wlse = WeightedLogSumExp(x, a @ y + 1)
 
     ltg = LocalToGlob([y])
 
@@ -271,19 +197,19 @@ def test_eval_weighted_log_sum_exp_affine_sum():
                       [
                           *K.constraints,
                           x == x_value,
-    ])
+                      ])
     prob.solve()
     assert prob.status == cp.OPTIMAL
-    assert np.isclose(prob.value, np.log(4*np.exp(1)))
+    assert np.isclose(prob.value, np.log(4 * np.exp(1)))
 
     x_val = 1
     X_constraints = [x >= x_val]
     y_val = 1.1
     Y_constraints = [y <= y_val]
-    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
+    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints, [y], ltg))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
-    assert np.isclose(min_prob.value, np.log((sum(a)*y_val+1)*np.exp(x_val)))
+    assert np.isclose(min_prob.value, np.log((sum(a) * y_val + 1) * np.exp(x_val)))
 
 
 @pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1), (1, 0.5, 1), (1, 1, 1), (5, 5, 2), (3, 2, 3)])
@@ -294,7 +220,7 @@ def test_wlse_multi_var(x_val, y_val, c):
     y = cp.Variable(3, nonneg=True)
 
     a = np.array([2, 1])
-    wlse = WeightedLogSumExp(x1, a@y[:2]+c)
+    wlse = WeightedLogSumExp(x1, a @ y[:2] + c)
 
     obj = MinimizeMaximize(wlse + cp.exp(x2) + cp.log(y[2]))
     x_constraints = [x1 >= x_val, x2 >= x_val]
@@ -303,8 +229,8 @@ def test_wlse_multi_var(x_val, y_val, c):
     prob = SaddleProblem(obj, x_constraints + y_constraints)
     prob.solve()
     assert prob.status == cp.OPTIMAL
-    assert np.isclose(prob.value, np.log((sum(a)*y_val+c) *
-                      np.exp(x_val))+np.exp(x_val)+np.log(y_val))
+    assert np.isclose(prob.value, np.log((sum(a) * y_val + c) *
+                                         np.exp(x_val)) + np.exp(x_val) + np.log(y_val))
     assert np.allclose(y.value, y_val)
 
 
@@ -316,7 +242,7 @@ def test_wlse_multi_var_switching(x_val, y_val, c):
     x = cp.Variable(3, nonneg=True)
 
     a = 2
-    wlse = WeightedLogSumExp(a*y1+a*y2+c, cp.sum(x[1:]))
+    wlse = WeightedLogSumExp(a * y1 + a * y2 + c, cp.sum(x[1:]))
 
     obj = MinimizeMaximize(-wlse + cp.exp(x[0]) + cp.log(y1))
     x_constraints = [x == x_val]
@@ -325,7 +251,9 @@ def test_wlse_multi_var_switching(x_val, y_val, c):
     prob = SaddleProblem(obj, x_constraints + y_constraints)
     prob.solve()
     assert prob.status == cp.OPTIMAL
-    assert np.isclose(prob.value, -np.log(2*x_val*np.exp(2*a*y_val+c))+np.exp(x_val)+np.log(y_val))
+    assert np.isclose(prob.value,
+                      -np.log(2 * x_val * np.exp(2 * a * y_val + c)) + np.exp(x_val) + np.log(
+                          y_val))
 
 
 @pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1)])
@@ -341,14 +269,14 @@ def test_neg_wlse(x_val, y_val, c):
     wlse = WeightedLogSumExp(y1, x1)
 
     # obj = MinimizeMaximize(wlse + cp.exp(x2) + cp.log(y[2]))
-    obj = MinimizeMaximize(-1*wlse)
+    obj = MinimizeMaximize(-1 * wlse)
     x_constraints = [x_val >= x1]  # , x2 >= x_val]
     y_constraints = [y_val <= y1]
 
     prob = SaddleProblem(obj, x_constraints + y_constraints)
     prob.solve()
     assert prob.status == cp.OPTIMAL
-    assert np.isclose(prob.value, -np.log(x_val*np.exp(y_val)))
+    assert np.isclose(prob.value, -np.log(x_val * np.exp(y_val)))
 
 
 def test_weighted_log_sum_exp_with_switching():
@@ -358,7 +286,7 @@ def test_weighted_log_sum_exp_with_switching():
 
     a = np.ones(n)
 
-    wsle = WeightedLogSumExp(a@y+1, a@x+1)
+    wsle = WeightedLogSumExp(a @ y + 1, a @ x + 1)
 
     x_val = 1
     y_val = 3
@@ -373,41 +301,16 @@ def test_weighted_log_sum_exp_with_switching():
     ltg = LocalToGlob([y])
 
     K_switched = wsle.get_K_repr(ltg, switched=True)  # -log(x exp(y))
-    min_prob = cp.Problem(*minimax_to_min(K_switched, X_constraints, Y_constraints))
+    min_prob = cp.Problem(*minimax_to_min(K_switched, X_constraints, Y_constraints, [y], ltg))
     min_prob.solve()
     assert min_prob.status == cp.OPTIMAL
-    assert np.isclose(min_prob.value, -np.log((n*x_val+1) * np.exp(n*y_val+1)))
-
-
-@pytest.mark.parametrize('n', [1, 2, 3, 4, 20])
-def test_weighted_sum_exp(n):
-    x = cp.Variable(n, name='x')
-    y = cp.Variable(n, name='y', nonneg=True)
-
-    F = cp.exp(x)
-
-    K = K_repr_y_Fx(F, y)
-
-    X_constraints = [
-        x == 1
-    ]
-    Y_constraints = [
-        y == 1
-    ]
-
-    min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
-    min_prob.solve()
-    assert min_prob.status == cp.OPTIMAL
-    assert np.isclose(min_prob.value, n * np.e)
+    assert np.isclose(min_prob.value, -np.log((n * x_val + 1) * np.exp(n * y_val + 1)))
 
 
 @pytest.mark.parametrize('n', [1, 2, 3, 4, 20])
 def test_weighted_sum_exp_with_switching(n):
-
     x = cp.Variable(n, name='x')
     y = cp.Variable(n, name='y', nonneg=True)
-
-    K = K_repr_y_Fx(cp.exp(y), x)  # We want the final problem to be concave in y
 
     X_constraints = [
         x == 1
@@ -416,23 +319,10 @@ def test_weighted_sum_exp_with_switching(n):
         y == 1,
     ]
 
-    # We do not need this case in practice, as we rather construct x_Gy instead, see below
-
-    var_to_mat_mapping, _, _, = get_cone_repr(K.constraints, K.constraints[0].variables())
-    Q = var_to_mat_mapping['eta']
-    K = SwitchableKRepresentation(K.f, K.t, K.x, K.y, K.constraints, Q)
-
-    K_switched = switch_convex_concave(K)
-
-    min_prob = cp.Problem(*minimax_to_min(K_switched, X_constraints, Y_constraints))
-    min_prob.solve()
-    assert min_prob.status == cp.OPTIMAL
-    assert np.isclose(min_prob.value, -n * np.e)
-
     # Using x_Gy instead of switched y_Fx
     ltg = LocalToGlob([y])
     K_x_Gy = K_repr_x_Gy(-cp.exp(y), x, ltg)
-    min_prob_x_Gy = cp.Problem(*minimax_to_min(K_x_Gy, X_constraints, Y_constraints))
+    min_prob_x_Gy = cp.Problem(*minimax_to_min(K_x_Gy, X_constraints, Y_constraints, [y], ltg))
     min_prob_x_Gy.solve()
     assert min_prob_x_Gy.status == cp.OPTIMAL
     assert np.isclose(min_prob_x_Gy.value, -n * np.e)
@@ -491,14 +381,20 @@ def test_sum():
 
 
 def test_mixed_curvature_affine():
-
-    x = cp.Variable()
-    y = cp.Variable()
+    x = cp.Variable(name='x')
+    y = cp.Variable(name='y')
 
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + np.array([1, 2]) @ cp.vstack([x, y]))
 
-    with pytest.raises(AssertionError, match="convex and concave"):
-        SaddleProblem(obj)
+    constraints = [
+        x == 0,
+        y == 1
+    ]
+
+    problem = SaddleProblem(obj, constraints)
+    problem.solve()
+
+    assert np.isclose(problem.value, 1 + 2)
 
 
 def test_indeterminate_problem():
@@ -509,7 +405,7 @@ def test_indeterminate_problem():
     with pytest.raises(AssertionError, match="Cannot resolve"):
         SaddleProblem(obj)
 
-    prob = SaddleProblem(obj, minimization_vars={z}, constraints= [y >= 0, x >= 0, z >= 0])
+    prob = SaddleProblem(obj, minimization_vars={z}, constraints=[y >= 0, x >= 0, z >= 0])
     assert set(prob.x_prob.variables()) & set(prob.variables()) == {x, z}
     assert set(prob.y_prob.variables()) & set(prob.variables()) == {y}
 
@@ -529,4 +425,4 @@ def test_stacked_variables():
     ]
     problem = SaddleProblem(obj, constraints)
     problem.solve()
-    assert np.isclose(problem.value, 2*np.exp(-1) + np.log(3) + 2*np.sqrt(3))
+    assert np.isclose(problem.value, 2 * np.exp(-1) + np.log(3) + 2 * np.sqrt(3))

@@ -15,16 +15,13 @@ from cvxpy.problems.objective import Objective
 
 class KRepresentation:
 
-    def __init__(self, f: cp.Expression | cp.Variable,
+    def __init__(self,
+                 f: cp.Expression | cp.Variable,
                  t: cp.Expression | cp.Variable,
-                 x: cp.Expression | cp.Variable,
-                 y: cp.Expression | cp.Variable,
                  constraints: list[Constraint],
                  offset: float = 0.0):
         self.f = f
         self.t = t
-        self.x = x
-        self.y = y
         self.constraints = constraints
         self.offset = offset
 
@@ -38,18 +35,11 @@ class KRepresentation:
         all_constraints = [K.constraints for K in reprs]
         constraints = list(itertools.chain.from_iterable(all_constraints))
 
-        x = cp.sum([K.x for K in reprs])
-        y = cp.sum([K.y for K in reprs])
         offset = np.sum([K.offset for K in reprs])
-        # TODO: pretty sure all of this is wrong/ but also we dont need the y or
-        # x field at this point. ACTUALLY, we just need the y variables. 
-
 
         return KRepresentation(
             f=f,
             t=t,
-            x=x,
-            y=y,
             constraints=constraints,
             offset=offset
         )
@@ -58,8 +48,6 @@ class KRepresentation:
         return KRepresentation(
             f=self.f * scalar,
             t=self.t * scalar,
-            x=self.x,
-            y=self.y,
             constraints=self.constraints,
             offset=self.offset * scalar
         )
@@ -69,30 +57,17 @@ class KRepresentation:
         return KRepresentation(
             f=cp.Constant(0),
             t=cp.Constant(0),
-            x=cp.Constant(0),
-            y=cp.Constant(0),
             constraints=[],
             offset=float(value),
         )
 
 
-@dataclass
-class SwitchableKRepresentation(KRepresentation):
-
-    def __init__(self, f: cp.Expression | cp.Variable,
-                 t: cp.Expression | cp.Variable,
-                 x: cp.Expression | cp.Variable,
-                 y: cp.Expression | cp.Variable,
-                 constraints: list[Constraint],
-                 u_or_Q: cp.Variable | sp.base,
-                 offset: float = 0.0):
-        super().__init__(f, t, x, y, constraints, offset)
-        self.u_or_Q = u_or_Q
-
-
 def minimax_to_min(K: KRepresentation,
                    X_constraints: list[Constraint],
-                   Y_constraints: list[Constraint]) -> (Objective, list[Constraint]):
+                   Y_constraints: list[Constraint],
+                   y_vars: list[cp.Variable],
+                   local_to_glob: LocalToGlob
+                   ) -> (Objective, list[Constraint]):
     # Convex part
     obj = K.t + K.offset
 
@@ -103,13 +78,17 @@ def minimax_to_min(K: KRepresentation,
 
     # Concave part
     # this case is only skipped if K.y is zero, i.e., if it's a purely convex problem
-    if len(K.y.variables()) > 0:
-        var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints, [K.y])
+    if len(y_vars) > 0:
+        var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints, y_vars)
         lamb = cp.Variable(len(e), name='lamb')
         lamb_const = add_cone_constraints(lamb, cone_dims, dual=True)
 
-        C = var_id_to_mat[K.y.id]
         D = var_id_to_mat['eta']
+
+        C = np.zeros((len(e), local_to_glob.size))
+        for y in y_vars:
+            start, end = local_to_glob.var_to_glob[y.id]
+            C[:, start:end] = var_id_to_mat[y.id]
 
         if D.shape[1] > 0:
             constraints.append(D.T @ lamb == 0)
@@ -120,31 +99,6 @@ def minimax_to_min(K: KRepresentation,
         obj += lamb @ e
 
     return cp.Minimize(obj), constraints
-
-
-def K_repr_y_Fx(F: cp.Expression, y: cp.Variable) -> KRepresentation:
-    assert F.is_convex()
-    assert len(F.variables()) == 1
-    x = F.variables()[0]
-    assert F.ndim == 1
-    assert y.ndim == 1
-    assert F.shape == y.shape
-    # assert y.is_nonneg()
-
-    f = cp.Variable(F.size, name='f_bilin')
-    # t = cp.Variable(name='t_bilin_y_Fx')
-
-    constraints = [
-        f >= F
-    ]
-
-    return KRepresentation(
-        f=f,
-        t=cp.Constant(0),
-        x=x,
-        y=y,
-        constraints=constraints
-    )
 
 
 def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) -> KRepresentation:
@@ -187,17 +141,13 @@ def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) ->
     return KRepresentation(
         f=f,
         t=t,
-        x=x,
-        y=y,
         constraints=K_constr
     )
 
 
 def K_repr_ax(a: cp.Expression) -> KRepresentation:
-    assert len(a.variables()) == 1
     assert a.is_convex()
-    x = a.variables()[0]
-    assert a.ndim == 0
+    assert a.size == 1
 
     f = cp.Variable(name='f_ax')  # TODO: can we remove this variable?
     t = cp.Variable(name='t_ax')
@@ -210,8 +160,6 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
     return KRepresentation(
         f=f,
         t=t,
-        x=x,
-        y=cp.Constant(0),
         constraints=constraints
     )
 
@@ -235,10 +183,9 @@ class LocalToGlob:
 
 
 def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
-    # assert len(b_neg.variables()) == 1
     assert b_neg.is_concave()
     y_vars = b_neg.variables()
-    assert b_neg.ndim == 0
+    assert b_neg.size == 1
 
     b = -b_neg
 
@@ -276,8 +223,6 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
     return KRepresentation(
         f=f,
         t=t,
-        x=cp.Constant(0),
-        y=y,
         constraints=K_constr
     )
 
@@ -291,8 +236,6 @@ def K_repr_FxGy(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlob
     return KRepresentation(
         f=K_repr_zGy.f,
         t=K_repr_zGy.t,
-        x=Fx,
-        y=Gy,
         constraints=constraints + K_repr_zGy.constraints
     )
 
@@ -306,8 +249,6 @@ def K_repr_bilin(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlo
     return KRepresentation(
         f=C.T @ Fx,
         t=Fx.T @ d,
-        x=Fx,
-        y=Gy,
         constraints=[]
     )
 
@@ -408,3 +349,73 @@ def affine_to_canon(y_expr: cp.Expression, local_to_glob: LocalToGlob) -> (np.nd
     c = c[:rows]
 
     return B, c
+
+
+def split_K_repr_affine(expr, convex_vars, concave_vars):
+    """
+    Split an affine expression into a convex and concave part plus offset, i.e.
+    A@x+b <=> C@convex_vars + D@concave_vars + b
+    """
+    assert expr.is_affine()
+    aux = cp.Variable(expr.shape)
+    var_to_mat_mapping, b, cone_dims, = get_cone_repr([aux == expr], [*convex_vars, *concave_vars])
+    C = cp.Constant(0)
+    D = cp.Constant(0)
+    for v in convex_vars:
+        C += -var_to_mat_mapping.get(v.id, 0) @ cp.vec(v)
+    for v in concave_vars:
+        D += -var_to_mat_mapping.get(v.id, 0) @ cp.vec(v)
+
+    return C, D, cp.Constant(b)
+
+
+def switch_convex_concave(K_in: KRepresentation,
+                          x: cp.Variable,
+                          y: cp.Expression,
+                          Q: np.ndarray
+                          ) -> KRepresentation:
+    # Turn phi(x,y) into \bar{phi}(\bar{x},\bar{y}) = -phi(x,y)
+    # with \bar{x} = y, \bar{y} = x
+
+    assert isinstance(Q, np.ndarray)
+    assert isinstance(x, cp.Variable)
+
+    var_list = [K_in.f,
+                K_in.t,
+                x]
+
+    var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(K_in.constraints,
+                                                             var_list
+                                                             )
+    u_bar = cp.Variable(len(const_vec))
+    u_bar_const = add_cone_constraints(u_bar, cone_dims, dual=True)
+
+    assert var_to_mat_mapping['eta'].shape == Q.shape
+
+    P = var_to_mat_mapping[K_in.f.id]
+    R = var_to_mat_mapping[x.id]
+    s = const_vec
+
+    f_bar = cp.Variable(x.size, name='f_bar')
+    t_bar = cp.Variable(name='t_bar')
+    x_bar = y
+
+    constraints = [
+        f_bar == -R.T @ u_bar,
+        t_bar == s @ u_bar,
+        P.T @ u_bar + x_bar == 0,
+        *u_bar_const
+    ]
+
+    if len(K_in.t.variables()) > 0:
+        p = var_to_mat_mapping[K_in.t.id].flatten()
+        constraints.append(p @ u_bar + 1 == 0)
+
+    if Q.shape[1] > 0:
+        constraints.append(Q.T @ u_bar == 0)
+
+    return KRepresentation(
+        f=f_bar,
+        t=t_bar,
+        constraints=constraints
+    )

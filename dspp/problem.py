@@ -8,8 +8,9 @@ import cvxpy as cp
 from cvxpy import multiply
 from cvxpy.atoms.affine.add_expr import AddExpression
 from cvxpy.constraints.constraint import Constraint
-from dspp.atoms import ConvexConcaveAtom, switch_convex_concave
-from dspp.cone_transforms import minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob
+from dspp.atoms import ConvexConcaveAtom
+from dspp.cone_transforms import minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob, \
+    split_K_repr_affine
 from cvxpy.atoms.affine.unary_operators import NegExpression
 
 
@@ -27,8 +28,8 @@ class Parser:
     def __init__(self, convex_vars: set[cp.Variable],
                  concave_vars: set[cp.Variable]):
 
-        self.convex_vars = convex_vars if convex_vars is not None else set()
-        self.concave_vars = concave_vars if concave_vars is not None else set()
+        self.convex_vars: set[cp.Variable] = convex_vars if convex_vars is not None else set()
+        self.concave_vars: set[cp.Variable] = concave_vars if concave_vars is not None else set()
         assert not (self.convex_vars & self.concave_vars)
         self.affine_vars = set()
 
@@ -42,12 +43,7 @@ class Parser:
             for arg in expr.args:
                 self.split_up_variables(arg)
         elif expr.is_affine():
-            if set(expr.variables()) & self.convex_vars:
-                self.add_to_convex_vars(expr.variables())
-            elif set(expr.variables()) & self.concave_vars:
-                self.add_to_concave_vars(expr.variables())
-            else:
-                self.affine_vars |= set(expr.variables())
+            self.affine_vars |= (set(expr.variables()) - self.convex_vars - self.concave_vars)
         elif expr.is_convex():
             self.add_to_convex_vars(expr.variables())
         elif expr.is_concave():
@@ -61,15 +57,15 @@ class Parser:
             elif isinstance(expr.args[0], AddExpression):
                 for arg in expr.args[0].args:
                     self.split_up_variables(-arg)
-            elif isinstance(expr.args[0], NegExpression): # double negation
+            elif isinstance(expr.args[0], NegExpression):  # double negation
                 dspp_atom = expr.args[0].args[0]
                 assert isinstance(dspp_atom, ConvexConcaveAtom)
                 self.split_up_variables(dspp_atom)
-            elif isinstance(expr.args[0], multiply): # negated multiplication of dspp atom
+            elif isinstance(expr.args[0], multiply):  # negated multiplication of dspp atom
                 mult = expr.args[0]
                 s = mult.args[0]
                 assert isinstance(s, cp.Constant)
-                self.split_up_variables(-s.value * mult.args[1])              
+                self.split_up_variables(-s.value * mult.args[1])
             else:
                 raise ValueError
         elif isinstance(expr, multiply):
@@ -102,7 +98,7 @@ class Parser:
 
     def parse_expr(self, expr: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
         if isinstance(expr, cp.Constant):
-            assert expr.shape == ()
+            assert expr.size == 1
             return KRepresentation.constant_repr(expr.value)
         elif isinstance(expr, (float, int)):
             return KRepresentation.constant_repr(expr)
@@ -112,8 +108,6 @@ class Parser:
                 return KRepresentation(
                     f=cp.Constant(0),
                     t=expr,
-                    x=cp.Constant(0),
-                    y=cp.Constant(0),
                     constraints=[],
                 )
             elif expr in self.concave_vars:
@@ -134,8 +128,9 @@ class Parser:
                     assert not (set(expr.variables()) & self.convex_vars)
                     return K_repr_by(expr, local_to_glob)
                 else:
-                    raise ValueError('Affine expressions may not contain variables of mixed '
-                                     'curvature.')
+                    split_up_affine = split_K_repr_affine(expr, self.convex_vars, self.concave_vars)
+                    K_reprs = [self.parse_expr(arg, local_to_glob) for arg in split_up_affine]
+                    return KRepresentation.sum_of_K_reprs(K_reprs)
             elif expr.is_convex():
                 return K_repr_ax(expr)
             elif expr.is_concave():
@@ -147,10 +142,10 @@ class Parser:
                 elif isinstance(expr.args[0], AddExpression):
                     K_reprs = [self.parse_expr(-arg, local_to_glob) for arg in expr.args[0].args]
                     return KRepresentation.sum_of_K_reprs(K_reprs)
-                elif isinstance(expr.args[0], NegExpression): # double negation
+                elif isinstance(expr.args[0], NegExpression):  # double negation
                     dspp_atom = expr.args[0].args[0]
                     return self.parse_expr(dspp_atom, local_to_glob)
-                elif isinstance(expr.args[0], multiply): # negated multiplication of dspp atom
+                elif isinstance(expr.args[0], multiply):  # negated multiplication of dspp atom
                     mult = expr.args[0]
                     s = mult.args[0]
                     assert isinstance(s, cp.Constant)
@@ -166,7 +161,8 @@ class Parser:
                 if expr.args[0].is_nonneg():
                     return dspp_atom.get_K_repr(local_to_glob).scalar_multiply(expr.args[0].value)
                 elif expr.args[0].is_nonpos():
-                    return dspp_atom.get_K_repr(local_to_glob, switched=True).scalar_multiply(abs(expr.args[0].value))
+                    return dspp_atom.get_K_repr(local_to_glob, switched=True).scalar_multiply(
+                        abs(expr.args[0].value))
                 else:
                     raise ValueError
             else:
@@ -205,7 +201,8 @@ class Parser:
                 return expr.args[0].get_concave_objective(switched=True)
             elif isinstance(expr, multiply):
                 if isinstance(expr.args[0], cp.Constant):
-                    return abs(expr.args[0].value) * expr.args[1].get_concave_objective(switched=expr.args[0].is_nonpos())
+                    return abs(expr.args[0].value) * expr.args[1].get_concave_objective(
+                        switched=expr.args[0].is_nonpos())
                 else:
                     raise ValueError
             else:
@@ -266,7 +263,9 @@ class SaddleProblem(cp.Problem):
 
         single_obj, constraints = minimax_to_min(K_repr,
                                                  x_constraints,
-                                                 y_constraints
+                                                 y_constraints,
+                                                 parser.concave_vars,
+                                                 local_to_glob_y
                                                  )
 
         return constraints, single_obj
@@ -314,8 +313,9 @@ class SaddleProblem(cp.Problem):
         self.y_prob.solve()
         assert self.y_prob.status == cp.OPTIMAL
 
-        diff = self.x_prob.value + self.y_prob.value # y_prob.value is negated
-        assert np.isclose(diff, 0, atol=eps), f"Difference between x and y problem is {diff}, (should be 0)."
+        diff = self.x_prob.value + self.y_prob.value  # y_prob.value is negated
+        assert np.isclose(diff, 0, atol=eps), \
+            f"Difference between x and y problem is {diff}, (should be 0)."
 
         self._status = cp.OPTIMAL
         self._value = self.x_prob.value
@@ -327,16 +327,3 @@ class SaddleProblem(cp.Problem):
     @property
     def value(self):
         return self._value
-
-    def solve_for_concave_vars(self):
-        concave_obj = self.parser.get_concave_objective(self.minmax_objective.expr)
-        concave_problem = cp.Problem(cp.Maximize(concave_obj), self.y_constraints)
-        concave_problem.solve()
-        self._concave_problem = concave_problem
-        assert concave_problem.status == cp.OPTIMAL
-
-    @property
-    def concave_problem(self):
-        assert self._concave_problem is not None, "The concave problem is only formed during " \
-                                                  "SaddleProblem.solve()"
-        return self._concave_problem
