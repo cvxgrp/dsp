@@ -7,6 +7,7 @@ import numpy as np
 import cvxpy as cp
 from cvxpy import multiply
 from cvxpy.atoms.affine.add_expr import AddExpression
+from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
 from dspp.atoms import ConvexConcaveAtom
 from dspp.cone_transforms import minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob, \
@@ -97,11 +98,43 @@ class Parser:
         self.concave_vars |= variables
 
     def parse_expr(self, expr: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
+
+        if not expr.variables():
+            assert isinstance(expr, cp.Constant)
+            assert expr.size == 1
+            return KRepresentation.constant_repr(expr.value)
+        elif set(expr.variables()) <= self.convex_vars:
+            assert expr.is_convex()
+            return K_repr_ax(expr)
+        elif set(expr.variables()) <= self.concave_vars:
+            assert expr.is_concave()
+            return K_repr_by(expr, local_to_glob)
+        elif set(expr.variables()) & self.convex_vars & self.concave_vars:
+            if isinstance(expr, AddExpression):
+                K_reprs = [self.parse_expr(arg, local_to_glob) for arg in expr.args]
+                return KRepresentation.sum_of_K_reprs(K_reprs)
+            elif isinstance(expr, NegExpression):
+                return self.parse_expr(-1 * expr.args[0], local_to_glob)
+            elif isinstance(expr, multiply):
+                s = expr.args[0]
+                assert isinstance(s, cp.Constant)
+                assert s.size == 1
+                if s.is_nonneg():
+                    return self.parse_expr(expr.args[1], local_to_glob).scalar_multiply(s.value)
+                else:
+
+            elif isinstance(expr, ConvexConcaveAtom):
+                return expr.get_K_repr(local_to_glob)
+            else:
+                raise ValueError
+        else:
+            raise ValueError
+
+
         if isinstance(expr, cp.Constant):
             assert expr.size == 1
             return KRepresentation.constant_repr(expr.value)
-        elif isinstance(expr, (float, int)):
-            return KRepresentation.constant_repr(expr)
+
         elif isinstance(expr, cp.Variable):
             assert expr.shape == ()
             if expr in self.convex_vars:
@@ -214,7 +247,7 @@ class Parser:
 class MinimizeMaximize:
 
     def __init__(self, expr: cp.Expression):
-        self.expr = expr
+        self.expr = Atom.cast_to_const(expr)
         self._validate_arguments(expr)
 
     @staticmethod

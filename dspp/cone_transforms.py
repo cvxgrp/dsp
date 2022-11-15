@@ -45,6 +45,7 @@ class KRepresentation:
         )
 
     def scalar_multiply(self, scalar: float) -> KRepresentation:
+        assert scalar >= 0
         return KRepresentation(
             f=self.f * scalar,
             t=self.t * scalar,
