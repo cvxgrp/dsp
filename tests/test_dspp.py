@@ -138,18 +138,22 @@ def test_matrix_game_nemirovski_Fx_Gy():
 
 
 def test_saddle_composition():
-    x = cp.Variable()
-    y = cp.Variable()
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y")
 
-    objective = MinimizeMaximize(x + x * y)
+    # objective = MinimizeMaximize(x + x * y)
+    objective = MinimizeMaximize(x * (1+y))
+    # TODO: why are these different? Optimal y only correct in second formulation
+
     constraints = [
         -1 <= x, x <= 1,
         -1 <= y, y <= 1
     ]
-    prob = SaddleProblem(objective, constraints)
+    prob = SaddleProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
     prob.solve()
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, 0)
+    assert np.isclose(y.value, -1)
 
 
 @pytest.mark.parametrize('x_val,y_val,n',
@@ -384,6 +388,7 @@ def test_mixed_curvature_affine():
     x = cp.Variable(name='x')
     y = cp.Variable(name='y')
 
+    # TODO: parse @
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + np.array([1, 2]) @ cp.vstack([x, y]))
 
     constraints = [

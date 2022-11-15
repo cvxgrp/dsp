@@ -9,10 +9,11 @@ from cvxpy import multiply
 from cvxpy.atoms.affine.add_expr import AddExpression
 from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
-from dspp.atoms import ConvexConcaveAtom
-from dspp.cone_transforms import minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob, \
+from dspp.atoms import ConvexConcaveAtom, GeneralizedInnerProduct
+from dspp.cone_transforms import K_repr_bilin, minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob, \
     split_K_repr_affine
 from cvxpy.atoms.affine.unary_operators import NegExpression
+from cvxpy.atoms.affine.binary_operators import MulExpression
 
 
 class AffineVariableError(Exception):
@@ -35,6 +36,7 @@ class Parser:
         self.affine_vars = set()
 
     def split_up_variables(self, expr: cp.Expression):
+
         if isinstance(expr, cp.Constant) or isinstance(expr, (float, int)):
             return
         elif isinstance(expr, ConvexConcaveAtom):
@@ -97,7 +99,7 @@ class Parser:
         self.affine_vars -= variables
         self.concave_vars |= variables
 
-    def scalar_mul(self, expr: cp.Expression, local_to_glob: LocalToGlob, switched: bool):
+    def parse_scalar_mul(self, expr: cp.Expression, switched: bool, repr_parse, **kwargs):
         assert expr.args[0].is_constant() or expr.args[1].is_constant()
         const_ind = 0 if isinstance(expr.args[0], cp.Constant) else 1
         var_ind = 1 - const_ind
@@ -106,11 +108,13 @@ class Parser:
         var_expr = expr.args[var_ind]
 
         if s.is_nonneg():
-            return self.parse_expr(var_expr, local_to_glob).scalar_multiply(s.value)
+            return_val = self.parse_expr(var_expr, switched, repr_parse, **kwargs)
         else:
-            return self.parse_expr(var_expr, local_to_glob, not switched).scalar_multiply(abs(s.value))
+            return_val = self.parse_expr(var_expr, not switched, repr_parse, **kwargs)
 
-    def parse_known_curvature(self, expr: cp.Expression, local_to_glob: LocalToGlob):
+        return return_val.scalar_multiply(abs(s.value)) if repr_parse else return_val
+
+    def parse_known_curvature_repr(self, expr: cp.Expression, local_to_glob: LocalToGlob):
         if set(expr.variables()) <= self.convex_vars:
             assert expr.is_convex()
             return K_repr_ax(expr)
@@ -118,111 +122,89 @@ class Parser:
             assert expr.is_concave()
             return K_repr_by(expr, local_to_glob)
         else:
-            raise ValueError 
-    
-    def parse_expr(self, expr: cp.Expression, local_to_glob: LocalToGlob, switched = False) -> KRepresentation:
-        
-        print(expr, switched)
-        
-        # constant
-        if not expr.variables():
-            assert isinstance(expr, cp.Constant)
-            assert expr.size == 1
-            return KRepresentation.constant_repr(expr.value * (1 if not switched else -1))
-        
-        # known curvature
-        elif set(expr.variables) <= self.convex_vars or set(expr.variables) <= self.concave_vars:
-            return self.parse_known_curvature(expr * (1 if not switched else -1), local_to_glob)
-        
-        # convex and concave variables
-        elif set(expr.variables()) & self.convex_vars & self.concave_vars:
-            if isinstance(expr, AddExpression):
-                K_reprs = [self.parse_expr(arg, local_to_glob, switched) for arg in expr.args]
-                return KRepresentation.sum_of_K_reprs(K_reprs)
-            elif isinstance(expr, NegExpression):
-                return self.parse_expr(expr.args[0], local_to_glob, not switched)
-            elif isinstance(expr, multiply):
-                if expr.args[0].is_constant() or expr.args[1].is_constant():
-                    return self.scalar_mul(expr, local_to_glob, switched)
-            elif isinstance(expr, ConvexConcaveAtom):
-                return expr.get_K_repr(local_to_glob, switched)
-            else:
-                raise ValueError
-        else:
             raise ValueError
 
-
-        if isinstance(expr, cp.Constant):
-            assert expr.size == 1
-            return KRepresentation.constant_repr(expr.value)
-
-        elif isinstance(expr, cp.Variable):
-            assert expr.shape == ()
-            if expr in self.convex_vars:
-                return KRepresentation(
-                    f=cp.Constant(0),
-                    t=expr,
-                    constraints=[],
-                )
-            elif expr in self.concave_vars:
-                return K_repr_by(expr, local_to_glob)
-            else:
-                raise ValueError
-        elif isinstance(expr, ConvexConcaveAtom):
-            return expr.get_K_repr(local_to_glob)
-        elif isinstance(expr, cp.Expression):
-            if isinstance(expr, AddExpression):
-                K_reprs = [self.parse_expr(arg, local_to_glob) for arg in expr.args]
-                return KRepresentation.sum_of_K_reprs(K_reprs)
-            elif expr.is_affine():
-                if set(expr.variables()) <= self.convex_vars:
-                    assert not (set(expr.variables()) & self.concave_vars)
-                    return K_repr_ax(expr)
-                elif set(expr.variables()) <= self.concave_vars:
-                    assert not (set(expr.variables()) & self.convex_vars)
-                    return K_repr_by(expr, local_to_glob)
-                else:
-                    split_up_affine = split_K_repr_affine(expr, self.convex_vars, self.concave_vars)
-                    K_reprs = [self.parse_expr(arg, local_to_glob) for arg in split_up_affine]
-                    return KRepresentation.sum_of_K_reprs(K_reprs)
-            elif expr.is_convex():
-                return K_repr_ax(expr)
-            elif expr.is_concave():
-                return K_repr_by(expr, local_to_glob)
-            elif isinstance(expr, NegExpression):
-                if isinstance(expr.args[0], ConvexConcaveAtom):
-                    dspp_atom = expr.args[0]
-                    return dspp_atom.get_K_repr(local_to_glob, switched=True)
-                elif isinstance(expr.args[0], AddExpression):
-                    K_reprs = [self.parse_expr(-arg, local_to_glob) for arg in expr.args[0].args]
-                    return KRepresentation.sum_of_K_reprs(K_reprs)
-                elif isinstance(expr.args[0], NegExpression):  # double negation
-                    dspp_atom = expr.args[0].args[0]
-                    return self.parse_expr(dspp_atom, local_to_glob)
-                elif isinstance(expr.args[0], multiply):  # negated multiplication of dspp atom
-                    mult = expr.args[0]
-                    s = mult.args[0]
-                    assert isinstance(s, cp.Constant)
-                    return self.parse_expr(-s.value * mult.args[1], local_to_glob)
-                else:
-                    raise ValueError
-            elif isinstance(expr, multiply):
-                assert expr.shape == ()
-                assert len(expr.args) == 2
-                assert expr.args[0].is_constant()
-                assert isinstance(expr.args[1], ConvexConcaveAtom)
-                dspp_atom = expr.args[1]
-                if expr.args[0].is_nonneg():
-                    return dspp_atom.get_K_repr(local_to_glob).scalar_multiply(expr.args[0].value)
-                elif expr.args[0].is_nonpos():
-                    return dspp_atom.get_K_repr(local_to_glob, switched=True).scalar_multiply(
-                        abs(expr.args[0].value))
-                else:
-                    raise ValueError
-            else:
-                raise TypeError(f'Cannot parse {expr=}')
+    def parse_known_curvature_vars(self, expr: cp.Expression, switched):
+        vars = expr.variables()
+        if expr.is_affine():
+            self.affine_vars |= (set(expr.variables()) - self.convex_vars - self.concave_vars)
+        elif expr.is_convex():
+            self.add_to_convex_vars(vars) if not switched else self.add_to_concave_vars(vars)
+        elif expr.is_concave():
+            self.add_to_concave_vars(vars) if not switched else self.add_to_convex_vars(vars)
         else:
-            raise TypeError(f'Cannot parse {expr=}')
+            raise ValueError(f'Cannot parse {expr=} with {expr.curvature=}.')
+
+    def parse_add(self, expr: cp.Expression, switched, repr_parse: bool, **kwargs):
+        assert isinstance(expr, AddExpression)
+        if repr_parse:
+            K_reprs = [self.parse_expr(arg, switched, repr_parse, **kwargs) for arg in expr.args]
+            return KRepresentation.sum_of_K_reprs(K_reprs)
+        else:
+            for arg in expr.args:
+                self.parse_expr(arg, switched, repr_parse, **kwargs)
+
+    def parse_dspp_atom(self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs):
+        assert isinstance(expr, ConvexConcaveAtom)
+        if repr_parse:
+            return expr.get_K_repr(**kwargs, switched=switched)
+        else:
+            convex_vars = expr.get_convex_variables() if not switched else expr.get_concave_variables()
+            concave_vars = expr.get_concave_variables() if not switched else expr.get_convex_variables()
+            self.add_to_convex_vars(convex_vars)
+            self.add_to_concave_vars(concave_vars)
+
+    def parse_bilin(self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs):
+        if repr_parse:
+            if all(arg.is_affine() for arg in expr.args):
+                expr.args[0] * (-1 if switched else 1)
+                conv_ind = 0 if (set(expr.args[0].variables()) <= self.convex_vars) else 1
+                Fx = expr.args[conv_ind]
+                Gy = expr.args[1 - conv_ind]
+                assert set(Gy.variables()) <= self.concave_vars            
+                return K_repr_bilin(Fx, Gy, **kwargs)
+            return GeneralizedInnerProduct()
+        else:
+            if all(arg.is_affine() for arg in expr.args):
+                return None
+            else:
+                raise NotImplementedError
+
+    def parse_expr(self, expr: cp.Expression, switched, repr_parse, **kwargs) -> KRepresentation:
+
+        # constant
+        if not expr.variables():
+            assert expr.size == 1
+            return KRepresentation.constant_repr(expr.value * (1 if not switched else -1)) if repr_parse else None
+
+        # known curvature
+        elif repr_parse and (set(expr.variables()) <= self.convex_vars or set(expr.variables()) <= self.concave_vars):
+            return self.parse_known_curvature_repr(expr * (1 if not switched else -1), **kwargs)
+        elif (not repr_parse) and (expr.is_convex() or expr.is_concave()):
+            return self.parse_known_curvature_vars(expr, switched)
+
+        # convex and concave variables
+        elif isinstance(expr, AddExpression):
+            return self.parse_add(expr, switched, repr_parse, **kwargs)
+        elif isinstance(expr, NegExpression):
+            return self.parse_expr(expr.args[0], not switched, repr_parse, **kwargs)
+        elif isinstance(expr, multiply):
+            if expr.args[0].is_constant() or expr.args[1].is_constant():
+                return self.parse_scalar_mul(expr, switched, repr_parse, **kwargs)
+            else:
+                return self.parse_bilin(expr, switched, repr_parse, **kwargs)
+        elif isinstance(expr, ConvexConcaveAtom):
+            return self.parse_dspp_atom(expr, switched, repr_parse, **kwargs)
+        elif isinstance(expr, MulExpression):
+            if expr.is_affine() and repr_parse:
+                split_up_affine = split_K_repr_affine(expr, self.convex_vars, self.concave_vars)
+                K_reprs = [self.parse_expr(arg, switched, repr_parse, **kwargs)
+                           for arg in split_up_affine]
+                return KRepresentation.sum_of_K_reprs(K_reprs)
+            else:
+                return self.parse_bilin(expr, switched, repr_parse, **kwargs)
+        else:
+            raise ValueError
 
     def get_concave_objective(self, expr: cp.Expression) -> cp.Expression:
         if isinstance(expr, (float, int, cp.Constant)):
@@ -303,7 +285,8 @@ class SaddleProblem(cp.Problem):
 
     def dualized_problem(self, obj_expr, constraints, minimization_vars, maximization_vars):
         parser = Parser(minimization_vars, maximization_vars)
-        parser.split_up_variables(obj_expr)
+        # parser.split_up_variables(obj_expr)
+        parser.parse_expr(obj_expr, switched=False, repr_parse=False)
 
         constraints = list(constraints) if constraints is not None else []  # copy
 
@@ -313,7 +296,8 @@ class SaddleProblem(cp.Problem):
 
         local_to_glob_y = LocalToGlob(parser.concave_vars)
 
-        K_repr = parser.parse_expr(obj_expr, local_to_glob_y)
+        K_repr = parser.parse_expr(obj_expr, switched=False,
+                                   repr_parse=True, local_to_glob=local_to_glob_y)
 
         single_obj, constraints = minimax_to_min(K_repr,
                                                  x_constraints,

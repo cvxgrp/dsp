@@ -247,6 +247,9 @@ def K_repr_bilin(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlo
 
     C, d = affine_to_canon(Gy, local_to_glob)
 
+    if Fx.shape == ():
+        Fx = cp.reshape(Fx, (1,))
+
     return KRepresentation(
         f=C.T @ Fx,
         t=Fx.T @ d,
