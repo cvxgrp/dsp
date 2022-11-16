@@ -11,6 +11,8 @@ from cvxpy import SOC
 from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
+from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
+
 
 @dataclass
 class KRepresentation:
@@ -232,17 +234,29 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
     )
 
 
-def K_repr_FxGy(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
+def K_repr_FxGy(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
+
+    dummy_Fx = cp.Variable(Fx.size, name='dummy_Fx')
+    Fx = dummy_Fx if switched else Fx
+
     z = cp.Variable(Fx.shape)
     constraints = [z >= Fx]
 
     K_repr_zGy = K_repr_x_Gy(Gy, z, local_to_glob)
 
-    return KRepresentation(
+    K_unswitched = KRepresentation(
         f=K_repr_zGy.f,
         t=K_repr_zGy.t,
         constraints=constraints + K_repr_zGy.constraints
     )
+
+    if switched:
+        var_to_mat_mapping, s, cone_dims, = get_cone_repr(
+            constraints, [K_unswitched.f, K_unswitched.t, Fx])
+        Q = var_to_mat_mapping['eta']
+        return switch_convex_concave(K_unswitched, Fx, Gy, Q)
+    else:
+        return K_unswitched
 
 
 def K_repr_bilin(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
@@ -377,10 +391,18 @@ def split_K_repr_affine(expr, convex_vars, concave_vars):
     return C, D, cp.Constant(b)
 
 
+def extract_full_cone_form(constraints: list[Constraint], f: cp.Variable, t: cp.Variable, x=cp.Expression) -> (dict[str, np.ndarray], ConeDims):
+    """
+    Extract the full cone form from a list of constraints.
+    """
+    
+    pass
+
 def switch_convex_concave(K_in: KRepresentation,
                           x: cp.Variable,
                           y: cp.Expression,
-                          Q: np.ndarray
+                          Q: np.ndarray,
+                          R: np.ndarray | None = None
                           ) -> KRepresentation:
     # Turn phi(x,y) into \bar{phi}(\bar{x},\bar{y}) = -phi(x,y)
     # with \bar{x} = y, \bar{y} = x

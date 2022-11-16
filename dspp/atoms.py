@@ -83,9 +83,8 @@ class GeneralizedInnerProduct(ConvexConcaveAtom):
         if self.bilinear:
             return K_repr_bilin(self.Fx, self.Gy, local_to_glob) if not switched else K_repr_bilin(-self.Gy, self.Fx, local_to_glob)
         else:
-            return K_repr_FxGy(self.Fx, self.Gy, local_to_glob) if not switched else K_repr_FxGy(self.Gy, self.Fx, local_to_glob)
-
-
+            return K_repr_FxGy(self.Fx, self.Gy, local_to_glob, switched)
+        
     def get_convex_variables(self) -> list[cp.Variable]:
         return self.Fx.variables()
 
