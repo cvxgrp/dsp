@@ -295,7 +295,7 @@ class SaddleProblem(cp.Problem):
 
         assert not parser.affine_vars, affine_error_message(parser.affine_vars)
 
-        local_to_glob_y = LocalToGlob(parser.concave_vars)
+        local_to_glob_y = LocalToGlob(parser.convex_vars, parser.concave_vars)
 
         K_repr = parser.parse_expr(obj_expr, switched=False,
                                    repr_parse=True, local_to_glob=local_to_glob_y)
@@ -314,7 +314,7 @@ class SaddleProblem(cp.Problem):
         assert isinstance(minmax_objective, MinimizeMaximize)
 
     def _split_constraints(self, constraints: list[Constraint], parser: Parser) -> \
-            (list[Constraint], list[Constraint]):
+            tuple[list[Constraint], list[Constraint]]:
         n_constraints = len(constraints)
         x_constraints = []
         y_constraints = []
