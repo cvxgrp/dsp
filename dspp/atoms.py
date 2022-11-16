@@ -43,6 +43,7 @@ class ConvexConcaveAtom(Atom, ABC):
     def _grad(self, values):
         raise NotImplementedError
 
+
 class GeneralizedInnerProduct(ConvexConcaveAtom):
 
     def __init__(self, Fx : cp.Expression, Gy : cp.Expression) -> None:
@@ -80,7 +81,7 @@ class GeneralizedInnerProduct(ConvexConcaveAtom):
 
     def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
         if self.bilinear:
-            return K_repr_bilin(self.Fx, self.Gy, local_to_glob) if not switched else K_repr_bilin(self.Gy, self.Fx, local_to_glob)
+            return K_repr_bilin(self.Fx, self.Gy, local_to_glob) if not switched else K_repr_bilin(-self.Gy, self.Fx, local_to_glob)
         else:
             return K_repr_FxGy(self.Fx, self.Gy, local_to_glob) if not switched else K_repr_FxGy(self.Gy, self.Fx, local_to_glob)
 
@@ -102,6 +103,16 @@ class GeneralizedInnerProduct(ConvexConcaveAtom):
 
     def is_decr(self, idx) -> bool:
         return False
+
+class Bilinear(GeneralizedInnerProduct):
+
+    def __init__(self, Fx : cp.Expression, Gy : cp.Expression) -> None:
+        assert isinstance(Fx, cp.Expression)
+        assert isinstance(Gy, cp.Expression)
+        
+        assert Fx.is_affine() and Gy.is_affine(), "Bilinear must be affine. Use GeneralizedInnerProduct for non-affine bilinear terms."
+        
+        super().__init__(Fx, Gy)
 
 
 class WeightedLogSumExp(ConvexConcaveAtom):
@@ -220,3 +231,5 @@ class WeightedLogSumExp(ConvexConcaveAtom):
 
     def is_decr(self, idx) -> bool:
         return False
+
+

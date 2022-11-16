@@ -163,7 +163,8 @@ class Parser:
                 Gy = expr.args[1 - conv_ind]
                 assert set(Gy.variables()) <= self.concave_vars            
                 return K_repr_bilin(Fx, Gy, **kwargs)
-            return GeneralizedInnerProduct()
+            else:
+                raise ValueError("Use GeneralBilinAtom instead.")
         else:
             if all(arg.is_affine() for arg in expr.args):
                 return None

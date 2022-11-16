@@ -12,18 +12,22 @@ from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
 
-
+@dataclass
 class KRepresentation:
+    f: cp.Expression | cp.Variable
+    t: cp.Expression | cp.Variable
+    constraints: list[Constraint]
+    offset: float = 0.0
 
-    def __init__(self,
-                 f: cp.Expression | cp.Variable,
-                 t: cp.Expression | cp.Variable,
-                 constraints: list[Constraint],
-                 offset: float = 0.0):
-        self.f = f
-        self.t = t
-        self.constraints = constraints
-        self.offset = offset
+    # def __init__(self,
+    #              f: cp.Expression | cp.Variable,
+    #              t: cp.Expression | cp.Variable,
+    #              constraints: list[Constraint],
+    #              offset: float = 0.0):
+    #     self.f = f
+    #     self.t = t
+    #     self.constraints = constraints
+    #     self.offset = offset
 
     @classmethod
     def sum_of_K_reprs(cls, reprs: list[KRepresentation]) -> KRepresentation:
@@ -362,7 +366,7 @@ def split_K_repr_affine(expr, convex_vars, concave_vars):
     """
     assert expr.is_affine()
     aux = cp.Variable(expr.shape)
-    var_to_mat_mapping, b, cone_dims, = get_cone_repr([aux == expr], [*convex_vars, *concave_vars])
+    var_to_mat_mapping, b, _ = get_cone_repr([aux == expr], [*convex_vars, *concave_vars])
     C = cp.Constant(0)
     D = cp.Constant(0)
     for v in convex_vars:

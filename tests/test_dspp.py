@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 import cvxpy as cp
-from dspp.atoms import GeneralizedInnerProduct, switch_convex_concave, WeightedLogSumExp
+from dspp.atoms import Bilinear, GeneralizedInnerProduct, switch_convex_concave, WeightedLogSumExp
 from dspp.cone_transforms import LocalToGlob, minimax_to_min, K_repr_x_Gy, K_repr_ax, \
     add_cone_constraints, get_cone_repr, KRepresentation
 from dspp.problem import MinimizeMaximize, SaddleProblem
@@ -136,20 +136,28 @@ def test_matrix_game_nemirovski_Fx_Gy():
     prob.solve()
     assert np.isclose(prob.value, 0)
 
-
-def test_saddle_composition():
+@pytest.mark.parametrize("obj",[lambda x,y:Bilinear(x, 1+y), lambda x,y: x + Bilinear(x, y), lambda x,y: x * (1+y)])
+def test_saddle_composition(obj):
     x = cp.Variable(name="x")
     y = cp.Variable(name="y")
 
     # objective = MinimizeMaximize(x + x * y)
-    objective = MinimizeMaximize(x * (1+y))
+    # objective = MinimizeMaximize(x * (1+y))
+    # objective = MinimizeMaximize(x + Bilinear(x, y))
+    # objective = MinimizeMaximize(Bilinear(x, 1+y))
+
+    objective = MinimizeMaximize(obj(x,y))
+
     # TODO: why are these different? Optimal y only correct in second formulation
 
     constraints = [
         -1 <= x, x <= 1,
-        -1 <= y, y <= 1
+        -1.2 <= y, y <= -.8
     ]
     prob = SaddleProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
+    
+    print(prob.y_prob)
+
     prob.solve()
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, 0)
