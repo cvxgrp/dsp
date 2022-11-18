@@ -214,7 +214,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
             f_global = cp.Variable(self.weights.size, name="f_global_wlse_comp")
             constraints += [f_global == f_local]
         else:
-            B, c = affine_to_canon(self.weights, local_to_glob)
+            B, c = affine_to_canon(self.weights, local_to_glob, switched)
             constraints += [t_global == t + f_local @ c]
             f_global = cp.Variable(
                 local_to_glob.y_size if not switched else local_to_glob.x_size, name="f_global_wlse")

@@ -273,7 +273,7 @@ def K_repr_bilin(Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlo
     # Fx = Ax + b, Gy = Cy + d
     # Fx@Gy = Fx.T @ (C y + d)
 
-    C, d = affine_to_canon(Gy, local_to_glob)
+    C, d = affine_to_canon(Gy, local_to_glob, switched=False)
 
     if Fx.shape == ():
         Fx = cp.reshape(Fx, (1,))
@@ -364,7 +364,7 @@ def add_cone_constraints(s, cone_dims, dual: bool) -> list[Constraint]:
     return s_const
 
 
-def affine_to_canon(expr: cp.Expression, local_to_glob: LocalToGlob) -> tuple(np.ndarray, np.ndarray):
+def affine_to_canon(expr: cp.Expression, local_to_glob: LocalToGlob, switched: bool) -> tuple(np.ndarray, np.ndarray):
     vars = expr.variables()
     aux = cp.Variable(expr.shape)
     var_to_mat_mapping, c, cone_dims, = get_cone_repr([aux == expr], [*vars, aux])
@@ -373,7 +373,8 @@ def affine_to_canon(expr: cp.Expression, local_to_glob: LocalToGlob) -> tuple(np
     rows = cone_dims.zero
     assert rows == expr.size
 
-    B = np.zeros((rows, sum(v.size for v in vars)))
+    cols = local_to_glob.y_size if not switched else local_to_glob.x_size
+    B = np.zeros((rows, cols))
     for v in vars:
         start, end = local_to_glob.var_to_glob[v.id]
         B[:, start:end] = -var_to_mat_mapping[v.id][:rows]  # TODO: shape mismatch here
@@ -403,7 +404,7 @@ def split_K_repr_affine(expr, convex_vars, concave_vars):
 
 def switch_convex_concave(constraints: list[Constraint], f: cp.Variable, t: cp.Variable, x_vars: cp.Expression, local_to_glob: LocalToGlob, precomp : cp.Variable | None = None) -> KRepresentation:
     """
-    Return swtiched global k_repr from k_repr constraints and x/y expressions
+    Return switched global k_repr from k_repr constraints and x/y expressions
     """
 
     var_list = [f, t] + x_vars
