@@ -16,7 +16,7 @@
     # loss = cp.square(observations - A @ theta_hat)
 
     # # OLS
-    # cp.Problem(cp.Minimize(cp.sum(loss))).solve()
+    # cp.Problem(cp.Minimize(cp.sum(loss))).solve(solver=cp.SCS)
     # ols_vals = theta_hat.value
 
     # # DMCP approach
@@ -32,7 +32,7 @@
 
     # K = K_repr_y_Fx(loss, wgts)
     # min_prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints))
-    # min_prob.solve()
+    # min_prob.solve(solver=cp.SCS)
     # assert min_prob.status == cp.OPTIMAL
     # adversarial_vals = theta_hat.value
 

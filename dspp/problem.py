@@ -345,11 +345,11 @@ class SaddleProblem(cp.Problem):
 
         return x_constraints, y_constraints
 
-    def solve(self, eps=1e-4):
-        self.x_prob.solve()
+    def solve(self, eps=1e-3, **args):
+        self.x_prob.solve(**args)
         assert self.x_prob.status == cp.OPTIMAL
 
-        self.y_prob.solve()
+        self.y_prob.solve(**args)
         assert self.y_prob.status == cp.OPTIMAL
 
         diff = self.x_prob.value + self.y_prob.value  # y_prob.value is negated
