@@ -137,7 +137,8 @@ def test_matrix_game_nemirovski_Fx_Gy():
     assert np.isclose(prob.value, 0, atol=1e-4)
 
 
-@pytest.mark.parametrize("obj", [lambda x, y:inner(x, 1+y), lambda x, y: x + inner(x, y), lambda x, y: x * (1+y)])
+@pytest.mark.parametrize("obj", [lambda x, y: inner(x, 1 + y), lambda x, y: x + inner(x, y),
+                                 lambda x, y: x * (1 + y)])
 def test_saddle_composition(obj):
     x = cp.Variable(name="x")
     y = cp.Variable(name="y")
@@ -183,10 +184,10 @@ def test_eval_weighted_log_sum_exp(x_val, y_val, n):
                       [
                           *K.constraints,
                           x == x_value,
-    ])
+                      ])
     prob.solve(solver=cp.SCS)
     assert prob.status == cp.OPTIMAL
-    assert np.isclose(prob.value, np.log(np.exp(x_value) @ y_value),atol=1e-4)
+    assert np.isclose(prob.value, np.log(np.exp(x_value) @ y_value), atol=1e-4)
 
 
 @pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1), (1, 0.5, 1), (2, 1.23, 2), (3, 2, 3)])
@@ -199,11 +200,11 @@ def test_wlse_composition_switch(x_val, y_val, c):
 
     obj = MinimizeMaximize(-wlse)
 
-    x_constraints = [x1+x2 <= x_val]
+    x_constraints = [x1 + x2 <= x_val]
     y_constraints = [y >= y_val]
 
     prob = SaddleProblem(obj, x_constraints + y_constraints)
-    opt_val = -np.log(x_val*np.exp(np.exp(y_val)))
+    opt_val = -np.log(x_val * np.exp(np.exp(y_val)))
 
     prob.x_prob.solve(solver=cp.SCS)
     assert np.isclose(prob.x_prob.value, opt_val)
@@ -212,14 +213,14 @@ def test_wlse_composition_switch(x_val, y_val, c):
     assert np.isclose(prob.value, opt_val)
 
 
-@pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1), (1, 0.5, 1), (2.1,.5, 2), (1.1, 2, 3)])
+@pytest.mark.parametrize('x_val,y_val,c', [(1, 1, 1), (1, 0.5, 1), (2.1, .5, 2), (1.1, 2, 3)])
 def test_wlse_composition(x_val, y_val, c):
     y = cp.Variable(name='y', nonneg=True)
     x1 = cp.Variable(name='x1', nonneg=True)
     x2 = cp.Variable(name='x2', nonneg=True)
 
     f = cp.square(cp.exp(x1) + x2)
-    f_val = (np.exp(x_val) + x_val)**2
+    f_val = (np.exp(x_val) + x_val) ** 2
 
     # f = cp.square(x1)
     # f_val = (x_val)**2
@@ -235,7 +236,7 @@ def test_wlse_composition(x_val, y_val, c):
     y_constraints = [y <= y_val]
 
     prob = SaddleProblem(obj, x_constraints + y_constraints)
-    opt_val = np.log(y_val*np.exp(f_val))
+    opt_val = np.log(y_val * np.exp(f_val))
 
     prob.solve(solver=cp.SCS)
     assert np.isclose(prob.value, opt_val)
@@ -262,7 +263,7 @@ def test_eval_weighted_log_sum_exp_affine_sum():
                       [
                           *K.constraints,
                           x == x_value,
-    ])
+                      ])
     prob.solve(solver=cp.SCS)
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, np.log(4 * np.exp(1)))
@@ -296,7 +297,7 @@ def test_wlse_multi_var(x_val, y_val, c):
     opt_val = np.log((sum(a) * y_val + c) * np.exp(x_val)) + np.exp(x_val) + np.log(y_val)
 
     prob.x_prob.solve(solver=cp.SCS)
-    assert np.isclose(prob.x_prob.value, opt_val,atol=1e-3)
+    assert np.isclose(prob.x_prob.value, opt_val, atol=1e-3)
 
     prob.y_prob.solve(solver=cp.SCS)
     assert np.isclose(prob.y_prob.value, -opt_val)
@@ -317,11 +318,11 @@ def test_wlse_switching(x_val, y_val, c):
 
     obj = MinimizeMaximize(-wlse)
 
-    x_constraints = [x1+x2 <= x_val]
+    x_constraints = [x1 + x2 <= x_val]
     y_constraints = [y >= y_val]
 
     prob = SaddleProblem(obj, x_constraints + y_constraints)
-    opt_val = -np.log(x_val*np.exp(y_val))
+    opt_val = -np.log(x_val * np.exp(y_val))
 
     prob.x_prob.solve(solver=cp.SCS)
     assert np.isclose(prob.x_prob.value, opt_val)
@@ -552,7 +553,7 @@ def test_Gx_Fy():
     assert np.isclose(problem.value, 2 * np.exp(low) * np.log(3))
 
 
-@pytest.mark.parametrize('x_val,y_val', [(1, 2+np.e+.01),(2, 13.01),(1.3, 11.1)])
+@pytest.mark.parametrize('x_val,y_val', [(1, 2 + np.e + .01), (2, 13.01), (1.3, 11.1)])
 def test_wlse_comp(x_val, y_val):
     x = cp.Variable(name="x")
     y = cp.Variable(name="y")
@@ -567,7 +568,29 @@ def test_wlse_comp(x_val, y_val):
     ]
 
     problem = SaddleProblem(obj, constraints)
-    opt_val = np.log(np.log(np.log(y_val)) * np.exp(x_val**2))
-    
+    opt_val = np.log(np.log(np.log(y_val)) * np.exp(x_val ** 2))
+
+    problem.solve(solver=cp.SCS)
+    assert np.isclose(problem.value, opt_val, atol=1e-4)
+
+
+def test_wsle_with_external_affine_constraints():
+    x = cp.Variable(4, name="x")
+    y = cp.Variable(4, name="y")
+    z = cp.Variable(2, name="z")
+
+    wlse = weighted_log_sum_exp(x, y)
+
+    obj = MinimizeMaximize(wlse + z[0] + z[1])
+
+    constraints = [
+        x >= 1,
+        y <= 2,
+        y == np.ones((4, 2)) @ z
+    ]
+
+    problem = SaddleProblem(obj, constraints)
+    opt_val = np.log(8 * np.exp(1)) + 2
+
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, opt_val, atol=1e-4)
