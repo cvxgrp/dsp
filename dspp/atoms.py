@@ -143,20 +143,20 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
         cvxpy as nonnegative, an implicit domain constraint is added and a
         warning is provided.
         The exponents can be any convex cvxpy expression.
-        
+
         The conic reprensentation is:
-            
+
             log sum_i y_i exp(x_i)
             min. f, t, u    f @ y + t
             subject to      f >= exp(x+u)
                             t >= -u-1
-    
+
         """
 
         assert isinstance(exponents, cp.Expression)
         assert isinstance(weights, cp.Expression)
         assert exponents.is_convex(), "exponents must be convex"
-        
+
         # assert weights.is_affine(), "weights must be affine"
         assert weights.is_concave(), "weights must be concave"
 
@@ -208,17 +208,16 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
             t >= -u - 1,
         ]
 
-        if not self.concave_composition:
-            B, c = affine_to_canon(self.weights, local_to_glob)  # TODO: dont assume weights are affine
-
         t_global = cp.Variable(name="t_global")
-        constraints += [t_global == t + f_local @ c] if not self.concave_composition else [t_global == t]
-        
         if self.concave_composition:
+            constraints += [t_global == t]
             f_global = cp.Variable(self.weights.size, name="f_global_wlse_comp")
             constraints += [f_global == f_local]
         else:
-            f_global = cp.Variable(local_to_glob.y_size if not switched else local_to_glob.x_size, name="f_global_wlse")
+            B, c = affine_to_canon(self.weights, local_to_glob)
+            constraints += [t_global == t + f_local @ c]
+            f_global = cp.Variable(
+                local_to_glob.y_size if not switched else local_to_glob.x_size, name="f_global_wlse")
             constraints += [f_global == B.T @ f_local]
 
         K_repr = KRepresentation(
@@ -227,33 +226,32 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
             constraints=constraints,
         )
 
-        switching_variables = self.exponents.variables() #if not self.concave_composition else [z]
+        switching_variables = self.exponents.variables()  # if not self.concave_composition else [z]
         precomp = z if self.concave_composition else None
         K_out = switch_convex_concave(constraints, f_global, t_global,
-                           switching_variables, local_to_glob, precomp) if switched else K_repr
-        
+                                      switching_variables, local_to_glob, precomp) if switched else K_repr
+
         if self.concave_composition:
             if not switched:
-                # K_out corresponds to f(x,y). We want f(x,g(y)). Switch to get
-                # -f(y,x). Compose with g(y), aka add z > g(y) and create
-                # -f(g(y),x). Apply switching to return f(g(y),x)
                 x_vars_1 = self.get_convex_variables() if not switched else self.get_concave_variables()
-                K_switch_1 = switch_convex_concave(K_out.constraints, K_out.f, K_out.t, x_vars_1, local_to_glob, precomp = z)
+                K_switch_1 = switch_convex_concave(
+                    K_out.constraints, K_out.f, K_out.t, x_vars_1, local_to_glob, precomp=z)
                 K_switch_1.constraints += [self.weights >= z]
 
-                # dualize the outer concave exp variables if switched 
-                x_vars_2 = self.get_concave_variables() if not switched else self.get_convex_variables() 
-                K_out = switch_convex_concave(K_switch_1.constraints, K_switch_1.f, K_switch_1.t, x_vars_2, local_to_glob)
+                # dualize the outer concave exp variables if switched
+                x_vars_2 = self.get_concave_variables() if not switched else self.get_convex_variables()
+                K_out = switch_convex_concave(K_switch_1.constraints,
+                                              K_switch_1.f, K_switch_1.t, x_vars_2, local_to_glob)
 
             else:
-                K_out.constraints += [ z <= self.weights]
+                K_out.constraints += [z <= self.weights]
 
         if not self.weights.is_nonneg():
             if switched:
                 K_out.constraints += [self.weights >= 0]
             else:
                 K_out.y_constraints += [self.weights >= 0]
-                
+
         return K_out
 
     def get_convex_variables(self) -> list[cp.Variable]:
