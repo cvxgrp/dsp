@@ -20,7 +20,7 @@ class KRepresentation:
     t: cp.Expression | cp.Variable
     constraints: list[Constraint]
     offset: float = 0.0
-    y_constraints : list[Constraint] | None = None
+    y_constraints: list[Constraint] | None = None
 
     # def __init__(self,
     #              f: cp.Expression | cp.Variable,
@@ -47,7 +47,7 @@ class KRepresentation:
         constraints = list(itertools.chain.from_iterable(all_constraints))
 
         offset = np.sum([K.offset for K in reprs])
-        
+
         y_constraints = list(itertools.chain.from_iterable([K.y_constraints for K in reprs]))
 
         return KRepresentation(
@@ -179,9 +179,8 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
     )
 
 
-
 class LocalToGlob:
-    def __init__(self, x_variables : list[cp.Variable], y_variables: list[cp.Variable]):
+    def __init__(self, x_variables: list[cp.Variable], y_variables: list[cp.Variable]):
 
         self.y_size = sum(var.size for var in y_variables)
         self.x_size = sum(var.size for var in x_variables)
@@ -377,7 +376,7 @@ def affine_to_canon(expr: cp.Expression, local_to_glob: LocalToGlob) -> tuple(np
     B = np.zeros((rows, sum(v.size for v in vars)))
     for v in vars:
         start, end = local_to_glob.var_to_glob[v.id]
-        B[:, start:end] = -var_to_mat_mapping[v.id][:rows] # TODO: shape mismatch here
+        B[:, start:end] = -var_to_mat_mapping[v.id][:rows]  # TODO: shape mismatch here
 
     c = c[:rows]
 
@@ -402,16 +401,16 @@ def split_K_repr_affine(expr, convex_vars, concave_vars):
     return C, D, cp.Constant(b)
 
 
-def switch_convex_concave(constraints: list[Constraint], f: cp.Variable, t: cp.Variable, x_vars : cp.Expression, local_to_glob : LocalToGlob) -> KRepresentation:
+def switch_convex_concave(constraints: list[Constraint], f: cp.Variable, t: cp.Variable, x_vars: cp.Expression, local_to_glob: LocalToGlob, precomp : cp.Variable | None = None) -> KRepresentation:
     """
     Return swtiched global k_repr from k_repr constraints and x/y expressions
     """
-    
+
     var_list = [f, t] + x_vars
 
     var_to_mat_mapping, s, cone_dims = get_cone_repr(constraints,
-                                                             var_list
-                                                             )
+                                                     var_list
+                                                     )
 
     u_bar = cp.Variable(len(s))
     u_bar_const = add_cone_constraints(u_bar, cone_dims, dual=True)
@@ -424,7 +423,7 @@ def switch_convex_concave(constraints: list[Constraint], f: cp.Variable, t: cp.V
     for v in x_vars:
         start, end = local_to_glob.var_to_glob[v.id]
         R[:, start:end] = var_to_mat_mapping[v.id]
-   
+
     f_bar = cp.Variable(local_to_glob.y_size, name='f_bar')
     t_bar = cp.Variable(name='t_bar')
 
@@ -435,15 +434,18 @@ def switch_convex_concave(constraints: list[Constraint], f: cp.Variable, t: cp.V
         *u_bar_const,
         p @ u_bar + 1 == 0,
         Q.T @ u_bar == 0
-        ]
+    ]
 
-    for v in local_to_glob.outer_x_vars:
-        start, end = local_to_glob.var_to_glob[v.id]
-        # P.T @ u_bar + x_bar == 0,
-        constraints += [(P.T @ u_bar)[start:end] + v == 0]
+    if precomp is not None:
+        constraints += [P.T@ u_bar + precomp == 0]
+    else:
+        for v in local_to_glob.outer_x_vars:
+            start, end = local_to_glob.var_to_glob[v.id]
+            # P.T @ u_bar + x_bar == 0,
+            constraints += [(P.T @ u_bar)[start:end] + v == 0]
 
     return KRepresentation(
         f=f_bar,
         t=t_bar,
         constraints=constraints
-    )    
+    )

@@ -9,7 +9,7 @@ from cvxpy import multiply
 from cvxpy.atoms.affine.add_expr import AddExpression
 from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
-from dspp.atoms import ConvexConcaveAtom, GeneralizedInnerProduct
+from dspp.atoms import ConvexConcaveAtom, convex_concave_inner
 from dspp.cone_transforms import K_repr_bilin, minimax_to_min, KRepresentation, K_repr_by, K_repr_ax, LocalToGlob, \
     split_K_repr_affine
 from cvxpy.atoms.affine.unary_operators import NegExpression
