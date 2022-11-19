@@ -1,4 +1,5 @@
 import cvxpy as cp
+
 from dspp.problem import MinimizeMaximize
 
 

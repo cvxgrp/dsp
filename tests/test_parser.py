@@ -1,4 +1,5 @@
 import cvxpy as cp
+
 from dspp.atoms import weighted_log_sum_exp
 from dspp.problem import Parser
 
@@ -25,8 +26,8 @@ def test_negative_sum():
 
 
 def test_mul_and_add():
-    x = cp.Variable(name='x')
-    y = cp.Variable(name='y', nonneg=True)
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y", nonneg=True)
     parser = Parser({x}, {y})
     wlse = weighted_log_sum_exp(x, y)
 

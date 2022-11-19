@@ -1,28 +1,28 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import warnings
-
-import numpy as np
+from abc import ABC, abstractmethod
 
 import cvxpy as cp
+import numpy as np
 from cvxpy.atoms.atom import Atom
 from cvxpy.constraints import ExpCone
+
 from dspp.cone_transforms import (
-    K_repr_FxGy,
     K_repr_bilin,
-    LocalToGlob,
+    K_repr_FxGy,
     KRepresentation,
+    LocalToGlob,
     affine_to_canon,
-    get_cone_repr,
-    switch_convex_concave,
     switch_convex_concave,
 )
 
 
 class ConvexConcaveAtom(Atom, ABC):
     @abstractmethod
-    def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
+    def get_K_repr(
+        self, local_to_glob: LocalToGlob, switched: bool = False
+    ) -> KRepresentation:
         pass
 
     @abstractmethod
@@ -99,7 +99,9 @@ class convex_concave_inner(ConvexConcaveAtom):
         else:
             K_out = K_repr_FxGy(self.Fx, self.Gy, local_to_glob, switched)
             if not self.Gy.is_nonneg():
-                outer_constraints = K_out.y_constraints if not switched else K_out.constraints
+                outer_constraints = (
+                    K_out.y_constraints if not switched else K_out.constraints
+                )
                 outer_constraints.append(self.Gy >= 0)
 
             return K_out
@@ -129,7 +131,8 @@ class inner(convex_concave_inner):
         assert isinstance(Gy, cp.Expression)
 
         assert Fx.is_affine() and Gy.is_affine(), (
-            "inner must be affine. Use convex-concave-inner for non-affine" " bilinear terms."
+            "inner must be affine. Use convex-concave-inner for non-affine"
+            " bilinear terms."
         )
 
         super().__init__(Fx, Gy)
@@ -196,7 +199,11 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
             return -cp.log_sum_exp(arg)
 
     def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
-        z = cp.Variable(self.weights.size, name="z_wlse") if self.concave_composition else None
+        z = (
+            cp.Variable(self.weights.size, name="z_wlse")
+            if self.concave_composition
+            else None
+        )
         f_local = cp.Variable(self.weights.size, name="f_wlse")
         t = cp.Variable(name="t_wlse")
         u = cp.Variable(name="u_wlse")
@@ -204,7 +211,9 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
         epi_exp = cp.Variable(self.exponents.size, name="exp_epi")
         constraints = [
             epi_exp >= self.exponents,  # handles composition in exponent
-            ExpCone(cp.reshape(epi_exp + u, (f_local.size,)), np.ones(f_local.size), f_local),
+            ExpCone(
+                cp.reshape(epi_exp + u, (f_local.size,)), np.ones(f_local.size), f_local
+            ),
             t >= -u - 1,
         ]
 
@@ -217,7 +226,9 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
             B, c = affine_to_canon(self.weights, local_to_glob, switched)
             constraints += [t_global == t + f_local @ c]
             f_global = cp.Variable(
-                local_to_glob.y_size if not switched else local_to_glob.x_size, name="f_global_wlse")
+                local_to_glob.y_size if not switched else local_to_glob.x_size,
+                name="f_global_wlse",
+            )
             constraints += [f_global == B.T @ f_local]
 
         K_repr = KRepresentation(
@@ -226,22 +237,53 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
             constraints=constraints,
         )
 
-        switching_variables = self.exponents.variables()  # if not self.concave_composition else [z]
+        switching_variables = (
+            self.exponents.variables()
+        )  # if not self.concave_composition else [z]
         precomp = z if self.concave_composition else None
-        K_out = switch_convex_concave(constraints, f_global, t_global,
-                                      switching_variables, local_to_glob, precomp) if switched else K_repr
+        K_out = (
+            switch_convex_concave(
+                constraints,
+                f_global,
+                t_global,
+                switching_variables,
+                local_to_glob,
+                precomp,
+            )
+            if switched
+            else K_repr
+        )
 
         if self.concave_composition:
             if not switched:
-                x_vars_1 = self.get_convex_variables() if not switched else self.get_concave_variables()
+                x_vars_1 = (
+                    self.get_convex_variables()
+                    if not switched
+                    else self.get_concave_variables()
+                )
                 K_switch_1 = switch_convex_concave(
-                    K_out.constraints, K_out.f, K_out.t, x_vars_1, local_to_glob, precomp=z)
+                    K_out.constraints,
+                    K_out.f,
+                    K_out.t,
+                    x_vars_1,
+                    local_to_glob,
+                    precomp=z,
+                )
                 K_switch_1.constraints += [self.weights >= z]
 
                 # dualize the outer concave exp variables if switched
-                x_vars_2 = self.get_concave_variables() if not switched else self.get_convex_variables()
-                K_out = switch_convex_concave(K_switch_1.constraints,
-                                              K_switch_1.f, K_switch_1.t, x_vars_2, local_to_glob)
+                x_vars_2 = (
+                    self.get_concave_variables()
+                    if not switched
+                    else self.get_convex_variables()
+                )
+                K_out = switch_convex_concave(
+                    K_switch_1.constraints,
+                    K_switch_1.f,
+                    K_switch_1.t,
+                    x_vars_2,
+                    local_to_glob,
+                )
 
             else:
                 K_out.constraints += [z <= self.weights]
