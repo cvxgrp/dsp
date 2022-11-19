@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 
 import cvxpy as cp
 import numpy as np
-import scipy.sparse as sp
 from cvxpy import SOC
 from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint

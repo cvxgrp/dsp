@@ -19,9 +19,8 @@ repos:
     rev: 0.12.2
     hooks:
       - id: unimport
-        args:
-          - --config pyproject.toml
-        files: "\\.(py)$"
+        args: [-r]
+
 
   # enforcing the use of new python syntax with pyupgrade
   - repo: https://github.com/asottile/pyupgrade
