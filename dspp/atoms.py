@@ -37,16 +37,18 @@ class ConvexConcaveAtom(Atom, ABC):
     def get_concave_objective(self, switched: bool) -> cp.Expression:
         pass
 
-    def is_atom_convex(self):
+    def is_atom_convex(self) -> bool:
         return False
 
-    def is_atom_concave(self):
+    def is_atom_concave(self) -> bool:
         return False
 
-    def graph_implementation(self, arg_objs, shape: tuple[int, ...], data=None):
+    def graph_implementation(
+        self, arg_objs: list, shape: tuple[int, ...], data=None  # noqa
+    ):  # noqa
         raise NotImplementedError
 
-    def _grad(self, values):
+    def _grad(self, values: list):  # noqa
         raise NotImplementedError
 
 
@@ -79,7 +81,7 @@ class convex_concave_inner(ConvexConcaveAtom):
 
         super().__init__(Fx, Gy)
 
-    def get_concave_objective(self, switched=False) -> cp.Expression:
+    def get_concave_objective(self, switched: bool = False) -> cp.Expression:
         Fx = self.Fx if not switched else self.Gy
         assert Fx.value is not None
         Fx = np.reshape(Fx.value, (Fx.size,), order="F")
@@ -89,7 +91,9 @@ class convex_concave_inner(ConvexConcaveAtom):
 
         return Fx @ Gy if not switched else -Fx @ Gy
 
-    def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
+    def get_K_repr(
+        self, local_to_glob: LocalToGlob, switched: bool = False
+    ) -> KRepresentation:
         if self.bilinear:
             return (
                 K_repr_bilin(self.Fx, self.Gy, local_to_glob)
@@ -118,10 +122,10 @@ class convex_concave_inner(ConvexConcaveAtom):
     def sign_from_args(self) -> tuple[bool, bool]:
         return (True, False)
 
-    def is_incr(self, idx) -> bool:
+    def is_incr(self, idx: int) -> bool:
         return False  # increasing in both arguments since y nonneg
 
-    def is_decr(self, idx) -> bool:
+    def is_decr(self, idx: int) -> bool:
         return False
 
 
@@ -139,7 +143,7 @@ class inner(convex_concave_inner):
 
 
 class weighted_log_sum_exp(ConvexConcaveAtom):
-    def __init__(self, exponents: cp.Expression, weights: cp.Expression):
+    def __init__(self, exponents: cp.Expression, weights: cp.Expression) -> None:
         """
         Implements the function f(x,y) = log(sum(exp(x_i) * y_i)) for vectors x and y.
         The weights, y, must be non-negative. If they are non recognized by
@@ -147,7 +151,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
         warning is provided.
         The exponents can be any convex cvxpy expression.
 
-        The conic reprensentation is:
+        The conic representation is:
 
             log sum_i y_i exp(x_i)
             min. f, t, u    f @ y + t
@@ -182,7 +186,9 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
         super().__init__(exponents, weights)
 
-    def get_concave_objective(self, switched=False, eps=1e-6) -> cp.Expression:
+    def get_concave_objective(
+        self, switched: bool = False, eps: float = 1e-6
+    ) -> cp.Expression:
         x = self.exponents if not switched else self.weights
         assert x.value is not None
         x = np.reshape(x.value, (x.size,), order="F")
@@ -198,7 +204,9 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
             arg = y[nonneg] + np.log(x)[nonneg]
             return -cp.log_sum_exp(arg)
 
-    def get_K_repr(self, local_to_glob: LocalToGlob, switched=False) -> KRepresentation:
+    def get_K_repr(
+        self, local_to_glob: LocalToGlob, switched: bool = False
+    ) -> KRepresentation:
         z = (
             cp.Variable(self.weights.size, name="z_wlse")
             if self.concave_composition
@@ -308,8 +316,5 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
     def sign_from_args(self) -> tuple[bool, bool]:
         return (False, False)
 
-    def is_incr(self, idx) -> bool:
+    def is_incr(self, idx: int) -> bool:
         return True  # increasing in both arguments since y nonneg
-
-    def is_decr(self, idx) -> bool:
-        return False

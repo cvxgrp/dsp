@@ -10,6 +10,7 @@ from cvxpy.atoms.affine.binary_operators import MulExpression
 from cvxpy.atoms.affine.unary_operators import NegExpression
 from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
+from cvxpy.problems.objective import Objective
 
 from dspp.atoms import ConvexConcaveAtom
 from dspp.cone_transforms import (
@@ -27,7 +28,7 @@ class AffineVariableError(Exception):
     pass
 
 
-def affine_error_message(affine_vars) -> str:
+def affine_error_message(affine_vars: list[cp.Variable]) -> str:
     return (
         f"Cannot resolve curvature of variables {[v.name() for v in affine_vars]}. "
         f"Specify curvature of these variables as "
@@ -36,18 +37,20 @@ def affine_error_message(affine_vars) -> str:
 
 
 class Parser:
-    def __init__(self, convex_vars: set[cp.Variable], concave_vars: set[cp.Variable]):
+    def __init__(
+        self, convex_vars: set[cp.Variable], concave_vars: set[cp.Variable]
+    ) -> None:
 
-        self.convex_vars: set[cp.Variable] = (
-            convex_vars if convex_vars is not None else set()
-        )
-        self.concave_vars: set[cp.Variable] = (
-            concave_vars if concave_vars is not None else set()
-        )
+        self.convex_vars: set[cp.Variable] = convex_vars
+        self.concave_vars: set[cp.Variable] = concave_vars
         assert not (self.convex_vars & self.concave_vars)
         self.affine_vars: set[int] = set()
 
-    def split_up_variables(self, expr: cp.Expression):
+    def split_up_variables(self, expr: cp.Expression) -> None:
+        if expr.is_affine():
+            self.affine_vars |= set(expr.variables())
+        else:
+            self.convex_vars |= set(expr.variables())
 
         if isinstance(expr, cp.Constant) or isinstance(expr, (float, int)):
             return
@@ -101,7 +104,7 @@ class Parser:
         else:
             raise ValueError(f"Cannot parse {expr=} with {expr.curvature=}.")
 
-    def add_to_convex_vars(self, variables: Iterable[cp.Variable]):
+    def add_to_convex_vars(self, variables: Iterable[cp.Variable]) -> None:
         variables = set(variables)
         assert not (variables & self.concave_vars), (
             "Cannot add variables to both " "convex and concave set."
@@ -109,7 +112,7 @@ class Parser:
         self.affine_vars -= variables
         self.convex_vars |= variables
 
-    def add_to_concave_vars(self, variables: Iterable[cp.Variable]):
+    def add_to_concave_vars(self, variables: Iterable[cp.Variable]) -> None:
         variables = set(variables)
         assert not (variables & self.convex_vars), (
             "Cannot add variables to both " "convex and concave set."
@@ -118,8 +121,8 @@ class Parser:
         self.concave_vars |= variables
 
     def parse_scalar_mul(
-        self, expr: cp.Expression, switched: bool, repr_parse, **kwargs
-    ):
+        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
+    ) -> KRepresentation | None:
         assert expr.args[0].is_constant() or expr.args[1].is_constant()
         const_ind = 0 if isinstance(expr.args[0], cp.Constant) else 1
         var_ind = 1 - const_ind
@@ -128,15 +131,17 @@ class Parser:
         var_expr = expr.args[var_ind]
 
         if s.is_nonneg():
-            return_val = self.parse_expr(var_expr, switched, repr_parse, **kwargs)
+            return_val = self._parse_expr(var_expr, switched, repr_parse, **kwargs)
         else:
-            return_val = self.parse_expr(var_expr, not switched, repr_parse, **kwargs)
+            return_val = self._parse_expr(var_expr, not switched, repr_parse, **kwargs)
 
-        return return_val.scalar_multiply(abs(s.value)) if repr_parse else return_val
+        if repr_parse:
+            assert return_val is not None
+            return return_val.scalar_multiply(abs(s.value))
 
     def parse_known_curvature_repr(
         self, expr: cp.Expression, local_to_glob: LocalToGlob
-    ):
+    ) -> KRepresentation:
         if set(expr.variables()) <= self.convex_vars:
             assert expr.is_convex()
             return K_repr_ax(expr)
@@ -146,7 +151,7 @@ class Parser:
         else:
             raise ValueError
 
-    def parse_known_curvature_vars(self, expr: cp.Expression, switched):
+    def parse_known_curvature_vars(self, expr: cp.Expression, switched: bool) -> None:
         vars = expr.variables()
         if expr.is_affine():
             self.affine_vars |= (
@@ -163,21 +168,22 @@ class Parser:
         else:
             raise ValueError(f"Cannot parse {expr=} with {expr.curvature=}.")
 
-    def parse_add(self, expr: cp.Expression, switched, repr_parse: bool, **kwargs):
+    def parse_add(
+        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
+    ) -> KRepresentation | None:
         assert isinstance(expr, AddExpression)
         if repr_parse:
             K_reprs = [
-                self.parse_expr(arg, switched, repr_parse, **kwargs)
-                for arg in expr.args
+                self.parse_expr_repr(arg, switched, **kwargs) for arg in expr.args
             ]
             return KRepresentation.sum_of_K_reprs(K_reprs)
         else:
             for arg in expr.args:
-                self.parse_expr(arg, switched, repr_parse, **kwargs)
+                self.parse_expr_variables(arg, switched, **kwargs)
 
     def parse_dspp_atom(
-        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs
-    ):
+        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
+    ) -> KRepresentation | None:
         assert isinstance(expr, ConvexConcaveAtom)
         if repr_parse:
             return expr.get_K_repr(**kwargs, switched=switched)
@@ -196,8 +202,8 @@ class Parser:
             self.add_to_concave_vars(concave_vars)
 
     def parse_bilin(
-        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs
-    ):
+        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
+    ) -> KRepresentation | None:
         if repr_parse:
             if all(arg.is_affine() for arg in expr.args):
                 expr.args[0] * (-1 if switched else 1)
@@ -216,8 +222,23 @@ class Parser:
             else:
                 raise NotImplementedError
 
-    def parse_expr(
-        self, expr: cp.Expression, switched, repr_parse, **kwargs
+    def parse_expr_variables(
+        self, expr: cp.Expression, switched: bool, **kwargs: dict
+    ) -> None:
+        self._parse_expr(expr, switched, repr_parse=False, **kwargs)
+
+    def parse_expr_repr(
+        self, expr: cp.Expression, switched: bool, local_to_glob: LocalToGlob
+    ) -> KRepresentation:
+
+        K_repr = self._parse_expr(
+            expr, switched, repr_parse=True, local_to_glob=local_to_glob
+        )
+        assert isinstance(K_repr, KRepresentation)
+        return K_repr
+
+    def _parse_expr(
+        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
 
         # constant
@@ -231,8 +252,8 @@ class Parser:
 
         # known curvature
         elif repr_parse and (
-            set(expr.variables()) <= self.convex_vars
-            or set(expr.variables()) <= self.concave_vars
+            (set(expr.variables()) <= self.convex_vars)
+            or (set(expr.variables()) <= self.concave_vars)
         ):
             return self.parse_known_curvature_repr(
                 expr * (1 if not switched else -1), **kwargs
@@ -244,7 +265,7 @@ class Parser:
         elif isinstance(expr, AddExpression):
             return self.parse_add(expr, switched, repr_parse, **kwargs)
         elif isinstance(expr, NegExpression):
-            return self.parse_expr(expr.args[0], not switched, repr_parse, **kwargs)
+            return self._parse_expr(expr.args[0], not switched, repr_parse, **kwargs)
         elif isinstance(expr, multiply):
             if expr.args[0].is_constant() or expr.args[1].is_constant():
                 return self.parse_scalar_mul(expr, switched, repr_parse, **kwargs)
@@ -258,7 +279,7 @@ class Parser:
                     expr, self.convex_vars, self.concave_vars
                 )
                 K_reprs = [
-                    self.parse_expr(arg, switched, repr_parse, **kwargs)
+                    self.parse_expr_repr(arg, switched, **kwargs)
                     for arg in split_up_affine
                 ]
                 return KRepresentation.sum_of_K_reprs(K_reprs)
@@ -312,12 +333,12 @@ class Parser:
 
 
 class MinimizeMaximize:
-    def __init__(self, expr: cp.Expression):
+    def __init__(self, expr: cp.Expression) -> None:
         self.expr = Atom.cast_to_const(expr)
         self._validate_arguments(expr)
 
     @staticmethod
-    def _validate_arguments(expr):
+    def _validate_arguments(expr: cp.Expression | float | int) -> None:
         if isinstance(expr, cp.Expression):
             assert expr.size == 1
         elif isinstance(expr, (float, int)):
@@ -330,12 +351,21 @@ class SaddleProblem(cp.Problem):
     def __init__(
         self,
         minmax_objective: MinimizeMaximize,
-        constraints=None,
-        minimization_vars=None,
-        maximization_vars=None,
-    ):
+        constraints: list[Constraint] | None = None,
+        minimization_vars: Iterable[cp.Variable] | None = None,
+        maximization_vars: Iterable[cp.Variable] | None = None,
+    ) -> None:
         self._validate_arguments(minmax_objective)
         self.obj_expr = minmax_objective.expr
+
+        # Optional inputs
+        minimization_vars = (
+            set(minimization_vars) if minimization_vars is not None else set()
+        )
+        maximization_vars = (
+            set(maximization_vars) if maximization_vars is not None else set()
+        )
+        constraints = list(constraints) if constraints is not None else []  # copy
 
         constraints_x, single_obj_x = self.dualized_problem(
             self.obj_expr, constraints, minimization_vars, maximization_vars
@@ -349,18 +379,22 @@ class SaddleProblem(cp.Problem):
         self.x_prob = cp.Problem(single_obj_x, constraints_x)
         self.y_prob = cp.Problem(single_obj_y, constraints_y)
 
-        self._value = None
-        self._status = None
+        self._value: float | None = None
+        self._status: str | None = None
         super().__init__(cp.Minimize(self.obj_expr), constraints)
 
     def dualized_problem(
-        self, obj_expr, constraints, minimization_vars, maximization_vars
-    ):
-        parser = Parser(minimization_vars, maximization_vars)
-        # parser.split_up_variables(obj_expr)
-        parser.parse_expr(obj_expr, switched=False, repr_parse=False)
+        self,
+        obj_expr: cp.Expression,
+        constraints: list[Constraint],
+        minimization_vars: Iterable[cp.Variable],
+        maximization_vars: Iterable[cp.Variable],
+    ) -> tuple[list[Constraint], Objective]:
 
-        constraints = list(constraints) if constraints is not None else []  # copy
+        parser = Parser(minimization_vars, maximization_vars)
+        parser.parse_expr_variables(obj_expr, switched=False)
+
+        constraints = list(constraints)  # make copy
 
         x_constraints, y_constraints = self._split_constraints(constraints, parser)
 
@@ -368,8 +402,8 @@ class SaddleProblem(cp.Problem):
 
         local_to_glob_y = LocalToGlob(parser.convex_vars, parser.concave_vars)
 
-        K_repr = parser.parse_expr(
-            obj_expr, switched=False, repr_parse=True, local_to_glob=local_to_glob_y
+        K_repr = parser.parse_expr_repr(
+            obj_expr, switched=False, local_to_glob=local_to_glob_y
         )
 
         single_obj, constraints = minimax_to_min(
@@ -379,7 +413,7 @@ class SaddleProblem(cp.Problem):
         return constraints, single_obj
 
     @staticmethod
-    def _validate_arguments(minmax_objective):
+    def _validate_arguments(minmax_objective: MinimizeMaximize) -> None:
         assert isinstance(minmax_objective, MinimizeMaximize)
 
     def _split_constraints(
@@ -417,11 +451,11 @@ class SaddleProblem(cp.Problem):
 
         return x_constraints, y_constraints
 
-    def solve(self, eps=1e-3, **args):
-        self.x_prob.solve(**args)
+    def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> None:  # noqa
+        self.x_prob.solve(*args, **kwargs)
         assert self.x_prob.status == cp.OPTIMAL
 
-        self.y_prob.solve(**args)
+        self.y_prob.solve(*args, **kwargs)
         assert self.y_prob.status == cp.OPTIMAL
 
         diff = self.x_prob.value + self.y_prob.value  # y_prob.value is negated
@@ -433,9 +467,9 @@ class SaddleProblem(cp.Problem):
         self._value = self.x_prob.value
 
     @property
-    def status(self):
+    def status(self) -> str | None:
         return self._status
 
     @property
-    def value(self):
+    def value(self) -> float | None:
         return self._value

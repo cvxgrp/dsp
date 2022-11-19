@@ -9,6 +9,7 @@ from cvxpy import SOC
 from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
+from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
 
 
 @dataclass
@@ -167,7 +168,7 @@ class LocalToGlob:
         self.y_size = sum(var.size for var in y_variables)
         self.x_size = sum(var.size for var in x_variables)
         self.outer_x_vars = x_variables
-        self.var_to_glob: dict[int, tuple[int, int]] = dict()
+        self.var_to_glob: dict[int, tuple[int, int]] = {}
 
         self.add_vars_to_map(x_variables)
         self.add_vars_to_map(y_variables)
@@ -228,7 +229,10 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
 
 
 def K_repr_FxGy(
-    Fx: cp.Expression, Gy: cp.Expression, local_to_glob: LocalToGlob, switched=False
+    Fx: cp.Expression,
+    Gy: cp.Expression,
+    local_to_glob: LocalToGlob,
+    switched: bool = False,
 ) -> KRepresentation:
 
     # dummy_Fx = cp.Variable(Fx.size, name='dummy_Fx')
@@ -269,7 +273,9 @@ def K_repr_bilin(
     return KRepresentation(f=C.T @ Fx, t=Fx.T @ d, constraints=[])
 
 
-def get_cone_repr(const: list[Constraint], exprs: list[cp.Variable | cp.Expression]):
+def get_cone_repr(
+    const: list[Constraint], exprs: list[cp.Variable | cp.Expression]
+) -> KRepresentation:
     assert {v for e in exprs for v in e.variables()} <= {
         v for c in const for v in c.variables()
     }
@@ -313,7 +319,9 @@ def get_cone_repr(const: list[Constraint], exprs: list[cp.Variable | cp.Expressi
     return var_to_mat_mapping, const_vec, cone_dims
 
 
-def add_cone_constraints(s, cone_dims, dual: bool) -> list[Constraint]:
+def add_cone_constraints(
+    s: cp.Expression, cone_dims: ConeDims, dual: bool
+) -> list[Constraint]:
     s_const = []
 
     offset = 0
@@ -375,7 +383,9 @@ def affine_to_canon(
     return B, c
 
 
-def split_K_repr_affine(expr, convex_vars, concave_vars):
+def split_K_repr_affine(
+    expr: cp.Expression, convex_vars: list[cp.Variable], concave_vars: list[cp.Variable]
+) -> tuple[cp.Expression, cp.Expression, cp.Constant]:
     """
     Split an affine expression into a convex and concave part plus offset, i.e.
     A@x+b <=> C@convex_vars + D@concave_vars + b
