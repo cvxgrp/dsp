@@ -9,7 +9,7 @@ def test_sum():
     y = cp.Variable(name="y")
     parser = Parser({x}, {y})
     expr = x + y
-    parser.parse_expr(expr, switched=False, repr_parse=False)
+    parser.parse_expr_variables(expr, switched=False)
 
     assert parser.convex_vars == {x}
     assert parser.concave_vars == {y}
@@ -20,7 +20,7 @@ def test_negative_sum():
     y = cp.Variable()
     parser = Parser({x}, {y})
     expr = -(x + y)
-    parser.parse_expr(expr, switched=False, repr_parse=False)
+    parser.parse_expr_variables(expr, switched=False)
     assert parser.convex_vars == {x}
     assert parser.concave_vars == {y}
 
@@ -32,6 +32,6 @@ def test_mul_and_add():
     wlse = weighted_log_sum_exp(x, y)
 
     expr = 1 + (-2) * (2 * (-wlse + 1))
-    parser.parse_expr(expr, switched=False, repr_parse=False)
+    parser.parse_expr_variables(expr, switched=False)
     assert parser.convex_vars == {x}
     assert parser.concave_vars == {y}
