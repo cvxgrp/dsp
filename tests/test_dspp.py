@@ -632,7 +632,8 @@ def test_robust_constraint():
     x = cp.Variable(name="x")
     y = cp.Variable(name="y")
 
-    obj = MinimizeMaximize(x)
+    obj1 = MinimizeMaximize(cp.square(x))
+    obj2 = MinimizeMaximize(x)
 
     _constraints = [x >= 1, y <= 1]
 
@@ -640,8 +641,13 @@ def test_robust_constraint():
 
     # TODO, auto min vars
     with pytest.raises(ValueError, match="Cannot split"):
-        SaddleProblem(obj, constraints, maximization_vars=[y])
+        SaddleProblem(obj2, constraints, maximization_vars=[y]) # objective is affine  in x
 
-    problem = SaddleProblem(obj, constraints, maximization_vars=[y], minimization_vars=[x])
+    problem = SaddleProblem(obj1, constraints, maximization_vars=[y])
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0)
+
+    # Idea: once we extend Constraint to RobustConstraint, we can avoid requring
+    # min vars by providing an attribute to the constraint that indicates all
+    # variables are minimization variables. Just kidding we probably dont want
+    # to do this because then it couldn't be consumed by a regular cvxpy problem.
