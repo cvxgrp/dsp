@@ -475,6 +475,11 @@ class SaddleProblem(cp.Problem):
     def value(self) -> float | None:
         return self._value
 
+    def is_dspp(self) -> bool:
+        raise NotImplementedError
+        # Currently if I construct a SaddleProblem with a non-DSPP objective, it
+        # will break on asserts, rather than on solve.
+
 
 def RobustConstraint(expr: cp.Expression, eta: cp.Constant | float, robust_constraints: list[Constraint]) -> list[Constraint]:
     """
