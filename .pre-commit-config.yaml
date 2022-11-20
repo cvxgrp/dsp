@@ -34,8 +34,10 @@ repos:
     hooks:
       - id: black
         language_version: python3
+        args:
+          - --line-length=100
 
-  # linting and code analysis with flake8
+          # linting and code analysis with flake8
   - repo: https://github.com/PyCQA/flake8
     rev: 5.0.4
     hooks:
