@@ -11,7 +11,7 @@ from dspp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dspp.problem import MinimizeMaximize, SaddleProblem
+from dspp.problem import MinimizeMaximize, RobustConstraint, SaddleProblem
 
 
 def test_matrix_game_x_Gy():
@@ -626,3 +626,22 @@ def test_wsle_with_external_affine_constraints():
 
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, opt_val, atol=1e-4)
+
+
+def test_robust_constraint():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y")
+
+    obj = MinimizeMaximize(x)
+
+    _constraints = [x >= 1, y <= 1]
+
+    constraints = _constraints + RobustConstraint(weighted_log_sum_exp(x, y), 1.0, _constraints)
+
+    # TODO, auto min vars
+    with pytest.raises(ValueError, match="Cannot split"):
+        SaddleProblem(obj, constraints, maximization_vars=[y])
+
+    problem = SaddleProblem(obj, constraints, maximization_vars=[y], minimization_vars=[x])
+    problem.solve(solver=cp.SCS)
+    assert np.isclose(problem.value, 1.0)

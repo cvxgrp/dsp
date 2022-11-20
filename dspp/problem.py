@@ -1,4 +1,5 @@
 from __future__ import annotations
+import itertools
 
 from typing import Iterable
 
@@ -473,3 +474,22 @@ class SaddleProblem(cp.Problem):
     @property
     def value(self) -> float | None:
         return self._value
+
+
+def RobustConstraint(expr: cp.Expression, eta: cp.Constant | float, robust_constraints: list[Constraint]) -> list[Constraint]:
+    """
+    Implements the robust constraint :math:`sup_yf(x,y) <= eta` where :math:`f(x,y) =` `expr`
+    is a DSPP expression.
+    """
+
+    assert isinstance(expr, cp.Expression)
+    # TODO: better handling of DSPP-ness of constraint
+    # TODO: handle requiring y constraints (fails without any y constraints)
+
+    robust_vars = list(itertools.chain.from_iterable([v.variables() for v in robust_constraints]))
+    aux_prob = SaddleProblem(MinimizeMaximize(expr), robust_constraints)
+
+    obj = aux_prob.x_prob.objective.expr
+    constraints = aux_prob.x_prob.constraints
+
+    return [obj <= eta] + constraints
