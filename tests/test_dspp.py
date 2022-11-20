@@ -11,7 +11,7 @@ from dspp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dspp.problem import MinimizeMaximize, RobustConstraint, SaddleProblem
+from dspp.problem import MinimizeMaximize, RobustConstraints, SaddleProblem
 
 
 def test_matrix_game_x_Gy():
@@ -637,17 +637,21 @@ def test_robust_constraint():
 
     _constraints = [x >= 1, y <= 1]
 
-    constraints = _constraints + RobustConstraint(weighted_log_sum_exp(x, y), 1.0, _constraints)
+    constraints = _constraints + \
+        RobustConstraints(weighted_log_sum_exp(x, y), 1.0, [y <= 1, x >= 0])
 
     # TODO, auto min vars
     with pytest.raises(ValueError, match="Cannot split"):
-        SaddleProblem(obj2, constraints, maximization_vars=[y]) # objective is affine  in x
+        SaddleProblem(obj2, constraints, maximization_vars=[y])  # objective is affine  in x
 
     problem = SaddleProblem(obj1, constraints, maximization_vars=[y])
     problem.solve(solver=cp.SCS)
-    assert np.isclose(problem.value, 1.0)
+    assert np.isclose(problem.value, 1.0, atol=1e-4)
 
     # Idea: once we extend Constraint to RobustConstraint, we can avoid requring
     # min vars by providing an attribute to the constraint that indicates all
     # variables are minimization variables. Just kidding we probably dont want
     # to do this because then it couldn't be consumed by a regular cvxpy problem.
+
+    # f = wlse(x,y)
+    # constraints += [f > eta] + [f < eta]
