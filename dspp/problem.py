@@ -277,8 +277,8 @@ class MinimizeMaximize:
 class SaddleProblem(cp.Problem):
     def __init__(
         self,
-        minmax_objective: MinimizeMaximize,
-        constraints: list[Constraint] | None = None,
+        minmax_objective: MinimizeMaximize | Objective,
+        constraints: list[Constraint | RobustConstraint] | None = None,
         minimization_vars: Iterable[cp.Variable] | None = None,
         maximization_vars: Iterable[cp.Variable] | None = None,
     ) -> None:
@@ -288,23 +288,61 @@ class SaddleProblem(cp.Problem):
         # Optional inputs
         minimization_vars = set(minimization_vars) if minimization_vars is not None else set()
         maximization_vars = set(maximization_vars) if maximization_vars is not None else set()
-        constraints = list(constraints) if constraints is not None else []  # copy
+        self._constraints_ = list(constraints) if constraints is not None else []  # copy
 
-        constraints_x, single_obj_x = self.dualized_problem(
-            self.obj_expr, constraints, minimization_vars, maximization_vars
-        )
+        # Handle explicit minimization and maximization objective
+        minimization_vars, maximization_vars = self.handle_single_curvature_objective(minmax_objective, minimization_vars, maximization_vars)
+        self._minimization_vars = minimization_vars
+        self._maximization_vars = maximization_vars
+
+        # constraints_x, single_obj_x = self.dualized_problem(
+        #     self.obj_expr, constraints, minimization_vars, maximization_vars
+        # )
 
         # note the variables are switched, and the problem value will be negated
-        constraints_y, single_obj_y = self.dualized_problem(
-            -self.obj_expr, constraints, maximization_vars, minimization_vars
-        )
+        # constraints_y, single_obj_y = self.dualized_problem(
+        #     -self.obj_expr, constraints, maximization_vars, minimization_vars
+        # )
 
-        self.x_prob = cp.Problem(single_obj_x, constraints_x)
-        self.y_prob = cp.Problem(single_obj_y, constraints_y)
+        # self.x_prob = cp.Problem(single_obj_x, constraints_x)
+        # self.y_prob = cp.Problem(single_obj_y, constraints_y)
+
+        self._x_prob = None
+        self._y_prob = None
 
         self._value: float | None = None
         self._status: str | None = None
-        super().__init__(cp.Minimize(self.obj_expr), constraints)
+        super().__init__(cp.Minimize(self.obj_expr))
+
+    @property
+    def x_prob(self) -> cp.Problem:
+        if self._x_prob is None:
+            constraints_x, single_obj_x = self.dualized_problem(
+            self.obj_expr, self._constraints_, self._minimization_vars, self._maximization_vars)
+            self._x_prob = cp.Problem(single_obj_x, constraints_x)
+        return self._x_prob
+
+    @property
+    def y_prob(self) -> cp.Problem:
+        if self._y_prob is None:
+            # note the variables are switched, and the problem value will be negated
+            constraints_y, single_obj_y = self.dualized_problem(
+            -self.obj_expr, self._constraints_, self._maximization_vars, self._minimization_vars)
+            self._y_prob = cp.Problem(single_obj_y, constraints_y)
+        return self._y_prob   
+
+    @staticmethod
+    def handle_single_curvature_objective(objective, minimization_vars, maximization_vars):
+        if isinstance(objective, cp.Minimize):
+            vars = set(objective.variables())
+            assert not vars & maximization_vars
+            minimization_vars |= vars
+        elif isinstance(objective, cp.Maximize):
+            vars = set(objective.variables())
+            assert not vars & minimization_vars
+            maximization_vars |= vars
+        
+        return minimization_vars, maximization_vars
 
     def dualized_problem(
         self,
@@ -323,6 +361,11 @@ class SaddleProblem(cp.Problem):
 
         assert not parser.affine_vars, affine_error_message(parser.affine_vars)
 
+        x_constraint_vars = set(itertools.chain.from_iterable(constraint.variables() for constraint in x_constraints))
+        y_constraint_vars = set(itertools.chain.from_iterable(constraint.variables() for constraint in y_constraints))
+        prob_vars = x_constraint_vars | y_constraint_vars | set(obj_expr.variables())
+        assert parser.convex_vars | parser.concave_vars == prob_vars, "Likely passed unused variables"
+
         local_to_glob_y = LocalToGlob(parser.convex_vars, parser.concave_vars)
 
         K_repr = parser.parse_expr_repr(obj_expr, switched=False, local_to_glob=local_to_glob_y)
@@ -335,10 +378,10 @@ class SaddleProblem(cp.Problem):
 
     @staticmethod
     def _validate_arguments(minmax_objective: MinimizeMaximize) -> None:
-        assert isinstance(minmax_objective, MinimizeMaximize)
+        assert isinstance(minmax_objective, (MinimizeMaximize, Objective)) 
 
     def _split_constraints(
-        self, constraints: list[Constraint], parser: Parser
+        self, constraints: list[Constraint | RobustConstraint], parser: Parser
     ) -> tuple[list[Constraint], list[Constraint]]:
         n_constraints = len(constraints)
         x_constraints = []
@@ -347,10 +390,17 @@ class SaddleProblem(cp.Problem):
         while constraints:
             con_len = len(constraints)
             for c in list(constraints):
+                if isinstance(c, RobustConstraint):
+                    c_vars = c.vars
+                    constraints += c.robust_constraints
+                    constraints.remove(c)
+                    n_constraints = n_constraints - 1 + len(c.robust_constraints)
+                    break   
+                
                 c_vars = set(c.variables())
                 if c_vars & parser.convex_vars:
                     assert not (c_vars & parser.concave_vars)
-                    x_constraints.append(c)
+                    x_constraints.append(c) 
                     constraints.remove(c)
                     parser.convex_vars |= c_vars
                     parser.affine_vars -= c_vars
@@ -400,8 +450,8 @@ class SaddleProblem(cp.Problem):
         # will break on asserts, rather than on solve.
 
 
-def RobustConstraints(
-    expr: cp.Expression, eta: cp.Constant | float, robust_constraints: list[Constraint]
+def form_robust_constraints(
+    expr: cp.Expression, eta: cp.Constant | float, y_constraints: list[Constraint]
 ) -> list[Constraint]:
     r"""
     Implements the robust constraint :math:`sup_{y_\mathcal{Y}}f(x,y) <= eta` where
@@ -413,10 +463,18 @@ def RobustConstraints(
     # TODO: better handling of DSPP-ness of constraint
     # TODO: handle requiring y constraints (fails without any y constraints)
 
-    _ = list(itertools.chain.from_iterable([v.variables() for v in robust_constraints]))
-    aux_prob = SaddleProblem(MinimizeMaximize(expr), robust_constraints)
+    _ = list(itertools.chain.from_iterable([v.variables() for v in y_constraints]))
+    aux_prob = SaddleProblem(MinimizeMaximize(expr), y_constraints)
 
     obj = aux_prob.x_prob.objective.expr
     constraints = aux_prob.x_prob.constraints
 
     return [obj <= eta] + constraints
+
+
+class RobustConstraint: #TODO: rename?
+    def __init__(self, expr: cp.Expression, eta: cp.Constant | float, y_constraints: list[Constraint]):
+        self.expr = expr
+        self.eta = eta
+        self.robust_constraints = form_robust_constraints(expr, eta, y_constraints)
+        self.vars = set(itertools.chain.from_iterable([c.variables() for c in self.robust_constraints]))

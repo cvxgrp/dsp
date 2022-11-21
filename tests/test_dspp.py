@@ -11,7 +11,7 @@ from dspp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dspp.problem import MinimizeMaximize, RobustConstraints, SaddleProblem
+from dspp.problem import MinimizeMaximize, RobustConstraint, form_robust_constraints, SaddleProblem
 
 
 def test_matrix_game_x_Gy():
@@ -483,10 +483,10 @@ def test_variable():
 
     obj = MinimizeMaximize(k)
     with pytest.raises(ValueError, match="Cannot split"):
-        SaddleProblem(obj, constraints)
+        SaddleProblem(obj, constraints).solve()
 
     with pytest.raises(AssertionError, match="Cannot resolve"):
-        SaddleProblem(obj, [])
+        SaddleProblem(obj, []).solve()
 
     problem = SaddleProblem(obj, constraints, minimization_vars={k})
     problem.solve(solver=cp.SCS)
@@ -542,7 +542,7 @@ def test_indeterminate_problem():
     z = cp.Variable(name="z")
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + z)
     with pytest.raises(AssertionError, match="Cannot resolve"):
-        SaddleProblem(obj)
+        SaddleProblem(obj).solve()
 
     prob = SaddleProblem(
         obj, minimization_vars={z}, constraints=[y >= 0, x >= 0, z >= 0]
@@ -635,16 +635,20 @@ def test_robust_constraint():
     obj1 = MinimizeMaximize(cp.square(x))
     obj2 = MinimizeMaximize(x)
 
-    _constraints = [x >= 1, y <= 1]
+    obj2 = cp.Minimize(x)
 
-    constraints = _constraints + \
-        RobustConstraints(weighted_log_sum_exp(x, y), 1.0, [y <= 1, x >= 0])
+    constraints = [x >= 1]
+
+    # constraints = _constraints + \
+        # form_robust_constraints(weighted_log_sum_exp(x, y), 1.0, [y <= 1, x >= 0])
+
+    constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
 
     # TODO, auto min vars
-    with pytest.raises(ValueError, match="Cannot split"):
-        SaddleProblem(obj2, constraints, maximization_vars=[y])  # objective is affine  in x
+    with pytest.raises(AssertionError, match="Likely"):
+        SaddleProblem(obj2, constraints, maximization_vars=[y]).solve()  # objective is affine  in x
 
-    problem = SaddleProblem(obj1, constraints, maximization_vars=[y])
+    problem = SaddleProblem(obj1, constraints) #, maximization_vars=[y])
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
 
@@ -655,3 +659,21 @@ def test_robust_constraint():
 
     # f = wlse(x,y)
     # constraints += [f > eta] + [f < eta]
+
+def test_robust_constraint_min():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y")
+
+    obj1 = MinimizeMaximize(cp.square(x))
+    # obj2 = MinimizeMaximize(x)
+    obj2 = cp.Minimize(x)
+
+    constraints = [x >= 1]
+
+    constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
+
+    obj = cp.Minimize(x)
+
+    problem = SaddleProblem(obj2, constraints) #, maximization_vars=[y])
+    problem.solve(solver=cp.SCS)
+    assert np.isclose(problem.value, 1.0, atol=1e-4)
