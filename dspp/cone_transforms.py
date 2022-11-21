@@ -32,9 +32,7 @@ class KRepresentation:
 
         offset = np.sum([K.offset for K in reprs])
 
-        y_constraints = list(
-            itertools.chain.from_iterable([K.y_constraints for K in reprs])
-        )
+        y_constraints = list(itertools.chain.from_iterable([K.y_constraints for K in reprs]))
 
         return KRepresentation(
             f=f,
@@ -81,9 +79,7 @@ def minimax_to_min(
     # Concave part
     # this case is only skipped if K.y is zero, i.e., if it's a purely convex problem
     if len(y_vars) > 0:
-        var_id_to_mat, e, cone_dims = get_cone_repr(
-            Y_constraints + K.y_constraints, y_vars
-        )
+        var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints + K.y_constraints, y_vars)
         lamb = cp.Variable(len(e), name="lamb")
         lamb_const = add_cone_constraints(lamb, cone_dims, dual=True)
 
@@ -104,9 +100,7 @@ def minimax_to_min(
     return cp.Minimize(obj), constraints
 
 
-def K_repr_x_Gy(
-    G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob
-) -> KRepresentation:
+def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) -> KRepresentation:
     assert G.is_concave()
     assert G.shape == x.shape
 
@@ -161,9 +155,7 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
 
 
 class LocalToGlob:
-    def __init__(
-        self, x_variables: list[cp.Variable], y_variables: list[cp.Variable]
-    ) -> None:
+    def __init__(self, x_variables: list[cp.Variable], y_variables: list[cp.Variable]) -> None:
 
         self.y_size = sum(var.size for var in y_variables)
         self.x_size = sum(var.size for var in x_variables)
@@ -276,9 +268,7 @@ def K_repr_bilin(
 def get_cone_repr(
     const: list[Constraint], exprs: list[cp.Variable | cp.Expression]
 ) -> KRepresentation:
-    assert {v for e in exprs for v in e.variables()} <= {
-        v for c in const for v in c.variables()
-    }
+    assert {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}
     aux_prob = cp.Problem(cp.Minimize(0), const)
     solver_opts = {"use_quad_obj": False}
     chain = aux_prob._construct_chain(solver_opts=solver_opts)
@@ -289,9 +279,7 @@ def get_cone_repr(
     problem_data = aux_prob.get_problem_data(solver_opts=solver_opts, solver=cp.SCS)
 
     Ab = (
-        problem_data[0]["param_prob"]
-        .A.toarray()
-        .reshape((-1, prob_canon.x.size + 1), order="F")
+        problem_data[0]["param_prob"].A.toarray().reshape((-1, prob_canon.x.size + 1), order="F")
     )  # TODO: keep sparsity
     A, const_vec = Ab[:, :-1], Ab[:, -1]
     unused_mask = np.ones(A.shape[1], dtype=bool)
@@ -319,9 +307,7 @@ def get_cone_repr(
     return var_to_mat_mapping, const_vec, cone_dims
 
 
-def add_cone_constraints(
-    s: cp.Expression, cone_dims: ConeDims, dual: bool
-) -> list[Constraint]:
+def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> list[Constraint]:
     s_const = []
 
     offset = 0
@@ -392,9 +378,7 @@ def split_K_repr_affine(
     """
     assert expr.is_affine()
     aux = cp.Variable(expr.shape)
-    var_to_mat_mapping, b, _ = get_cone_repr(
-        [aux == expr], [*convex_vars, *concave_vars]
-    )
+    var_to_mat_mapping, b, _ = get_cone_repr([aux == expr], [*convex_vars, *concave_vars])
     C = cp.Constant(0)
     D = cp.Constant(0)
     for v in convex_vars:
