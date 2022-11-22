@@ -465,34 +465,43 @@ class SaddleProblem(cp.Problem):
 
 
 def form_robust_constraints(
-    expr: cp.Expression, eta: cp.Constant | float, y_constraints: list[Constraint]
+    expr: cp.Expression, eta: cp.Constant | float, constraints: list[Constraint], mode: str = "sup"
 ) -> list[Constraint]:
-    r"""
-    Implements the robust constraint :math:`sup_{y_\mathcal{Y}}f(x,y) <= eta` where
-    :math:`f(x,y) =` `expr` is a DSPP expression, and robust_constraints are the constraints
-    on :math:`y_\mathcal{Y}`.
-    """
-
     assert isinstance(expr, cp.Expression)
     # TODO: better handling of DSPP-ness of constraint
     # TODO: handle requiring y constraints (fails without any y constraints)
 
-    _ = list(itertools.chain.from_iterable([v.variables() for v in y_constraints]))
-    aux_prob = SaddleProblem(MinimizeMaximize(expr), y_constraints)
+    # expr = expr if mode == 'sup' else -expr
+    aux_prob = SaddleProblem(MinimizeMaximize(expr), constraints)
 
-    obj = aux_prob.x_prob.objective.expr
-    constraints = aux_prob.x_prob.constraints
+    prob = aux_prob.x_prob if mode == "sup" else aux_prob.y_prob
+    obj = prob.objective.expr
+    constraints = prob.constraints
 
-    return [obj <= eta] + constraints
+    return constraints + ([obj <= eta] if mode == "sup" else [obj <= -eta])
 
 
 class RobustConstraint:  # TODO: rename?
+    r"""
+    Implements the robust constraints :math:`\sup_{y_\mathcal{Y}}f(x,y)
+    \leq eta` or :math:`\inf_{x_\mathcal{Y}}f(x,y) \geq eta` where
+    :math:`f(x,y) =` `expr` is a DSPP expression, and robust_constraints are the constraints
+    on :math:`y_\mathcal{Y}`. The direction of the inequality depends on the
+    argument `mode`, which takes on values `inf` or `sup`. The default is `sup`.
+    """
+
     def __init__(
-        self, expr: cp.Expression, eta: cp.Constant | float, y_constraints: list[Constraint]
+        self,
+        expr: cp.Expression,
+        eta: cp.Constant | float,
+        constraints: list[Constraint],
+        mode: str = "sup",
     ) -> None:
         self.expr = expr
         self.eta = eta
-        self.robust_constraints = form_robust_constraints(expr, eta, y_constraints)
+        assert mode in ["inf", "sup"], "Not a valid robust constraint mode."
+        self.mode = mode
+        self.robust_constraints = form_robust_constraints(expr, eta, constraints, mode)
         self.vars = set(
             itertools.chain.from_iterable([c.variables() for c in self.robust_constraints])
         )

@@ -646,8 +646,31 @@ def test_robust_constraint_min():
 
     constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
 
+    problem = SaddleProblem(obj2, constraints)  # , maximization_vars=[y])
+    problem.solve(solver=cp.SCS)
+    assert np.isclose(problem.value, 1.0, atol=1e-4)
+
+
+def test_robust_constraint_inf():
+    """
+    Test that we can handle robust constraint inf_x f(x,y) >= eta.
+    """
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y")
+
+    x_val = 1.0
+    y_val = 2.0
+
+    constraints = [x >= x_val]
+
+    constraints += [
+        RobustConstraint(
+            -weighted_log_sum_exp(x, y), -np.log(y_val * np.exp(x_val)), [y <= y_val], mode="inf"
+        )
+    ]
+
     obj = cp.Minimize(x)
 
-    problem = SaddleProblem(obj2, constraints)  # , maximization_vars=[y])
+    problem = SaddleProblem(obj, constraints)  # , maximization_vars=[y])
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
