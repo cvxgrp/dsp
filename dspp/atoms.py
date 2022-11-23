@@ -1,4 +1,5 @@
 from __future__ import annotations
+import itertools
 
 import warnings
 from abc import ABC, abstractmethod
@@ -7,6 +8,7 @@ import cvxpy as cp
 import numpy as np
 from cvxpy.atoms.atom import Atom
 from cvxpy.constraints import ExpCone
+from cvxpy.constraints.constraint import Constraint
 
 from dspp.cone_transforms import (
     K_repr_bilin,
@@ -16,6 +18,7 @@ from dspp.cone_transforms import (
     affine_to_canon,
     switch_convex_concave,
 )
+# from dspp.problem import form_robust_constraints
 
 
 class ConvexConcaveAtom(Atom, ABC):
@@ -29,6 +32,14 @@ class ConvexConcaveAtom(Atom, ABC):
 
     @abstractmethod
     def get_concave_variables(self) -> list[cp.Variable]:
+        pass
+
+    @abstractmethod
+    def get_convex_expression(self) -> cp.Expression:
+        pass
+
+    @abstractmethod
+    def get_concave_expression(self) -> cp.Expression:
         pass
 
     def is_atom_convex(self) -> bool:
@@ -75,15 +86,25 @@ class convex_concave_inner(ConvexConcaveAtom):
 
         super().__init__(Fx, Gy)
 
-    def get_concave_objective(self, switched: bool = False) -> cp.Expression:
-        Fx = self.Fx if not switched else self.Gy
+    def get_concave_expression(self) -> cp.Expression:
+        Fx = self.Fx
         assert Fx.value is not None
         Fx = np.reshape(Fx.value, (Fx.size,), order="F")
 
-        Gy = self.Gy if not switched else self.Fx
+        Gy = self.Gy
         Gy = cp.reshape(Gy, (Gy.size,), order="F")
 
-        return Fx @ Gy if not switched else -Fx @ Gy
+        return Fx @ Gy
+
+    def get_convex_expression(self) -> cp.Expression:
+        Gy = self.Gy
+        assert Gy.value is not None
+        Gy = np.reshape(Gy.value, (Gy.size,), order="F")
+
+        Fx = self.Fx
+        Fx = cp.reshape(Fx, (Fx.size,), order="F")
+
+        return Fx @ Gy
 
     def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         if self.bilinear:
@@ -130,6 +151,12 @@ class inner(convex_concave_inner):
 
         super().__init__(Fx, Gy)
 
+    def get_concave_expression(self) -> cp.Expression:
+        return self.Fx.value @ self.Gy
+
+    def get_convex_expression(self) -> cp.Expression:
+        return self.Fx @ self.Gy.value
+
 
 class weighted_log_sum_exp(ConvexConcaveAtom):
     def __init__(self, exponents: cp.Expression, weights: cp.Expression) -> None:
@@ -175,21 +202,28 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
         super().__init__(exponents, weights)
 
-    def get_concave_objective(self, switched: bool = False, eps: float = 1e-6) -> cp.Expression:
-        x = self.exponents if not switched else self.weights
+    def get_concave_expr(self, eps: float = 1e-6) -> cp.Expression:
+        x = self.exponents
         assert x.value is not None
         x = np.reshape(x.value, (x.size,), order="F")
 
-        y = self.weights if not switched else self.exponents
+        y = self.weights
         y = cp.reshape(y, (y.size,), order="F")
 
-        if not switched:
-            arg = y @ np.exp(x)
-            return cp.log(arg)
-        else:
-            nonneg = np.where(x > eps)[0]
-            arg = y[nonneg] + np.log(x)[nonneg]
-            return -cp.log_sum_exp(arg)
+        arg = y @ np.exp(x)
+        return cp.log(arg)
+
+    def get_convex_expr(self, eps: float = 1e-6) -> cp.Expression:
+        x = self.weights
+        assert x.value is not None
+        x = np.reshape(x.value, (x.size,), order="F")
+
+        y = self.exponents
+        y = cp.reshape(y, (y.size,), order="F")
+
+        nonneg = np.where(x > eps)[0]
+        arg = y[nonneg] + np.log(x)[nonneg]
+        return -cp.log_sum_exp(arg)
 
     def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         z = cp.Variable(self.weights.size, name="z_wlse") if self.concave_composition else None
@@ -291,3 +325,117 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
     def is_incr(self, idx: int) -> bool:
         return True  # increasing in both arguments since y nonneg
+
+
+class concave_max(Atom):
+    """sup_{y\in Y}f(x,y)"""
+
+    def __init__(self, f: ConvexConcaveAtom, vars: list[cp.Variable], constraints: list[Constraint]) -> None:
+        self.f = f
+        self.constraints = constraints
+        self.vars = vars  # variables to maximize over
+
+        super().__init__(*f.get_convex_variables())  # TODO: What do with args?
+
+    def validate_arguments(self) -> None:
+        assert self.f.size == 1
+        assert isinstance(self.vars, list)
+        assert isinstance(self.constraints, list)
+        assert isinstance(self.f, ConvexConcaveAtom)
+        assert set(self.vars) == set(self.f.get_concave_variables()
+                                     ), "Must specify all concave variables. Consider using f.get_concave_variables()."
+
+        return super().validate_arguments()
+
+    def numeric(self, values: list) -> np.ndarray:
+        """
+        Compute sup_{y\in Y}f(x,y) numerically
+        """
+        ccv = self.f.get_concave_expression()
+        aux_problem = cp.Problem(cp.Maximize(ccv), self.constraints)
+        aux_problem.solve()
+        return aux_problem.value
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        is_positive = self.f.is_nonneg()
+        is_negative = self.f.is_nonpos()
+
+        return is_positive, is_negative
+
+    def is_atom_convex(self) -> bool:
+        """Is the atom convex?
+        """
+        return True
+
+    def is_atom_concave(self) -> bool:
+        """Is the atom concave?
+        """
+        return False
+
+    def is_incr(self, idx) -> bool:
+        return False
+
+    def is_decr(self, idx: int) -> bool:
+        return False
+
+    def shape_from_args(self) -> Tuple[int, ...]:
+        """Returns the (row, col) shape of the expression.
+        """
+        return self.f.shape
+
+
+class convex_min(Atom):
+    """inf_{x\in X}f(x,y)"""
+
+    def __init__(self, f: ConvexConcaveAtom, vars: list[cp.Variable], constraints: list[Constraint]) -> None:
+        self.f = f
+        self.constraints = constraints
+        self.vars = vars  # variables to maximize over
+
+        super().__init__(*f.get_concave_variables())  # TODO: What do with args?
+
+    def validate_arguments(self) -> None:
+        assert self.f.size == 1
+        assert isinstance(self.vars, list)
+        assert isinstance(self.constraints, list)
+        assert isinstance(self.f, ConvexConcaveAtom)
+        assert set(self.vars) == set(self.f.get_convex_variables()
+                                     ), "Must specify all convex variables. Consider using f.get_convex_variables()."
+
+        return super().validate_arguments()
+
+    def numeric(self, values: list) -> np.ndarray:
+        """
+        Compute inf_{x\in X}f(x,y) numerically
+        """
+        cvx = self.f.get_convex_expression()
+        aux_problem = cp.Problem(cp.Minimize(cvx), self.constraints)
+        aux_problem.solve()
+        return aux_problem.value
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        is_positive = self.f.is_nonneg()
+        is_negative = self.f.is_nonpos()
+
+        return is_positive, is_negative
+
+    def is_atom_convex(self) -> bool:
+        """Is the atom convex?
+        """
+        return False
+
+    def is_atom_concave(self) -> bool:
+        """Is the atom concave?
+        """
+        return True
+
+    def is_incr(self, idx) -> bool:
+        return False
+
+    def is_decr(self, idx: int) -> bool:
+        return False
+
+    def shape_from_args(self) -> Tuple[int, ...]:
+        """Returns the (row, col) shape of the expression.
+        """
+        return self.f.shape

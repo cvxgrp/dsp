@@ -188,20 +188,12 @@ class Parser:
         self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
         if repr_parse:
-            if all(arg.is_affine() for arg in expr.args):
-                expr.args[0] * (-1 if switched else 1)
-                conv_ind = 0 if (set(expr.args[0].variables()) <= self.convex_vars) else 1
-                Fx = expr.args[conv_ind]
-                Gy = expr.args[1 - conv_ind]
-                assert set(Gy.variables()) <= self.concave_vars
-                return K_repr_bilin(Fx, Gy, **kwargs)
-            else:
-                raise ValueError("Use GeneralBilinAtom instead.")
+            raise ValueError("Unexpected; should fail in variable parse.")
         else:
             if all(arg.is_affine() for arg in expr.args):
-                return None
+                raise ValueError("Use inner instead for bilinear forms.")
             else:
-                raise NotImplementedError
+                raise ValueError("Use convex_concave_inner instead.")
 
     def parse_expr_variables(self, expr: cp.Expression, switched: bool, **kwargs: dict) -> None:
         self._parse_expr(expr, switched, repr_parse=False, **kwargs)
@@ -464,6 +456,19 @@ class SaddleProblem(cp.Problem):
         # will break on asserts, rather than on solve.
 
 
+def semi_infinite_epigraph(expr : cp.Expression, variables : list[cp.Variable], constraints : list[Constraint], mode : str) -> tuple(cp.Expression, list[Constraint]):
+    assert mode in ["inf", "sup"], "Not a valid semi-infinite mode."
+    
+    minimization_vars = variables if mode == "inf" else []
+    maximization_vars = variables if mode == "sup" else []
+
+    aux_prob = SaddleProblem(MinimizeMaximize(expr), constraints, minimization_vars, maximization_vars)
+    prob = aux_prob.x_prob if mode == "sup" else aux_prob.y_prob
+    obj = prob.objective.expr
+    aux_constraints = prob.constraints
+    return obj, aux_constraints
+
+
 def form_robust_constraints(
     expr: cp.Expression, eta: cp.Constant | float, constraints: list[Constraint], mode: str = "sup"
 ) -> list[Constraint]:
@@ -471,14 +476,11 @@ def form_robust_constraints(
     # TODO: better handling of DSPP-ness of constraint
     # TODO: handle requiring y constraints (fails without any y constraints)
 
-    # expr = expr if mode == 'sup' else -expr
-    aux_prob = SaddleProblem(MinimizeMaximize(expr), constraints)
+    vars = itertools.chain.from_iterable(c.variables() for c in constraints)
 
-    prob = aux_prob.x_prob if mode == "sup" else aux_prob.y_prob
-    obj = prob.objective.expr
-    constraints = prob.constraints
+    obj, aux_constraints = semi_infinite_epigraph(expr, vars, constraints, mode)
 
-    return constraints + ([obj <= eta] if mode == "sup" else [obj <= -eta])
+    return ([obj <= eta] if mode == "sup" else [obj <= -eta]) + aux_constraints
 
 
 class RobustConstraint:  # TODO: rename?
