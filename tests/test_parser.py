@@ -35,3 +35,10 @@ def test_mul_and_add():
     parser.parse_expr_variables(expr, switched=False)
     assert parser.convex_vars == {x}
     assert parser.concave_vars == {y}
+
+def test_vars():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y")
+    z = cp.Variable(name="z")
+    obj = weighted_log_sum_exp(x, y) + cp.exp(z)
+    print()

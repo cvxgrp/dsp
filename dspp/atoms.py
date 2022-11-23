@@ -18,7 +18,7 @@ from dspp.cone_transforms import (
     affine_to_canon,
     switch_convex_concave,
 )
-# from dspp.problem import form_robust_constraints
+from dspp.semi_infinite_util import get_min_or_max_variables
 
 
 class ConvexConcaveAtom(Atom, ABC):
@@ -108,7 +108,7 @@ class convex_concave_inner(ConvexConcaveAtom):
 
     def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         if self.bilinear:
-            return (
+            K_out =  (
                 K_repr_bilin(self.Fx, self.Gy, local_to_glob)
                 if not switched
                 else K_repr_bilin(-self.Gy, self.Fx, local_to_glob)
@@ -119,7 +119,12 @@ class convex_concave_inner(ConvexConcaveAtom):
                 outer_constraints = K_out.y_constraints if not switched else K_out.constraints
                 outer_constraints.append(self.Gy >= 0)
 
-            return K_out
+        if not switched:
+            K_out.concave_expr = lambda x : self.get_concave_expression()
+        else:
+            K_out.concave_expr = lambda x : -self.get_convex_expression()
+        return K_out
+
 
     def get_convex_variables(self) -> list[cp.Variable]:
         return self.Fx.variables()
@@ -202,7 +207,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
         super().__init__(exponents, weights)
 
-    def get_concave_expr(self, eps: float = 1e-6) -> cp.Expression:
+    def get_concave_expression(self, eps: float = 1e-6) -> cp.Expression:
         x = self.exponents
         assert x.value is not None
         x = np.reshape(x.value, (x.size,), order="F")
@@ -213,7 +218,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
         arg = y @ np.exp(x)
         return cp.log(arg)
 
-    def get_convex_expr(self, eps: float = 1e-6) -> cp.Expression:
+    def get_convex_expression(self, eps: float = 1e-6) -> cp.Expression:
         x = self.weights
         assert x.value is not None
         x = np.reshape(x.value, (x.size,), order="F")
@@ -223,7 +228,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
         nonneg = np.where(x > eps)[0]
         arg = y[nonneg] + np.log(x)[nonneg]
-        return -cp.log_sum_exp(arg)
+        return cp.log_sum_exp(arg)
 
     def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         z = cp.Variable(self.weights.size, name="z_wlse") if self.concave_composition else None
@@ -309,6 +314,9 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
             else:
                 K_out.y_constraints += [self.weights >= 0]
 
+        concave_fun = (lambda x : self.get_concave_expression()) if not switched else (lambda x : -self.get_convex_expression())
+        K_out.concave_expr = concave_fun
+        
         return K_out
 
     def get_convex_variables(self) -> list[cp.Variable]:
@@ -327,6 +335,12 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
         return True  # increasing in both arguments since y nonneg
 
 
+def get_min_or_max_variables(expr : cp.Expression, constraints : list[Constraint], mode : str):
+    assert mode in ["sup", "inf"]
+    aux_prob = cp.Problem(MinimizeMaximize(expr), constraints)
+    return aux_prob._maximization_variables if mode == "sup" else aux_prob._minimization_vars
+
+
 class concave_max(Atom):
     """sup_{y\in Y}f(x,y)"""
 
@@ -335,6 +349,10 @@ class concave_max(Atom):
         self.constraints = constraints
         self.vars = vars  # variables to maximize over
 
+        val_min_vars = get_min_or_max_variables(self.f, self.constraints, mode='sup')
+        assert set(self.vars) == set(val_min_vars
+                                     ), "Must specify all concave variables. Consider using f.get_concave_variables()."
+       
         super().__init__(*f.get_convex_variables())  # TODO: What do with args?
 
     def validate_arguments(self) -> None:
@@ -342,8 +360,6 @@ class concave_max(Atom):
         assert isinstance(self.vars, list)
         assert isinstance(self.constraints, list)
         assert isinstance(self.f, ConvexConcaveAtom)
-        assert set(self.vars) == set(self.f.get_concave_variables()
-                                     ), "Must specify all concave variables. Consider using f.get_concave_variables()."
 
         return super().validate_arguments()
 
