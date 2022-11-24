@@ -1,0 +1,3 @@
+from dspp.cvxpy_integration import extend_cone_canon_methods
+
+extend_cone_canon_methods()

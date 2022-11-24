@@ -11,7 +11,7 @@ from dspp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dspp.problem import MinimizeMaximize, RobustConstraint, SaddleProblem
+from dspp.problem import MinimizeMaximize, SaddleProblem
 
 
 def test_matrix_game_x_Gy():
@@ -150,24 +150,22 @@ def test_matrix_game_nemirovski_Fx_Gy():
     prob.solve(solver=cp.SCS)
     assert np.isclose(prob.value, 0, atol=1e-4)
 
+
 def test_overload_bilin():
     x = cp.Variable()
     y = cp.Variable()
 
-    objective = MinimizeMaximize(x*y)
+    objective = MinimizeMaximize(x * y)
     constraints = [-1 <= x, x <= 1, -1.2 <= y, y <= -0.8]
     prob = SaddleProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
-    
-    with pytest.raises(ValueError,match = "Use inner instead"):
+
+    with pytest.raises(ValueError, match="Use inner instead"):
         prob.solve()
- 
+
 
 @pytest.mark.parametrize(
     "obj",
-    [
-        lambda x, y: inner(x, 1 + y),
-        lambda x, y: x + inner(x, y)
-    ],
+    [lambda x, y: inner(x, 1 + y), lambda x, y: x + inner(x, y)],
 )
 def test_saddle_composition(obj):
     x = cp.Variable(name="x")
@@ -654,7 +652,9 @@ def test_robust_constraint_min():
 
     constraints = [x >= 1]
 
-    constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
+    # constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
+
+    constraints += [concave_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
     problem = SaddleProblem(obj2, constraints)  # , maximization_vars=[y])
     problem.solve(solver=cp.SCS)

@@ -1,7 +1,9 @@
 import cvxpy as cp
 
 from dspp.atoms import weighted_log_sum_exp
-from dspp.problem import Parser
+
+# from dspp.problem import Parser
+from dspp.parser import Parser
 
 
 def test_sum():
@@ -35,6 +37,7 @@ def test_mul_and_add():
     parser.parse_expr_variables(expr, switched=False)
     assert parser.convex_vars == {x}
     assert parser.concave_vars == {y}
+
 
 def test_vars():
     x = cp.Variable(name="x")

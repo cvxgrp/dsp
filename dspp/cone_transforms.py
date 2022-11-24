@@ -19,7 +19,7 @@ class KRepresentation:
     constraints: list[Constraint]
     offset: float = 0.0
     y_constraints: list[Constraint] = field(default_factory=list)
-    concave_expr: callable = lambda x : 0
+    concave_expr: callable = lambda x: 0
 
     @classmethod
     def sum_of_K_reprs(cls, reprs: list[KRepresentation]) -> KRepresentation:
@@ -33,7 +33,7 @@ class KRepresentation:
 
         offset = np.sum([K.offset for K in reprs])
 
-        concave_expr = lambda x : cp.sum([K.concave_expr(x) for K in reprs])
+        concave_expr = lambda x: cp.sum([K.concave_expr(x) for K in reprs])
 
         y_constraints = list(itertools.chain.from_iterable([K.y_constraints for K in reprs]))
 
@@ -43,7 +43,7 @@ class KRepresentation:
             constraints=constraints,
             offset=offset,
             y_constraints=y_constraints,
-            concave_expr=concave_expr
+            concave_expr=concave_expr,
         )
 
     def scalar_multiply(self, scalar: float) -> KRepresentation:
@@ -53,7 +53,7 @@ class KRepresentation:
             t=self.t * scalar,
             constraints=self.constraints,
             offset=self.offset * scalar,
-            concave_expr=lambda x : self.concave_expr(x) * scalar
+            concave_expr=lambda x: self.concave_expr(x) * scalar,
         )
 
     @classmethod
@@ -63,7 +63,7 @@ class KRepresentation:
             t=cp.Constant(0),
             constraints=[],
             offset=float(value),
-            concave_expr= lambda x : float(value)
+            concave_expr=lambda x: float(value),
         )
 
 
@@ -157,7 +157,7 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
 
     constraints = [t >= a, f == 0]
 
-    return KRepresentation(f=f, t=t, constraints=constraints, concave_expr=lambda x : a.value)
+    return KRepresentation(f=f, t=t, constraints=constraints, concave_expr=lambda x: a.value)
 
 
 class LocalToGlob:
@@ -223,7 +223,7 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
     if Q_bar.shape[1] > 0:
         K_constr.append(Q_bar.T @ u == 0)
 
-    return KRepresentation(f=f, t=t, constraints=K_constr, concave_expr= lambda x : b_neg)
+    return KRepresentation(f=f, t=t, constraints=K_constr, concave_expr=lambda x: b_neg)
 
 
 def K_repr_FxGy(

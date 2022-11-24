@@ -1,26 +1,33 @@
 from __future__ import annotations
 
-import cvxpy as cp
-
 import itertools
 from typing import Iterable
+
+import cvxpy as cp
 from cvxpy import multiply
 from cvxpy.atoms.affine.add_expr import AddExpression
 from cvxpy.atoms.affine.binary_operators import MulExpression
 from cvxpy.atoms.affine.unary_operators import NegExpression
-from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
-from cvxpy.problems.objective import Objective
-from dspp.atoms import ConvexConcaveAtom
+
+
+import dspp
 from dspp.cone_transforms import (
     K_repr_ax,
-    K_repr_bilin,
     K_repr_by,
     KRepresentation,
     LocalToGlob,
-    minimax_to_min,
     split_K_repr_affine,
 )
+
+
+def affine_error_message(affine_vars: list[cp.Variable]) -> str:
+    return (
+        f"Cannot resolve curvature of variables {[v.name() for v in affine_vars]}. "
+        f"Specify curvature of these variables as "
+        f"SaddleProblem(obj, constraints, minimization_vars, maximization_vars)."
+    )
+
 
 class Parser:
     def __init__(self, convex_vars: set[cp.Variable], concave_vars: set[cp.Variable]) -> None:
@@ -29,6 +36,20 @@ class Parser:
         self.concave_vars: set[cp.Variable] = concave_vars
         assert not (self.convex_vars & self.concave_vars)
         self.affine_vars: set[int] = set()
+        self._x_constraints = None
+        self._y_constraints = None
+
+    @property
+    def x_constraints(self) -> list[Constraint]:
+        if self._x_constraints is None:
+            return []
+        return self._x_constraints
+
+    @property
+    def y_constraints(self) -> list[Constraint]:
+        if self._y_constraints is None:
+            return []
+        return self._y_constraints
 
     def split_up_variables(self, expr: cp.Expression) -> None:
         if expr.is_affine():
@@ -38,7 +59,7 @@ class Parser:
 
         if isinstance(expr, cp.Constant) or isinstance(expr, (float, int)):
             return
-        elif isinstance(expr, ConvexConcaveAtom):
+        elif isinstance(expr, dspp.atoms.ConvexConcaveAtom):
             self.add_to_convex_vars(expr.get_convex_variables())
             self.add_to_concave_vars(expr.get_concave_variables())
         elif isinstance(expr, AddExpression):
@@ -51,9 +72,9 @@ class Parser:
         elif expr.is_concave():
             self.add_to_concave_vars(expr.variables())
         elif isinstance(expr, NegExpression):
-            if isinstance(expr.args[0], ConvexConcaveAtom):
+            if isinstance(expr.args[0], dspp.atoms.ConvexConcaveAtom):
                 dspp_atom = expr.args[0]
-                assert isinstance(dspp_atom, ConvexConcaveAtom)
+                assert isinstance(dspp_atom, dspp.atoms.ConvexConcaveAtom)
                 self.add_to_concave_vars(dspp_atom.get_convex_variables())
                 self.add_to_convex_vars(dspp_atom.get_concave_variables())
             elif isinstance(expr.args[0], AddExpression):
@@ -61,7 +82,7 @@ class Parser:
                     self.split_up_variables(-arg)
             elif isinstance(expr.args[0], NegExpression):  # double negation
                 dspp_atom = expr.args[0].args[0]
-                assert isinstance(dspp_atom, ConvexConcaveAtom)
+                assert isinstance(dspp_atom, dspp.atoms.ConvexConcaveAtom)
                 self.split_up_variables(dspp_atom)
             elif isinstance(expr.args[0], multiply):  # negated multiplication of dspp atom
                 mult = expr.args[0]
@@ -74,7 +95,7 @@ class Parser:
             s = expr.args[0]
             assert isinstance(s, cp.Constant)
             dspp_atom = expr.args[1]
-            assert isinstance(dspp_atom, ConvexConcaveAtom)
+            assert isinstance(dspp_atom, dspp.atoms.ConvexConcaveAtom)
             if s.is_nonneg():
                 self.add_to_convex_vars(dspp_atom.get_convex_variables())
                 self.add_to_concave_vars(dspp_atom.get_concave_variables())
@@ -156,7 +177,7 @@ class Parser:
     def parse_dspp_atom(
         self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
-        assert isinstance(expr, ConvexConcaveAtom)
+        assert isinstance(expr, dspp.atoms.ConvexConcaveAtom)
         if repr_parse:
             return expr.get_K_repr(**kwargs, switched=switched)
         else:
@@ -223,7 +244,7 @@ class Parser:
                 return self.parse_scalar_mul(expr, switched, repr_parse, **kwargs)
             else:
                 return self.parse_bilin(expr, switched, repr_parse, **kwargs)
-        elif isinstance(expr, ConvexConcaveAtom):
+        elif isinstance(expr, dspp.atoms.ConvexConcaveAtom):
             return self.parse_dspp_atom(expr, switched, repr_parse, **kwargs)
         elif isinstance(expr, MulExpression):
             if expr.is_affine() and repr_parse:
@@ -234,3 +255,68 @@ class Parser:
                 return self.parse_bilin(expr, switched, repr_parse, **kwargs)
         else:
             raise ValueError
+
+
+def _split_constraints(
+    constraints: list[Constraint], parser: Parser
+) -> tuple[list[Constraint], list[Constraint]]:
+    n_constraints = len(constraints)
+    x_constraints = []
+    y_constraints = []
+
+    while constraints:
+        con_len = len(constraints)
+        for c in list(constraints):
+            c_vars = set(c.variables())
+            if c_vars & parser.convex_vars:
+                assert not (c_vars & parser.concave_vars)
+                x_constraints.append(c)
+                constraints.remove(c)
+                parser.convex_vars |= c_vars
+                parser.affine_vars -= c_vars
+            elif c_vars & parser.concave_vars:
+                assert not (c_vars & parser.convex_vars)
+                y_constraints.append(c)
+                constraints.remove(c)
+                parser.concave_vars |= c_vars
+                parser.affine_vars -= c_vars
+
+        if con_len == len(constraints):
+            raise ValueError(
+                "Cannot split constraints, specify minimization_vars and " "maximization_vars"
+            )
+
+    assert len(x_constraints) + len(y_constraints) == n_constraints
+    assert not (parser.convex_vars & parser.concave_vars)
+
+    return x_constraints, y_constraints
+
+
+def initialize_parser(
+    expr,
+    minimization_vars: Iterable[cp.Variable],
+    maximization_vars: Iterable[cp.Variable],
+    constraints: list[Constraint] | None = None,
+) -> Parser:
+    parser = Parser(set(minimization_vars), set(maximization_vars))
+    parser.parse_expr_variables(expr, switched=False)
+
+    constraints = list(constraints)  # make copy
+
+    x_constraints, y_constraints = _split_constraints(constraints, parser)
+
+    parser._x_constraints = x_constraints
+    parser._y_constraints = y_constraints
+
+    assert not parser.affine_vars, affine_error_message(parser.affine_vars)
+
+    x_constraint_vars = set(
+        itertools.chain.from_iterable(constraint.variables() for constraint in x_constraints)
+    )
+    y_constraint_vars = set(
+        itertools.chain.from_iterable(constraint.variables() for constraint in y_constraints)
+    )
+    prob_vars = x_constraint_vars | y_constraint_vars | set(expr.variables())
+    assert parser.convex_vars | parser.concave_vars == prob_vars, "Likely passed unused variables"
+
+    return parser
