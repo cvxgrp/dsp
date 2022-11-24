@@ -10,7 +10,6 @@ from cvxpy.atoms.affine.binary_operators import MulExpression
 from cvxpy.atoms.affine.unary_operators import NegExpression
 from cvxpy.constraints.constraint import Constraint
 
-
 import dspp
 from dspp.cone_transforms import (
     K_repr_ax,
@@ -293,7 +292,7 @@ def _split_constraints(
 
 
 def initialize_parser(
-    expr,
+    expr: cp.Expression,
     minimization_vars: Iterable[cp.Variable],
     maximization_vars: Iterable[cp.Variable],
     constraints: list[Constraint] | None = None,

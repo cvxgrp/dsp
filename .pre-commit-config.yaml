@@ -43,5 +43,5 @@ repos:
     hooks:
       - id: flake8
         files: ^dspp/
-        args: [--max-line-length=100, --ignore=E800 N806 N802 ANN101 N801 N803 ANN102 E203 W503]
+        args: [--max-line-length=100, --ignore=E800 N806 N802 ANN101 N801 N803 ANN102 E203 W503 ANN401]
         additional_dependencies: [flake8-bugbear, flake8-comprehensions, flake8-eradicate, pep8-naming, flake8-annotations]

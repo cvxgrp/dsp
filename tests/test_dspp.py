@@ -2,7 +2,13 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dspp.atoms import concave_max, convex_concave_inner, inner, weighted_log_sum_exp
+from dspp.atoms import (
+    concave_inf,
+    convex_concave_inner,
+    convex_sup,
+    inner,
+    weighted_log_sum_exp,
+)
 from dspp.cone_transforms import (
     K_repr_ax,
     K_repr_x_Gy,
@@ -620,10 +626,7 @@ def test_robust_constraint():
 
     constraints = [x >= 1]
 
-    # constraints = _constraints + \
-    # form_robust_constraints(weighted_log_sum_exp(x, y), 1.0, [y <= 1, x >= 0])
-
-    constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
+    constraints += [convex_sup(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
     # TODO, auto min vars
     with pytest.raises(AssertionError, match="Likely"):
@@ -632,14 +635,6 @@ def test_robust_constraint():
     problem = SaddleProblem(obj1, constraints)  # , maximization_vars=[y])
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
-
-    # Idea: once we extend Constraint to RobustConstraint, we can avoid requring
-    # min vars by providing an attribute to the constraint that indicates all
-    # variables are minimization variables. Just kidding we probably dont want
-    # to do this because then it couldn't be consumed by a regular cvxpy problem.
-
-    # f = wlse(x,y)
-    # constraints += [f > eta] + [f < eta]
 
 
 def test_robust_constraint_min():
@@ -654,9 +649,13 @@ def test_robust_constraint_min():
 
     # constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
 
-    constraints += [concave_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
+    constraints += [convex_sup(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
     problem = SaddleProblem(obj2, constraints)  # , maximization_vars=[y])
+    problem.solve(solver=cp.SCS)
+    assert np.isclose(problem.value, 1.0, atol=1e-4)
+
+    problem = cp.Problem(obj2, constraints)  # , maximization_vars=[y])
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
 
@@ -671,16 +670,15 @@ def test_robust_constraint_inf():
     x_val = 1.0
     y_val = 2.0
 
-    constraints = [x >= x_val]
+    constraints = [y <= y_val]
 
     constraints += [
-        RobustConstraint(
-            -weighted_log_sum_exp(x, y), -np.log(y_val * np.exp(x_val)), [y <= y_val], mode="inf"
-        )
+        concave_inf(weighted_log_sum_exp(x, y), [x], [x >= x_val]) >= np.log(y_val * np.exp(x_val))
     ]
 
-    obj = cp.Minimize(x)
+    obj = cp.Maximize(y)
 
-    problem = SaddleProblem(obj, constraints)  # , maximization_vars=[y])
+    # problem = SaddleProblem(obj, constraints)
+    problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
-    assert np.isclose(problem.value, 1.0, atol=1e-4)
+    assert np.isclose(problem.value, y_val, atol=1e-4)

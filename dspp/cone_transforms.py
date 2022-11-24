@@ -33,7 +33,10 @@ class KRepresentation:
 
         offset = np.sum([K.offset for K in reprs])
 
-        concave_expr = lambda x: cp.sum([K.concave_expr(x) for K in reprs])
+        def f_concave(x: np.ndarray) -> cp.Expression:
+            return cp.sum([K.concave_expr(x) for K in reprs])
+
+        concave_expr = f_concave
 
         y_constraints = list(itertools.chain.from_iterable([K.y_constraints for K in reprs]))
 
@@ -273,7 +276,7 @@ def K_repr_bilin(
 
 def get_cone_repr(
     const: list[Constraint], exprs: list[cp.Variable | cp.Expression]
-) -> KRepresentation:
+) -> tuple(dict[int, np.ndarray], np.ndarray, ConeDims):
     assert {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}
     aux_prob = cp.Problem(cp.Minimize(0), const)
     solver_opts = {"use_quad_obj": False}

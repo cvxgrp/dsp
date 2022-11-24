@@ -17,7 +17,7 @@ from dspp.cone_transforms import (
     affine_to_canon,
     switch_convex_concave,
 )
-from dspp.parser import initialize_parser
+from dspp.parser import Parser, initialize_parser
 
 
 class ConvexConcaveAtom(Atom, ABC):
@@ -339,7 +339,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
 def init_parser_wrapper(
     expr: cp.Expression, constraints: list[Constraint], vars: set[cp.Variable], mode: str
-):
+) -> Parser:
     assert mode in ["sup", "inf"]
     min_vars = vars if mode == "inf" else []
     max_vars = vars if mode == "sup" else []
@@ -350,7 +350,7 @@ def init_parser_wrapper(
     return parser
 
 
-class concave_max(Atom):
+class convex_sup(Atom):
     r"""sup_{y\in Y}f(x,y)"""
 
     def __init__(
@@ -414,18 +414,18 @@ class concave_max(Atom):
         """Is the atom concave?"""
         return False
 
-    def is_incr(self, idx) -> bool:
+    def is_incr(self, idx: int) -> bool:
         return False
 
     def is_decr(self, idx: int) -> bool:
         return False
 
-    def shape_from_args(self) -> Tuple[int, ...]:
+    def shape_from_args(self) -> tuple[int, ...]:
         """Returns the (row, col) shape of the expression."""
         return self.f.shape
 
 
-class convex_min(Atom):
+class concave_inf(Atom):
     r"""inf_{x\in X}f(x,y)"""
 
     def __init__(
@@ -475,7 +475,7 @@ class convex_min(Atom):
         """Is the atom concave?"""
         return True
 
-    def is_incr(self, idx) -> bool:
+    def is_incr(self, idx: int) -> bool:
         return False
 
     def is_decr(self, idx: int) -> bool:

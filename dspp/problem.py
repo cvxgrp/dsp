@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import chain
 from typing import Iterable
 
 import cvxpy as cp
@@ -8,7 +9,12 @@ from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
 
-from dspp.cone_transforms import LocalToGlob, minimax_to_min
+from dspp.cone_transforms import (
+    LocalToGlob,
+    add_cone_constraints,
+    get_cone_repr,
+    minimax_to_min,
+)
 from dspp.parser import initialize_parser
 
 
@@ -31,7 +37,7 @@ class SaddleProblem(cp.Problem):
     def __init__(
         self,
         minmax_objective: MinimizeMaximize | Objective,
-        constraints: list[Constraint | RobustConstraint] | None = None,
+        constraints: list[Constraint] | None = None,
         minimization_vars: Iterable[cp.Variable] | None = None,
         maximization_vars: Iterable[cp.Variable] | None = None,
     ) -> None:
@@ -159,5 +165,25 @@ def semi_infinite_epigraph(
     )
     prob = aux_prob.x_prob if mode == "sup" else aux_prob.y_prob
     obj = prob.objective.expr
-    aux_constraints = prob.constraints
-    return obj, aux_constraints
+    aux_constraints = prob.constraints  # aux_constraints may not be canonicalized
+
+    vars = list(set(chain.from_iterable([c.variables() for c in aux_constraints])))
+    var_id_map = {v.id: v for v in vars}
+    var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(aux_constraints, vars)
+
+    # A @ [all variablea]
+    expr = 0
+    aux_size = var_to_mat_mapping["eta"].shape[1]
+    if aux_size > 0:  # used extra variables
+        eta = cp.Variable(aux_size)
+        expr += var_to_mat_mapping["eta"] @ eta
+    var_to_mat_mapping.pop("eta")
+
+    for v_id, A_ in var_to_mat_mapping.items():
+        expr += A_ @ cp.vec(var_id_map[v_id])
+
+    z = const_vec - expr  # Ax + b in K
+
+    cone_constraints = add_cone_constraints(z, cone_dims, dual=False)
+
+    return obj, cone_constraints

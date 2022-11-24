@@ -2,7 +2,7 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dspp.atoms import concave_max, convex_min, inner, weighted_log_sum_exp
+from dspp.atoms import concave_inf, convex_sup, inner, weighted_log_sum_exp
 from dspp.cvxpy_integration import extend_cone_canon_methods
 from dspp.problem import MinimizeMaximize, SaddleProblem
 
@@ -27,13 +27,13 @@ def test_semi_infinite_matrix():
 
     # Concave max problem
 
-    obj = cp.Minimize(concave_max(inner_expr, [y], [cp.sum(y) == 1]))
+    obj = cp.Minimize(convex_sup(inner_expr, [y], [cp.sum(y) == 1]))
     constraints = [cp.sum(x) == 1]
 
     problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
 
-    obj = cp.Maximize(convex_min(inner_expr, [x], [cp.sum(x) == 1]))
+    obj = cp.Maximize(concave_inf(inner_expr, [x], [cp.sum(x) == 1]))
     constraints = [cp.sum(y) == 1]
 
     problem = cp.Problem(obj, constraints)
@@ -50,7 +50,7 @@ def test_dcp_concave_max():
     A = np.array([[1, 2], [3, 4]])
     inner_expr = inner(x, A @ y)
 
-    obj = cp.Maximize(concave_max(inner_expr, [y], [cp.sum(y) == 1]))
+    obj = cp.Maximize(convex_sup(inner_expr, [y], [cp.sum(y) == 1]))
     assert not obj.is_dcp()
 
 
@@ -60,7 +60,7 @@ def test_semi_infinite_expr():
 
     wlse = weighted_log_sum_exp(x, y)
 
-    sup_y_f = concave_max(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
+    sup_y_f = convex_sup(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
 
     with pytest.raises(AssertionError, match="x must have a value"):
         sup_y_f.numeric(values=np.ones(1))
