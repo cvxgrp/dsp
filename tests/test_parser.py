@@ -41,7 +41,7 @@ def test_mul_and_add():
 
 def test_vars():
     x = cp.Variable(name="x")
-    y = cp.Variable(name="y")
+    y = cp.Variable(name="y", nonneg=True)
     z = cp.Variable(name="z")
     obj = weighted_log_sum_exp(x, y) + cp.exp(z)
     print()

@@ -617,7 +617,7 @@ def test_wsle_with_external_affine_constraints():
 
 def test_robust_constraint():
     x = cp.Variable(name="x")
-    y = cp.Variable(name="y")
+    y = cp.Variable(name="y", nonneg=True)
 
     obj1 = MinimizeMaximize(cp.square(x))
     obj2 = MinimizeMaximize(x)
@@ -639,7 +639,7 @@ def test_robust_constraint():
 
 def test_robust_constraint_min():
     x = cp.Variable(name="x")
-    y = cp.Variable(name="y")
+    y = cp.Variable(name="y", nonneg=True)
 
     obj1 = MinimizeMaximize(cp.square(x))
     # obj2 = MinimizeMaximize(x)
@@ -665,7 +665,7 @@ def test_robust_constraint_inf():
     Test that we can handle robust constraint inf_x f(x,y) >= eta.
     """
     x = cp.Variable(name="x")
-    y = cp.Variable(name="y")
+    y = cp.Variable(name="y", nonneg=True)
 
     x_val = 1.0
     y_val = 2.0

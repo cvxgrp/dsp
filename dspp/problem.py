@@ -154,7 +154,7 @@ class SaddleProblem(cp.Problem):
 
 def semi_infinite_epigraph(
     expr: cp.Expression, variables: list[cp.Variable], constraints: list[Constraint], mode: str
-) -> tuple(cp.Expression, list[Constraint]):
+) -> tuple[cp.Expression, list[Constraint]]:
     assert mode in ["inf", "sup"], "Not a valid semi-infinite mode."
 
     minimization_vars = variables if mode == "inf" else []
