@@ -79,18 +79,35 @@ def test_dcp_concave_max_and_dummy():
 
 def test_semi_infinite_expr():
     x = cp.Variable(2, name="x", nonneg=True)
-    y = Dummy(2, name="y", nonneg=True)
+    y_dummy = Dummy(2, name="y_dummy", nonneg=True)
+    y = cp.Variable(2, name="y", nonneg=True)
 
     wlse = weighted_log_sum_exp(x, y)
 
-    sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
+    # Trying to create a saddle_max with a variable for y (instead of a dummy)
+    with pytest.raises(AssertionError, match="vars must be Dummy variables"):
+        sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
 
+    wlse = weighted_log_sum_exp(x, y_dummy)
+
+    # creating a valid saddle_max with a dummy variable
+    sup_y_f = saddle_max(2 * wlse + y_dummy[1] + cp.exp(x[1]), [y_dummy], [y_dummy <= 1])
+
+    # trying to use the same dummy variable in a new SE raises an error
+    with pytest.raises(AssertionError, match="Cannot assign a Dummy to multiple SEs."):
+        sup_y_f = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy], [y_dummy <= 1])
+
+    # trying to get the value of the saddle_max before x has a value raises an error
     with pytest.raises(AssertionError, match="x must have a value"):
         sup_y_f.numeric(values=np.ones(1))
 
+    # trying to get the value of y_dummy before x has a value raises an error
     with pytest.raises(AssertionError, match="x must have a value"):
-        y.value
+        y_dummy.value
 
     x.value = np.ones(2)
+
+    assert np.allclose(y_dummy.value, np.ones(2))
+
     val = sup_y_f.numeric(values=np.ones(1))
     assert np.isclose(val, 2 * np.log(2 * np.e) + 1 + np.e)
