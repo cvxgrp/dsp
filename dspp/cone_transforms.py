@@ -34,7 +34,8 @@ class KRepresentation:
         offset = np.sum([K.offset for K in reprs])
 
         def f_concave(x: np.ndarray) -> cp.Expression:
-            return cp.sum([K.concave_expr(x) for K in reprs])
+            nones = any([K.concave_expr(x) is None for K in reprs])
+            return cp.sum([K.concave_expr(x) for K in reprs]) if not nones else None
 
         concave_expr = f_concave
 
@@ -56,7 +57,9 @@ class KRepresentation:
             t=self.t * scalar,
             constraints=self.constraints,
             offset=self.offset * scalar,
-            concave_expr=lambda x: self.concave_expr(x) * scalar,
+            concave_expr=lambda x: self.concave_expr(x) * scalar
+            if self.concave_expr(x) is not None
+            else None,
         )
 
     @classmethod

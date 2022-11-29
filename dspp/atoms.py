@@ -208,7 +208,11 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
     def get_concave_expression(self, eps: float = 1e-6) -> cp.Expression:
         x = self.exponents
-        assert x.value is not None, f"{x.name()} must have a value"
+
+        # assert x.value is not None, f"{x.name()} must have a value"
+        if x.value is None:
+            return None
+
         x = np.reshape(x.value, (x.size,), order="F")
 
         y = self.weights
@@ -219,7 +223,10 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
     def get_convex_expression(self, eps: float = 1e-6) -> cp.Expression:
         x = self.weights
-        assert x.value is not None
+        # assert x.value is not None
+        if x.value is None:
+            return None
+
         x = np.reshape(x.value, (x.size,), order="F")
 
         y = self.exponents
@@ -409,9 +416,12 @@ class saddle_max(Atom):
         K_repr = self.parser.parse_expr_repr(self.f, switched=False, local_to_glob=local_to_glob_y)
 
         ccv = K_repr.concave_expr(values)
-        aux_problem = cp.Problem(cp.Maximize(ccv), self.constraints)
-        aux_problem.solve()
-        return aux_problem.value
+        if ccv is None:
+            return None
+        else:
+            aux_problem = cp.Problem(cp.Maximize(ccv), self.constraints)
+            aux_problem.solve()
+            return aux_problem.value
 
     def sign_from_args(self) -> tuple[bool, bool]:
         is_positive = self.f.is_nonneg()

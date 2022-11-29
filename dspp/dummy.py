@@ -38,10 +38,7 @@ class Dummy(cp.Variable):
             expr.numeric(
                 None
             )  # TODO: allow numeric to take an arbirary value rather than requiring a solve.
-        if self._value is None:
-            raise ValueError("Dummy variable has no value after numeric() call.")
-        else:
-            return self._value
+        return self._value  # can be none if numeric had no variable value
 
     @value.setter
     def value(self, new_value: np.ndarray) -> None:

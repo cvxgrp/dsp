@@ -97,13 +97,11 @@ def test_semi_infinite_expr():
     with pytest.raises(AssertionError, match="Cannot assign a Dummy to multiple SEs."):
         sup_y_f = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy], [y_dummy <= 1])
 
-    # trying to get the value of the saddle_max before x has a value raises an error
-    with pytest.raises(AssertionError, match="x must have a value"):
-        sup_y_f.numeric(values=np.ones(1))
+    # trying to get the value of the saddle_max before x has a value returns None
+    assert sup_y_f.numeric(values=np.ones(1)) is None
 
-    # trying to get the value of y_dummy before x has a value raises an error
-    with pytest.raises(AssertionError, match="x must have a value"):
-        y_dummy.value
+    # trying to get the value of y_dummy before x has a value returns None
+    assert y_dummy.value is None
 
     x.value = np.ones(2)
 
@@ -111,3 +109,32 @@ def test_semi_infinite_expr():
 
     val = sup_y_f.numeric(values=np.ones(1))
     assert np.isclose(val, 2 * np.log(2 * np.e) + 1 + np.e)
+
+
+def test_multiple_dummies():
+    x = cp.Variable(2, name="x", nonneg=True)
+    y1 = Dummy(name="y1", nonneg=True)
+    y2 = Dummy(name="y2", nonneg=True)
+
+    y = cp.Variable(name="y", nonneg=True)
+
+    wlse = weighted_log_sum_exp(x, cp.hstack([y1, y2]))
+
+    # only one dummy variable is specified
+    with pytest.raises(AssertionError, match="Must specify"):
+        sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1], [y1 <= 1])
+
+    # trying a mix of dummy and variable
+    with pytest.raises(AssertionError, match="vars must be Dummy variables"):
+        sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1, y], [y1 <= 1, y <= 1])
+
+    sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1, y2], [y1 <= 1, y2 <= 1])
+
+    assert sup_y_f.numeric(values=np.ones(1)) is None
+    assert y1.value is None
+    assert y2.value is None
+
+    x.value = np.ones(2)
+
+    assert np.allclose(y1.value, np.ones(1))
+    assert np.allclose(y2.value, np.ones(1))
