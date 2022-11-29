@@ -1,7 +1,7 @@
 from dspp.atoms import (
-    concave_inf,
+    saddle_min,
     convex_concave_inner,
-    convex_sup,
+    saddle_max,
     inner,
     weighted_log_sum_exp,
 )
@@ -9,8 +9,8 @@ from dspp.cvxpy_integration import extend_cone_canon_methods
 from dspp.problem import MinimizeMaximize, SaddleProblem
 
 __all__ = [
-    "concave_inf",
-    "convex_sup",
+    "saddle_min",
+    "saddle_max",
     "convex_concave_inner",
     "inner",
     "weighted_log_sum_exp",

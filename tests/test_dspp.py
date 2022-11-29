@@ -3,9 +3,9 @@ import numpy as np
 import pytest
 
 from dspp.atoms import (
-    concave_inf,
+    saddle_min,
     convex_concave_inner,
-    convex_sup,
+    saddle_max,
     inner,
     weighted_log_sum_exp,
 )
@@ -18,6 +18,8 @@ from dspp.cone_transforms import (
     minimax_to_min,
 )
 from dspp.problem import MinimizeMaximize, SaddleProblem
+
+from dspp.dummy import Dummy
 
 
 def test_matrix_game_x_Gy():
@@ -617,7 +619,7 @@ def test_wsle_with_external_affine_constraints():
 
 def test_robust_constraint():
     x = cp.Variable(name="x")
-    y = cp.Variable(name="y", nonneg=True)
+    y = Dummy(name="y", nonneg=True)
 
     obj1 = MinimizeMaximize(cp.square(x))
     obj2 = MinimizeMaximize(x)
@@ -626,7 +628,7 @@ def test_robust_constraint():
 
     constraints = [x >= 1]
 
-    constraints += [convex_sup(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
+    constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
     # TODO, auto min vars
     with pytest.raises(AssertionError, match="Likely"):
@@ -639,7 +641,7 @@ def test_robust_constraint():
 
 def test_robust_constraint_min():
     x = cp.Variable(name="x")
-    y = cp.Variable(name="y", nonneg=True)
+    y = Dummy(name="y", nonneg=True)
 
     obj1 = MinimizeMaximize(cp.square(x))
     # obj2 = MinimizeMaximize(x)
@@ -649,7 +651,7 @@ def test_robust_constraint_min():
 
     # constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
 
-    constraints += [convex_sup(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
+    constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
     problem = SaddleProblem(obj2, constraints)  # , maximization_vars=[y])
     problem.solve(solver=cp.SCS)
@@ -664,7 +666,7 @@ def test_robust_constraint_inf():
     """
     Test that we can handle robust constraint inf_x f(x,y) >= eta.
     """
-    x = cp.Variable(name="x")
+    x = Dummy(name="x_dummy")
     y = cp.Variable(name="y", nonneg=True)
 
     x_val = 1.0
@@ -673,7 +675,7 @@ def test_robust_constraint_inf():
     constraints = [y <= y_val]
 
     constraints += [
-        concave_inf(weighted_log_sum_exp(x, y), [x], [x >= x_val]) >= np.log(y_val * np.exp(x_val))
+        saddle_min(weighted_log_sum_exp(x, y), [x], [x >= x_val]) >= np.log(y_val * np.exp(x_val))
     ]
 
     obj = cp.Maximize(y)

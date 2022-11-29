@@ -357,6 +357,9 @@ def affine_to_canon(
 ) -> tuple[np.ndarray, np.ndarray]:
     vars = expr.variables()
     aux = cp.Variable(expr.shape)
+
+    con = aux == expr
+
     (
         var_to_mat_mapping,
         c,
@@ -371,7 +374,15 @@ def affine_to_canon(
     B = np.zeros((rows, cols))
     for v in vars:
         start, end = local_to_glob.var_to_glob[v.id]
-        B[:, start:end] = -var_to_mat_mapping[v.id][:rows]  # TODO: shape mismatch here
+        B[:, start:end] = var_to_mat_mapping[v.id][:rows]
+
+    
+    aux_columns = var_to_mat_mapping[aux.id][:rows]
+    assert np.allclose(np.abs(aux_columns), np.eye(aux.size))
+    assert (np.sign(np.diag(aux_columns)) == np.ones(rows)).all() or (np.sign(np.diag(aux_columns)) == -np.ones(rows)).all()
+    
+    sgn = -np.sign(np.diag(aux_columns))[0] 
+    B = B*sgn
 
     c = c[:rows]
 

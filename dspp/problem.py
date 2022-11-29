@@ -171,7 +171,7 @@ def semi_infinite_epigraph(
     var_id_map = {v.id: v for v in vars}
     var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(aux_constraints, vars)
 
-    # A @ [all variablea]
+    # A @ [all variables]
     expr = 0
     aux_size = var_to_mat_mapping["eta"].shape[1]
     if aux_size > 0:  # used extra variables
