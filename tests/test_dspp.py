@@ -3,10 +3,10 @@ import numpy as np
 import pytest
 
 from dspp.atoms import (
-    saddle_min,
     convex_concave_inner,
-    saddle_max,
     inner,
+    saddle_max,
+    saddle_min,
     weighted_log_sum_exp,
 )
 from dspp.cone_transforms import (
@@ -17,9 +17,8 @@ from dspp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dspp.problem import MinimizeMaximize, SaddleProblem
-
 from dspp.dummy import Dummy
+from dspp.problem import MinimizeMaximize, SaddleProblem
 
 
 def test_matrix_game_x_Gy():

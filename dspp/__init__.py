@@ -1,8 +1,8 @@
 from dspp.atoms import (
-    saddle_min,
     convex_concave_inner,
-    saddle_max,
     inner,
+    saddle_max,
+    saddle_min,
     weighted_log_sum_exp,
 )
 from dspp.cvxpy_integration import extend_cone_canon_methods

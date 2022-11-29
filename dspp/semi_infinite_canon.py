@@ -5,7 +5,7 @@ from typing import Any
 import cvxpy as cp
 from cvxpy.constraints.constraint import Constraint
 
-from dspp.atoms import saddle_min, saddle_max
+from dspp.atoms import saddle_max, saddle_min
 from dspp.problem import semi_infinite_epigraph
 
 # TODO: handle arbitrary DSPP expressions

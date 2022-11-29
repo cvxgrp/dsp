@@ -1,6 +1,6 @@
 from cvxpy.reductions.dcp2cone.atom_canonicalizers import CANON_METHODS
 
-from dspp.atoms import saddle_min, saddle_max
+from dspp.atoms import saddle_max, saddle_min
 from dspp.semi_infinite_canon import concave_max_canon, convex_min_canon
 
 

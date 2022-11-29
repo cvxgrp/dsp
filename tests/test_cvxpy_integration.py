@@ -2,7 +2,7 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dspp.atoms import saddle_min, saddle_max, inner, weighted_log_sum_exp
+from dspp.atoms import inner, saddle_max, saddle_min, weighted_log_sum_exp
 from dspp.cvxpy_integration import extend_cone_canon_methods
 from dspp.dummy import Dummy
 from dspp.problem import MinimizeMaximize, SaddleProblem
@@ -45,7 +45,7 @@ def test_semi_infinite_matrix():
 
     inner_expr = inner(x_d, A @ y)
 
-    f  = saddle_min(inner_expr, [x_d], [cp.sum(x_d) == 1])
+    f = saddle_min(inner_expr, [x_d], [cp.sum(x_d) == 1])
     obj = cp.Maximize(f)
     constraints = [cp.sum(y) == 1]
 
@@ -90,7 +90,7 @@ def test_semi_infinite_expr():
 
     with pytest.raises(AssertionError, match="x must have a value"):
         y.value
-    
+
     x.value = np.ones(2)
     val = sup_y_f.numeric(values=np.ones(1))
     assert np.isclose(val, 2 * np.log(2 * np.e) + 1 + np.e)

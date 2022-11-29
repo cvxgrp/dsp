@@ -17,8 +17,8 @@ from dspp.cone_transforms import (
     affine_to_canon,
     switch_convex_concave,
 )
-from dspp.parser import Parser, initialize_parser
 from dspp.dummy import Dummy
+from dspp.parser import Parser, initialize_parser
 
 
 class ConvexConcaveAtom(Atom, ABC):
@@ -344,12 +344,15 @@ def init_parser_wrapper(
     assert mode in ["sup", "inf"]
     # min_vars = vars if mode == "inf" else []
     # max_vars = vars if mode == "sup" else []
-    
+
     expr = expr if mode == "sup" else -expr
-    
+
     parser = initialize_parser(
         # expr, minimization_vars=min_vars, maximization_vars=max_vars, constraints=constraints
-        expr, minimization_vars=[], maximization_vars=vars, constraints=constraints
+        expr,
+        minimization_vars=[],
+        maximization_vars=vars,
+        constraints=constraints,
     )
 
     return parser
@@ -358,9 +361,7 @@ def init_parser_wrapper(
 class saddle_max(Atom):
     r"""sup_{y\in Y}f(x,y)"""
 
-    def __init__(
-        self, f: cp.Expression, vars: list[Dummy], constraints: list[Constraint]
-    ) -> None:
+    def __init__(self, f: cp.Expression, vars: list[Dummy], constraints: list[Constraint]) -> None:
         self.f = f
         self.constraints = constraints
         self.concave_vars = vars  # variables to maximize over
@@ -382,11 +383,12 @@ class saddle_max(Atom):
     def _validate_arguments(self) -> None:
         assert self.f.size == 1
         assert isinstance(self.concave_vars, list)
-        assert all([isinstance(v, Dummy) for v in self.concave_vars]), "vars must be Dummy variables"
+        assert all(
+            [isinstance(v, Dummy) for v in self.concave_vars]
+        ), "vars must be Dummy variables"
 
         assert isinstance(self.constraints, list)
         assert isinstance(self.f, cp.Expression)
-
 
     def name(self) -> str:
         return (
@@ -439,9 +441,7 @@ class saddle_max(Atom):
 class saddle_min(Atom):
     r"""inf_{x\in X}f(x,y)"""
 
-    def __init__(
-        self, f: cp.Expression, vars: list[Dummy], constraints: list[Constraint]
-    ) -> None:
+    def __init__(self, f: cp.Expression, vars: list[Dummy], constraints: list[Constraint]) -> None:
         self.f = f
         self.constraints = constraints
         self.convex_vars = vars  # variables to minimize over
@@ -450,24 +450,23 @@ class saddle_min(Atom):
 
         self.parser = init_parser_wrapper(self.f, constraints, set(vars), mode="inf")
         assert set(self.convex_vars) == set(
-            self.parser.concave_vars # since parser constructed with -f
+            self.parser.concave_vars  # since parser constructed with -f
         ), "Must specify all convex variables."
 
         for v in self.convex_vars:
             v.expr = self
 
-        self.concave_vars = self.parser.convex_vars # since parser constructed with -f
+        self.concave_vars = self.parser.convex_vars  # since parser constructed with -f
 
         super().__init__(*self.concave_vars)  # TODO: What do with args?
 
     def _validate_arguments(self) -> None:
         assert self.f.size == 1
         assert isinstance(self.convex_vars, list)
-        assert all([isinstance(v, Dummy) for v in self.convex_vars]), "vars must be Dummy variables" 
-        
+        assert all([isinstance(v, Dummy) for v in self.convex_vars]), "vars must be Dummy variables"
+
         assert isinstance(self.constraints, list)
         assert isinstance(self.f, cp.Expression)
-
 
     def name(self) -> str:
         return (
@@ -482,12 +481,16 @@ class saddle_min(Atom):
         r"""
         Compute inf_{x\in X}f(x,y) numerically
         """
-        
-        local_to_glob_x = LocalToGlob(self.parser.concave_vars, self.parser.convex_vars) # note switching
+
+        local_to_glob_x = LocalToGlob(
+            self.parser.concave_vars, self.parser.convex_vars
+        )  # note switching
 
         K_repr = self.parser.parse_expr_repr(-self.f, switched=False, local_to_glob=local_to_glob_x)
 
-        cvx = -K_repr.concave_expr(values) # note switching, since using concave_expr from negated expr
+        cvx = -K_repr.concave_expr(
+            values
+        )  # note switching, since using concave_expr from negated expr
         aux_problem = cp.Problem(cp.Minimize(cvx), self.constraints)
         aux_problem.solve()
         return aux_problem.value
