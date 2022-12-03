@@ -17,7 +17,7 @@ from dspp.cone_transforms import (
     affine_to_canon,
     switch_convex_concave,
 )
-from dspp.dummy import Dummy
+from dspp.local import LocalVariable
 from dspp.parser import Parser, initialize_parser
 
 
@@ -368,7 +368,9 @@ def init_parser_wrapper(
 class saddle_max(Atom):
     r"""sup_{y\in Y}f(x,y)"""
 
-    def __init__(self, f: cp.Expression, vars: list[Dummy], constraints: list[Constraint]) -> None:
+    def __init__(
+        self, f: cp.Expression, vars: list[LocalVariable], constraints: list[Constraint]
+    ) -> None:
         self.f = f
         self.constraints = constraints
         self.concave_vars = vars  # variables to maximize over
@@ -391,7 +393,7 @@ class saddle_max(Atom):
         assert self.f.size == 1
         assert isinstance(self.concave_vars, list)
         assert all(
-            [isinstance(v, Dummy) for v in self.concave_vars]
+            [isinstance(v, LocalVariable) for v in self.concave_vars]
         ), "vars must be Dummy variables"
 
         assert isinstance(self.constraints, list)
@@ -451,7 +453,9 @@ class saddle_max(Atom):
 class saddle_min(Atom):
     r"""inf_{x\in X}f(x,y)"""
 
-    def __init__(self, f: cp.Expression, vars: list[Dummy], constraints: list[Constraint]) -> None:
+    def __init__(
+        self, f: cp.Expression, vars: list[LocalVariable], constraints: list[Constraint]
+    ) -> None:
         self.f = f
         self.constraints = constraints
         self.convex_vars = vars  # variables to minimize over
@@ -473,7 +477,9 @@ class saddle_min(Atom):
     def _validate_arguments(self) -> None:
         assert self.f.size == 1
         assert isinstance(self.convex_vars, list)
-        assert all([isinstance(v, Dummy) for v in self.convex_vars]), "vars must be Dummy variables"
+        assert all(
+            [isinstance(v, LocalVariable) for v in self.convex_vars]
+        ), "vars must be Dummy variables"
 
         assert isinstance(self.constraints, list)
         assert isinstance(self.f, cp.Expression)

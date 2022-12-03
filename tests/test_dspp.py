@@ -17,7 +17,7 @@ from dspp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dspp.dummy import Dummy
+from dspp.local import LocalVariable
 from dspp.problem import MinimizeMaximize, SaddleProblem
 
 
@@ -618,7 +618,7 @@ def test_wsle_with_external_affine_constraints():
 
 def test_robust_constraint():
     x = cp.Variable(name="x")
-    y = Dummy(name="y", nonneg=True)
+    y = LocalVariable(name="y", nonneg=True)
 
     obj1 = MinimizeMaximize(cp.square(x))
     obj2 = MinimizeMaximize(x)
@@ -640,7 +640,7 @@ def test_robust_constraint():
 
 def test_robust_constraint_min():
     x = cp.Variable(name="x")
-    y = Dummy(name="y", nonneg=True)
+    y = LocalVariable(name="y", nonneg=True)
 
     obj1 = MinimizeMaximize(cp.square(x))
     # obj2 = MinimizeMaximize(x)
@@ -665,7 +665,7 @@ def test_robust_constraint_inf():
     """
     Test that we can handle robust constraint inf_x f(x,y) >= eta.
     """
-    x = Dummy(name="x_dummy")
+    x = LocalVariable(name="x_dummy")
     y = cp.Variable(name="y", nonneg=True)
 
     x_val = 1.0

@@ -8,7 +8,7 @@ import numpy as np
 import dspp
 
 
-class Dummy(cp.Variable):
+class LocalVariable(cp.Variable):
     def __init__(
         self,
         shape: int | Iterable[int, ...] = (),

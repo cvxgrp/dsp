@@ -4,7 +4,7 @@ import pytest
 
 from dspp.atoms import inner, saddle_max, saddle_min, weighted_log_sum_exp
 from dspp.cvxpy_integration import extend_cone_canon_methods
-from dspp.dummy import Dummy
+from dspp.local import LocalVariable
 from dspp.problem import MinimizeMaximize, SaddleProblem
 
 extend_cone_canon_methods()
@@ -14,8 +14,8 @@ def test_semi_infinite_matrix():
     x = cp.Variable(2, name="x", nonneg=True)
     y = cp.Variable(2, name="y", nonneg=True)
 
-    x_d = Dummy(2, name="x_d", nonneg=True)
-    y_d = Dummy(2, name="y_d", nonneg=True)
+    x_d = LocalVariable(2, name="x_d", nonneg=True)
+    y_d = LocalVariable(2, name="y_d", nonneg=True)
 
     A = np.array([[1, 2], [3, 4]])
     inner_expr = inner(x, A @ y)
@@ -66,7 +66,7 @@ def test_dcp_concave_max_and_dummy():
     with pytest.raises(AssertionError, match="vars must be"):
         f_max = saddle_max(inner_expr, [y], [cp.sum(y) == 1])
 
-    y2 = Dummy(2, name="y", nonneg=True)
+    y2 = LocalVariable(2, name="y", nonneg=True)
 
     A = np.array([[1, 2], [3, 4]])
     inner_expr = inner(x, A @ y2)
@@ -79,7 +79,7 @@ def test_dcp_concave_max_and_dummy():
 
 def test_semi_infinite_expr():
     x = cp.Variable(2, name="x", nonneg=True)
-    y_dummy = Dummy(2, name="y_dummy", nonneg=True)
+    y_dummy = LocalVariable(2, name="y_dummy", nonneg=True)
     y = cp.Variable(2, name="y", nonneg=True)
 
     wlse = weighted_log_sum_exp(x, y)
@@ -113,8 +113,8 @@ def test_semi_infinite_expr():
 
 def test_multiple_dummies():
     x = cp.Variable(2, name="x", nonneg=True)
-    y1 = Dummy(name="y1", nonneg=True)
-    y2 = Dummy(name="y2", nonneg=True)
+    y1 = LocalVariable(name="y1", nonneg=True)
+    y2 = LocalVariable(name="y2", nonneg=True)
 
     y = cp.Variable(name="y", nonneg=True)
 
@@ -138,3 +138,52 @@ def test_multiple_dummies():
 
     assert np.allclose(y1.value, np.ones(1))
     assert np.allclose(y2.value, np.ones(1))
+
+
+def test_trivial_se():
+    x = cp.Variable(name="x", nonneg=True)
+
+    f = cp.exp(x)
+
+    # trivial saddle max with no dummy variable
+    F = saddle_max(f, [], [])
+
+    prob = cp.Problem(cp.Minimize(F), [x >= 1])
+    prob.solve()
+
+    assert np.isclose(prob.value, np.e)
+
+    y = cp.Variable(name="y", nonneg=True)
+    f = cp.log(y)
+
+    # trivial saddle min with no dummy variable
+    F = saddle_min(f, [], [])
+
+    prob = cp.Problem(cp.Maximize(F), [y <= 1])
+    prob.solve()
+
+    assert np.isclose(prob.value, 0)
+
+
+def test_nested_saddle():
+    x = cp.Variable(2, name="x", nonneg=True)
+    y_1 = LocalVariable(2, name="y_1", nonneg=True)
+    y_2 = LocalVariable(name="y_2", nonneg=True)
+
+    f = weighted_log_sum_exp(x, y_1)
+
+    sup_y_f = saddle_max(f, [y_1], [y_1 <= 1])
+
+    g = weighted_log_sum_exp(sup_y_f, y_1[1])
+    with pytest.raises(AssertionError, match="Cannot assign a Dummy to multiple SEs."):
+        sup_y_g = saddle_max(g, [y_1], [y_1 <= 1])
+
+    g = weighted_log_sum_exp(sup_y_f, y_2)
+    sup_y_g = saddle_max(g, [y_2], [y_2 <= 1])
+
+    prob = cp.Problem(cp.Minimize(sup_y_g), [x >= 1])
+    prob.solve()
+
+    assert np.isclose(prob.value, np.log(2 * np.e))
+
+    # TODO: prevent local variables from appearing in dcp/dsp problems
