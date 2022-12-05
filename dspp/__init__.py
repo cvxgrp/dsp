@@ -1,5 +1,5 @@
 from dspp.atoms import (
-    convex_concave_inner,
+    saddle_inner,
     inner,
     saddle_max,
     saddle_min,
@@ -11,7 +11,7 @@ from dspp.problem import MinimizeMaximize, SaddleProblem
 __all__ = [
     "saddle_min",
     "saddle_max",
-    "convex_concave_inner",
+    "saddle_inner",
     "inner",
     "weighted_log_sum_exp",
     "MinimizeMaximize",

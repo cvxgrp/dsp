@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from dspp.atoms import (
-    convex_concave_inner,
+    saddle_inner,
     inner,
     saddle_max,
     saddle_min,
@@ -149,7 +149,7 @@ def test_matrix_game_nemirovski_Fx_Gy():
     F_x = x + 0.5
     G_y = y + 0.5
 
-    FxGy = convex_concave_inner(F_x, G_y)
+    FxGy = saddle_inner(F_x, G_y)
 
     objective = MinimizeMaximize(FxGy)
     constraints = [-1 <= x, x <= 1, -1 <= y, y <= 1]
@@ -568,7 +568,7 @@ def test_Gx_Fy():
     y = cp.Variable(2, name="y")
 
     with pytest.warns(UserWarning, match="is non-positive"):
-        obj = MinimizeMaximize(convex_concave_inner(cp.exp(x), cp.log(y)))
+        obj = MinimizeMaximize(saddle_inner(cp.exp(x), cp.log(y)))
 
     low = 2
     constraints = [low <= x, x <= 4, 2 <= y, y <= 3]

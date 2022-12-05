@@ -57,7 +57,7 @@ class ConvexConcaveAtom(Atom, ABC):
         raise NotImplementedError
 
 
-class convex_concave_inner(ConvexConcaveAtom):
+class saddle_inner(ConvexConcaveAtom):
     def __init__(self, Fx: cp.Expression, Gy: cp.Expression) -> None:
         assert isinstance(Fx, cp.Expression)
         assert isinstance(Gy, cp.Expression)
@@ -144,7 +144,7 @@ class convex_concave_inner(ConvexConcaveAtom):
         return False
 
 
-class inner(convex_concave_inner):
+class inner(saddle_inner):
     def __init__(self, Fx: cp.Expression, Gy: cp.Expression) -> None:
         assert isinstance(Fx, cp.Expression)
         assert isinstance(Gy, cp.Expression)
