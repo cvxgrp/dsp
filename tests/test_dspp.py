@@ -2,13 +2,7 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dspp.atoms import (
-    saddle_inner,
-    inner,
-    saddle_max,
-    saddle_min,
-    weighted_log_sum_exp,
-)
+from dspp.atoms import inner, saddle_inner, saddle_max, saddle_min, weighted_log_sum_exp
 from dspp.cone_transforms import (
     K_repr_ax,
     K_repr_x_Gy,
