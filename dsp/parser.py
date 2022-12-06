@@ -10,8 +10,8 @@ from cvxpy.atoms.affine.binary_operators import MulExpression
 from cvxpy.atoms.affine.unary_operators import NegExpression
 from cvxpy.constraints.constraint import Constraint
 
-import dspp
-from dspp.cone_transforms import (
+import dsp
+from dsp.cone_transforms import (
     K_repr_ax,
     K_repr_by,
     KRepresentation,
@@ -58,7 +58,7 @@ class Parser:
 
         if isinstance(expr, cp.Constant) or isinstance(expr, (float, int)):
             return
-        elif isinstance(expr, dspp.atoms.ConvexConcaveAtom):
+        elif isinstance(expr, dsp.atoms.ConvexConcaveAtom):
             self.add_to_convex_vars(expr.get_convex_variables())
             self.add_to_concave_vars(expr.get_concave_variables())
         elif isinstance(expr, AddExpression):
@@ -71,19 +71,19 @@ class Parser:
         elif expr.is_concave():
             self.add_to_concave_vars(expr.variables())
         elif isinstance(expr, NegExpression):
-            if isinstance(expr.args[0], dspp.atoms.ConvexConcaveAtom):
-                dspp_atom = expr.args[0]
-                assert isinstance(dspp_atom, dspp.atoms.ConvexConcaveAtom)
-                self.add_to_concave_vars(dspp_atom.get_convex_variables())
-                self.add_to_convex_vars(dspp_atom.get_concave_variables())
+            if isinstance(expr.args[0], dsp.atoms.ConvexConcaveAtom):
+                dsp_atom = expr.args[0]
+                assert isinstance(dsp_atom, dsp.atoms.ConvexConcaveAtom)
+                self.add_to_concave_vars(dsp_atom.get_convex_variables())
+                self.add_to_convex_vars(dsp_atom.get_concave_variables())
             elif isinstance(expr.args[0], AddExpression):
                 for arg in expr.args[0].args:
                     self.split_up_variables(-arg)
             elif isinstance(expr.args[0], NegExpression):  # double negation
-                dspp_atom = expr.args[0].args[0]
-                assert isinstance(dspp_atom, dspp.atoms.ConvexConcaveAtom)
-                self.split_up_variables(dspp_atom)
-            elif isinstance(expr.args[0], multiply):  # negated multiplication of dspp atom
+                dsp_atom = expr.args[0].args[0]
+                assert isinstance(dsp_atom, dsp.atoms.ConvexConcaveAtom)
+                self.split_up_variables(dsp_atom)
+            elif isinstance(expr.args[0], multiply):  # negated multiplication of dsp atom
                 mult = expr.args[0]
                 s = mult.args[0]
                 assert isinstance(s, cp.Constant)
@@ -93,14 +93,14 @@ class Parser:
         elif isinstance(expr, multiply):
             s = expr.args[0]
             assert isinstance(s, cp.Constant)
-            dspp_atom = expr.args[1]
-            assert isinstance(dspp_atom, dspp.atoms.ConvexConcaveAtom)
+            dsp_atom = expr.args[1]
+            assert isinstance(dsp_atom, dsp.atoms.ConvexConcaveAtom)
             if s.is_nonneg():
-                self.add_to_convex_vars(dspp_atom.get_convex_variables())
-                self.add_to_concave_vars(dspp_atom.get_concave_variables())
+                self.add_to_convex_vars(dsp_atom.get_convex_variables())
+                self.add_to_concave_vars(dsp_atom.get_concave_variables())
             else:
-                self.add_to_concave_vars(dspp_atom.get_convex_variables())
-                self.add_to_convex_vars(dspp_atom.get_concave_variables())
+                self.add_to_concave_vars(dsp_atom.get_convex_variables())
+                self.add_to_convex_vars(dsp_atom.get_concave_variables())
         else:
             raise ValueError(f"Cannot parse {expr=} with {expr.curvature=}.")
 
@@ -173,10 +173,10 @@ class Parser:
             for arg in expr.args:
                 self.parse_expr_variables(arg, switched, **kwargs)
 
-    def parse_dspp_atom(
+    def parse_dsp_atom(
         self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
-        assert isinstance(expr, dspp.atoms.ConvexConcaveAtom)
+        assert isinstance(expr, dsp.atoms.ConvexConcaveAtom)
         if repr_parse:
             return expr.get_K_repr(**kwargs, switched=switched)
         else:
@@ -243,8 +243,8 @@ class Parser:
                 return self.parse_scalar_mul(expr, switched, repr_parse, **kwargs)
             else:
                 return self.parse_bilin(expr, switched, repr_parse, **kwargs)
-        elif isinstance(expr, dspp.atoms.ConvexConcaveAtom):
-            return self.parse_dspp_atom(expr, switched, repr_parse, **kwargs)
+        elif isinstance(expr, dsp.atoms.ConvexConcaveAtom):
+            return self.parse_dsp_atom(expr, switched, repr_parse, **kwargs)
         elif isinstance(expr, MulExpression):
             if expr.is_affine() and repr_parse:
                 split_up_affine = split_K_repr_affine(expr, self.convex_vars, self.concave_vars)

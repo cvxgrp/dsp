@@ -5,10 +5,10 @@ from typing import Any
 import cvxpy as cp
 from cvxpy.constraints.constraint import Constraint
 
-from dspp.atoms import saddle_max, saddle_min
-from dspp.problem import semi_infinite_epigraph
+from dsp.atoms import saddle_max, saddle_min
+from dsp.problem import semi_infinite_epigraph
 
-# TODO: handle arbitrary DSPP expressions
+# TODO: handle arbitrary DSP expressions
 
 
 def concave_max_canon(expr: saddle_max, args: Any) -> tuple[cp.Expression, list[Constraint]]:

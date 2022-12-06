@@ -9,7 +9,7 @@ from cvxpy.atoms.atom import Atom
 from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
 
-from dspp.cone_transforms import (
+from dsp.cone_transforms import (
     K_repr_bilin,
     K_repr_FxGy,
     KRepresentation,
@@ -17,8 +17,8 @@ from dspp.cone_transforms import (
     affine_to_canon,
     switch_convex_concave,
 )
-from dspp.local import LocalVariable
-from dspp.parser import Parser, initialize_parser
+from dsp.local import LocalVariable
+from dsp.parser import Parser, initialize_parser
 
 
 class ConvexConcaveAtom(Atom, ABC):

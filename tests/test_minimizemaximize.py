@@ -1,6 +1,6 @@
 import cvxpy as cp
 
-from dspp.problem import MinimizeMaximize
+from dsp.problem import MinimizeMaximize
 
 
 def test_float_obj():

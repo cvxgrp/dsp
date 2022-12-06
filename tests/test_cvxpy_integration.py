@@ -2,10 +2,10 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dspp.atoms import inner, saddle_max, saddle_min, weighted_log_sum_exp
-from dspp.cvxpy_integration import extend_cone_canon_methods
-from dspp.local import LocalVariable
-from dspp.problem import MinimizeMaximize, SaddleProblem
+from dsp.atoms import inner, saddle_max, saddle_min, weighted_log_sum_exp
+from dsp.cvxpy_integration import extend_cone_canon_methods
+from dsp.local import LocalVariable
+from dsp.problem import MinimizeMaximize, SaddleProblem
 
 extend_cone_canon_methods()
 

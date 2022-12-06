@@ -5,7 +5,7 @@ from typing import Any, Iterable
 import cvxpy as cp
 import numpy as np
 
-import dspp
+import dsp
 
 
 class LocalVariable(cp.Variable):
@@ -20,14 +20,14 @@ class LocalVariable(cp.Variable):
         super().__init__(shape, name, var_id, **kwargs)
 
     @property
-    def expr(self) -> dspp.saddle_min | dspp.saddle_max:
+    def expr(self) -> dsp.saddle_min | dsp.saddle_max:
         assert self._saddle_expr is not None, "Must be assosciated with an SE."
-        assert isinstance(self._saddle_expr, (dspp.saddle_min, dspp.saddle_max))
+        assert isinstance(self._saddle_expr, (dsp.saddle_min, dsp.saddle_max))
         return self._saddle_expr
 
     @expr.setter
-    def expr(self, new_value: dspp.saddle_min | dspp.saddle_max) -> None:
-        assert isinstance(new_value, (dspp.saddle_min, dspp.saddle_max))
+    def expr(self, new_value: dsp.saddle_min | dsp.saddle_max) -> None:
+        assert isinstance(new_value, (dsp.saddle_min, dsp.saddle_max))
         assert self._saddle_expr is None, "Cannot assign a Dummy to multiple SEs."
         self._saddle_expr = new_value
 

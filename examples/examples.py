@@ -26,7 +26,7 @@
 # prob_dmcp.solve(method='bcd')
 # cooperative_vals = theta_hat.value
 
-# # DSPP approach
+# # DSP approach
 # X_constraints = []
 # Y_constraints = [cp.sum(wgts) == N, wgts <= 2, wgts >= 0.5]
 

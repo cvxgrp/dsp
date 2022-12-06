@@ -1,7 +1,7 @@
 import cvxpy as cp
 import numpy as np
 
-from dspp.cone_transforms import LocalToGlob, affine_to_canon
+from dsp.cone_transforms import LocalToGlob, affine_to_canon
 
 
 def test_affine_to_canon():
