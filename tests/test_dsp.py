@@ -2,8 +2,8 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dspp.atoms import inner, saddle_inner, saddle_max, saddle_min, saddle_quad_form, weighted_log_sum_exp
-from dspp.cone_transforms import (
+from dsp.atoms import inner, saddle_inner, saddle_max, saddle_min, weighted_log_sum_exp
+from dsp.cone_transforms import (
     K_repr_ax,
     K_repr_x_Gy,
     LocalToGlob,
@@ -11,8 +11,8 @@ from dspp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dspp.local import LocalVariable
-from dspp.problem import MinimizeMaximize, SaddleProblem
+from dsp.local import LocalVariable
+from dsp.problem import MinimizeMaximize, SaddleProblem
 
 
 def test_matrix_game_x_Gy():

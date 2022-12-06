@@ -1,9 +1,9 @@
 import cvxpy as cp
 
-from dspp.atoms import weighted_log_sum_exp
+from dsp.atoms import weighted_log_sum_exp
 
-# from dspp.problem import Parser
-from dspp.parser import Parser
+# from dsp.problem import Parser
+from dsp.parser import Parser
 
 
 def test_sum():

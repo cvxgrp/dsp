@@ -9,13 +9,13 @@ from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
 
-from dspp.cone_transforms import (
+from dsp.cone_transforms import (
     LocalToGlob,
     add_cone_constraints,
     get_cone_repr,
     minimax_to_min,
 )
-from dspp.parser import initialize_parser
+from dsp.parser import initialize_parser
 
 
 class MinimizeMaximize:
@@ -146,9 +146,9 @@ class SaddleProblem(cp.Problem):
     def value(self) -> float | None:
         return self._value
 
-    def is_dspp(self) -> bool:
+    def is_dsp(self) -> bool:
         raise NotImplementedError
-        # Currently if I construct a SaddleProblem with a non-DSPP objective, it
+        # Currently if I construct a SaddleProblem with a non-DSP objective, it
         # will break on asserts, rather than on solve.
 
 
