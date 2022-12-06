@@ -2,13 +2,7 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dspp.atoms import (
-    saddle_inner,
-    inner,
-    saddle_max,
-    saddle_min,
-    weighted_log_sum_exp,
-)
+from dspp.atoms import inner, saddle_inner, saddle_max, saddle_min, saddle_quad_form, weighted_log_sum_exp
 from dspp.cone_transforms import (
     K_repr_ax,
     K_repr_x_Gy,
@@ -683,3 +677,22 @@ def test_robust_constraint_inf():
     problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, y_val, atol=1e-4)
+
+@pytest.mark.parametrize("x_val,P_val",[([1,0], [[1,0],[0,1]])])
+def test_quad_form(x_val, P_val):
+    x = cp.Variable(2, name="x")
+    P = cp.Variable((2,2), name="P", PSD=True)
+
+    x_val = np.array(x_val)
+    P_val = np.array(P_val)
+
+    P.value == P_val
+    assert P.is_psd()
+
+    f = saddle_quad_form(x, P)
+
+    obj = MinimizeMaximize(f)
+    prob = SaddleProblem(obj, [P == P_val, x == x_val])
+    prob.solve()
+
+    assert np.isclose(prob.value, x_val.T @ P_val @ x_val)

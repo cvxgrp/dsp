@@ -7,6 +7,7 @@ import cvxpy as cp
 import numpy as np
 from cvxpy import SOC
 from cvxpy.constraints import ExpCone
+from cvxpy.constraints.psd import PSD
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
 from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
@@ -180,10 +181,11 @@ class LocalToGlob:
     def add_vars_to_map(self, variables: list[cp.Variable]) -> None:
         offset = 0
         for var in variables:
-            assert var.ndim <= 1 or (var.ndim == 2 and min(var.shape) == 1)
+            assert var.ndim <= 1 or (var.ndim == 2 and min(var.shape) == 1) or (var.ndim == 2 and var.shape[0] == var.shape[1])
             # TODO: ensure matrix variables are flattened correctly
+            sz = var.size if not (var.ndim > 1 and var.is_symmetric()) else (var.shape[0] * (var.shape[0] + 1) // 2) # fix for symmetric variables
 
-            self.var_to_glob[var.id] = (offset, offset + var.size)
+            self.var_to_glob[var.id] = (offset, offset + sz)
             offset += var.size
 
 
@@ -300,13 +302,14 @@ def get_cone_repr(
 
     var_to_mat_mapping = {}
     for e in exprs:
-        if not e.variables():
+        if not e.variables(): 
             continue
 
         original_cols = np.array([], dtype=int)
         for v in e.variables():
             start_ind = var_id_to_col[v.id]
-            end_ind = start_ind + v.size
+            sz = v.size if not (v.ndim > 1 and v.is_symmetric()) else (v.shape[0] * (v.shape[0] + 1) // 2) # fix for symmetric variables
+            end_ind = start_ind + sz
             original_cols = np.append(original_cols, np.arange(start_ind, end_ind))
 
         var_to_mat_mapping[e.id] = -A[:, original_cols]
@@ -335,19 +338,27 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
             s_const.append(SOC(t=s[offset], X=s[offset + 1 : offset + soc_dim]))
             offset += soc_dim
     if cone_dims.exp > 0:
+        end = offset + 3 * cone_dims.exp
         if dual:
-            tau = s[offset + 2 :: 3]  # z (in cvxpy) -> t -> tau
-            sigma = s[offset + 1 :: 3]  # y (in cvxpy) -> s -> sigma
-            rho = -s[offset::3]  # x (in cvxpy) -> r -> -rho
+            tau = s[offset + 2 : end : 3]  # z (in cvxpy) -> t -> tau
+            sigma = s[offset + 1 : end : 3]  # y (in cvxpy) -> s -> sigma
+            rho = -s[offset: end :3]  # x (in cvxpy) -> r -> -rho
             s_const.extend([tau >= 0, rho >= 0, sigma >= cp.rel_entr(rho, tau) - rho])
         else:
-            x = s[offset::3]
-            y = s[offset + 1 :: 3]
-            z = s[offset + 2 :: 3]
+            x = s[offset: end :3]
+            y = s[offset + 1 : end : 3]
+            z = s[offset + 2 : end : 3]
             s_const.append(ExpCone(x, y, z))
 
         offset += 3 * cone_dims.exp
-    if len(cone_dims.p3d) > 0 or len(cone_dims.psd) > 0:
+
+    if len(cone_dims.psd) > 0:
+        for psd_dim in cone_dims.psd:
+            z = s[offset : offset + psd_dim**2]
+            s_const.append(PSD(z))
+            offset += psd_dim**2
+            
+    if len(cone_dims.p3d) > 0:
         raise NotImplementedError
 
     assert offset == s.size
@@ -415,7 +426,7 @@ def switch_convex_concave(
     constraints: list[Constraint],
     f: cp.Variable,
     t: cp.Variable,
-    x_vars: cp.Expression,
+    x_vars: list[cp.Variable],
     local_to_glob: LocalToGlob,
     precomp: cp.Variable | None = None,
 ) -> KRepresentation:

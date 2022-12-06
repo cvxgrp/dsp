@@ -534,3 +534,81 @@ class saddle_min(Atom):
     def shape_from_args(self) -> tuple[int, ...]:
         """Returns the (row, col) shape of the expression."""
         return self.f.shape
+
+class saddle_quad_form(ConvexConcaveAtom):
+    def __init__(self, x: cp.Expression, P: cp.Expression) -> None:
+        assert isinstance(x, cp.Expression)
+        assert isinstance(P, cp.Expression)
+        assert P.is_psd()
+
+        assert x.size == P.shape[0]        
+
+        self.x = x
+        self.P = P
+
+        super().__init__(x, P)
+
+    def get_concave_expression(self) -> cp.Expression:
+        x = self.x
+        assert x.value is not None
+        x = np.reshape(x.value, (x.size,), order="F")
+
+        P = self.P
+        
+        return x.T @ P @ x
+    
+    def get_convex_expression(self) -> cp.Expression:
+        P = self.P
+        assert P.value is not None
+        P = np.reshape(P.value, (P.shape,), order="F")
+
+        x = self.x
+        
+        return cp.quad_form(x, P)
+
+    def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
+        n = self.x.size
+        F_local = cp.Variable((n,n), name="F_quad_form_local", PSD=True)
+        A = cp.Variable((n+1,n+1), name="A_quad_form", PSD=True)
+        t = cp.Variable(name="t_quad_form")
+
+        constraints = [A[:n,:n] == F_local, A[-1,-1] == 1, A[:n,-1] == self.x, A[-1,:n] == self.x.T, t == 0]
+
+        
+        B, c = affine_to_canon(self.P, local_to_glob, switched)
+        F_global = cp.Variable(
+            local_to_glob.y_size if not switched else local_to_glob.x_size,
+            name="f_global_saddle_quad_form",
+        )
+        constraints += [F_global == B.T @ cp.vec(F_local)]
+        
+        
+        K_repr = KRepresentation(
+            f=F_global,
+            t=t,
+            constraints=constraints,
+            concave_expr=self.get_concave_expression
+        )
+    
+        if switched:
+            K_repr = switch_convex_concave(constraints, F, t, self.get_convex_variables(), local_to_glob)
+
+        return K_repr
+        
+    def get_convex_variables(self) -> list[cp.Variable]:
+        return self.x.variables()
+
+    def get_concave_variables(self) -> list[cp.Variable]:
+        return self.P.variables()
+
+    def shape_from_args(self) -> tuple[int, ...]:
+        return ()
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        return (True, False)
+
+    def is_incr(self, idx: int) -> bool:
+        return False
+
+    def is_decr(self, idx: int) -> bool:
+        return False
