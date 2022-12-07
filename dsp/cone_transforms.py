@@ -6,11 +6,15 @@ from dataclasses import dataclass, field
 import cvxpy as cp
 import numpy as np
 from cvxpy import SOC
+from cvxpy.atoms import reshape
 from cvxpy.constraints import ExpCone
-from cvxpy.constraints.psd import PSD
 from cvxpy.constraints.constraint import Constraint
+from cvxpy.constraints.psd import PSD
+from cvxpy.expressions.constants import Constant
+from cvxpy.expressions.variable import upper_tri_to_full
 from cvxpy.problems.objective import Objective
 from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
+from scipy.linalg import block_diag
 
 
 @dataclass
@@ -93,7 +97,18 @@ def minimax_to_min(
     # this case is only skipped if K.y is zero, i.e., if it's a purely convex problem
     if len(y_vars) > 0:
         var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints + K.y_constraints, y_vars)
-        lamb = cp.Variable(len(e), name="lamb")
+
+        n = len(e)
+        # TODO: this is a hack to get the right number of variables for the PSD
+        # cone, but I am not sure if we want to have lamb actually be the
+        # compressed representation here
+        # if len(cone_dims.psd) > 0:
+        #     for psd_dim in cone_dims.psd:
+        #         m = psd_dim*(psd_dim + 1) // 2
+        #         n -= m
+        #         n += psd_dim **2
+
+        lamb = cp.Variable(n, name="lamb")
         lamb_const = add_cone_constraints(lamb, cone_dims, dual=True)
 
         D = var_id_to_mat["eta"]
@@ -103,6 +118,8 @@ def minimax_to_min(
             start, end = local_to_glob.var_to_glob[y.id]
             C[:, start:end] = var_id_to_mat[y.id]
 
+        lamb = scale_psd_dual(cone_dims, lamb)
+
         if D.shape[1] > 0:
             constraints.append(D.T @ lamb == 0)
 
@@ -111,6 +128,20 @@ def minimax_to_min(
         obj += lamb @ e
 
     return cp.Minimize(obj), constraints
+
+
+def scale_psd_dual(cone_dims: ConeDims, lamb: cp.Variable) -> cp.Variable:
+    if len(cone_dims.psd) > 0:
+        n = lamb.shape[0]
+        # scale the PSD cone off diagonal variables by np.sqrt(2)
+        total_offset = sum([d * (d + 1) // 2 for d in cone_dims.psd])
+        mats = [np.eye(n - total_offset)]
+        for psd_dim in cone_dims.psd:
+            scale_vec = (Constant(upper_tri_to_full(psd_dim)).value.A).T @ np.ones(psd_dim**2)
+            mats.append(np.diag(scale_vec**0.5))
+        scaling_mat = block_diag(*mats)
+        lamb = scaling_mat @ lamb
+    return lamb
 
 
 def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) -> KRepresentation:
@@ -170,23 +201,35 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
 class LocalToGlob:
     def __init__(self, x_variables: list[cp.Variable], y_variables: list[cp.Variable]) -> None:
 
-        self.y_size = sum(var.size for var in y_variables)
-        self.x_size = sum(var.size for var in x_variables)
+        # self.y_size = sum(var.size for var in y_variables)
+        # self.x_size = sum(var.size for var in x_variables)
         self.outer_x_vars = x_variables
         self.var_to_glob: dict[int, tuple[int, int]] = {}
 
-        self.add_vars_to_map(x_variables)
-        self.add_vars_to_map(y_variables)
+        self.x_size = self.add_vars_to_map(x_variables)
+        self.y_size = self.add_vars_to_map(y_variables)
 
     def add_vars_to_map(self, variables: list[cp.Variable]) -> None:
         offset = 0
         for var in variables:
-            assert var.ndim <= 1 or (var.ndim == 2 and min(var.shape) == 1) or (var.ndim == 2 and var.shape[0] == var.shape[1])
+            assert (
+                var.ndim <= 1
+                or (var.ndim == 2 and min(var.shape) == 1)
+                or (var.ndim == 2 and var.shape[0] == var.shape[1])
+            )
             # TODO: ensure matrix variables are flattened correctly
-            sz = var.size if not (var.ndim > 1 and var.is_symmetric()) else (var.shape[0] * (var.shape[0] + 1) // 2) # fix for symmetric variables
+            sz = (
+                var.size
+                if not (var.ndim > 1 and var.is_symmetric())
+                else (var.shape[0] * (var.shape[0] + 1) // 2)
+            )  # fix for symmetric variables
+            if var.attributes["diag"]:
+                raise NotImplementedError("Diagonal variables are not supported yet")
 
             self.var_to_glob[var.id] = (offset, offset + sz)
-            offset += var.size
+            offset += sz
+
+        return offset
 
 
 def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentation:
@@ -302,13 +345,17 @@ def get_cone_repr(
 
     var_to_mat_mapping = {}
     for e in exprs:
-        if not e.variables(): 
+        if not e.variables():
             continue
 
         original_cols = np.array([], dtype=int)
         for v in e.variables():
             start_ind = var_id_to_col[v.id]
-            sz = v.size if not (v.ndim > 1 and v.is_symmetric()) else (v.shape[0] * (v.shape[0] + 1) // 2) # fix for symmetric variables
+            sz = (
+                v.size
+                if not (v.ndim > 1 and v.is_symmetric())
+                else (v.shape[0] * (v.shape[0] + 1) // 2)
+            )  # fix for symmetric variables
             end_ind = start_ind + sz
             original_cols = np.append(original_cols, np.arange(start_ind, end_ind))
 
@@ -342,10 +389,10 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
         if dual:
             tau = s[offset + 2 : end : 3]  # z (in cvxpy) -> t -> tau
             sigma = s[offset + 1 : end : 3]  # y (in cvxpy) -> s -> sigma
-            rho = -s[offset: end :3]  # x (in cvxpy) -> r -> -rho
+            rho = -s[offset:end:3]  # x (in cvxpy) -> r -> -rho
             s_const.extend([tau >= 0, rho >= 0, sigma >= cp.rel_entr(rho, tau) - rho])
         else:
-            x = s[offset: end :3]
+            x = s[offset:end:3]
             y = s[offset + 1 : end : 3]
             z = s[offset + 2 : end : 3]
             s_const.append(ExpCone(x, y, z))
@@ -354,10 +401,15 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
 
     if len(cone_dims.psd) > 0:
         for psd_dim in cone_dims.psd:
-            z = s[offset : offset + psd_dim**2]
-            s_const.append(PSD(z))
-            offset += psd_dim**2
-            
+            m = psd_dim * (psd_dim + 1) // 2
+            z = s[offset : offset + m]
+
+            fill_coeff = Constant(upper_tri_to_full(psd_dim))
+            flat_mat = fill_coeff @ z
+            full_mat = reshape(flat_mat, (psd_dim, psd_dim))
+            s_const.append(PSD(full_mat))
+            offset += m
+
     if len(cone_dims.p3d) > 0:
         raise NotImplementedError
 
@@ -440,6 +492,7 @@ def switch_convex_concave(
 
     u_bar = cp.Variable(len(s))
     u_bar_const = add_cone_constraints(u_bar, cone_dims, dual=True)
+    u_bar = scale_psd_dual(cone_dims, u_bar)
 
     P = var_to_mat_mapping[f.id]
     p = var_to_mat_mapping[t.id].flatten()
@@ -468,6 +521,12 @@ def switch_convex_concave(
         for v in local_to_glob.outer_x_vars:
             start, end = local_to_glob.var_to_glob[v.id]
             # P.T @ u_bar + x_bar == 0,
+
+            if v.ndim > 1 and v.is_symmetric():
+                n = v.shape[0]
+                inds = np.triu_indices(n, k=0)  # includes diagonal
+                v = v[inds]
+
             constraints += [(P.T @ u_bar)[start:end] + v == 0]
 
     return KRepresentation(f=f_bar, t=t_bar, constraints=constraints)

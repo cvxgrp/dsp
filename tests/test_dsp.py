@@ -2,7 +2,14 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dsp.atoms import inner, saddle_inner, saddle_max, saddle_min, saddle_quad_form, weighted_log_sum_exp
+from dsp.atoms import (
+    inner,
+    saddle_inner,
+    saddle_max,
+    saddle_min,
+    saddle_quad_form,
+    weighted_log_sum_exp,
+)
 from dsp.cone_transforms import (
     K_repr_ax,
     K_repr_x_Gy,
@@ -678,10 +685,13 @@ def test_robust_constraint_inf():
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, y_val, atol=1e-4)
 
-@pytest.mark.parametrize("x_val,P_val",[([1,0], [[1,0],[0,1]])])
-def test_quad_form(x_val, P_val):
+
+@pytest.mark.parametrize(
+    "x_val,P_val", [([1, 0], [[1, 0], [0, 1]]), ([1, 1], [[1, 0.2], [0.2, 1]])]
+)
+def test_quad_form_equality(x_val, P_val):
     x = cp.Variable(2, name="x")
-    P = cp.Variable((2,2), name="P", PSD=True)
+    P = cp.Variable((2, 2), name="P", PSD=True)
 
     x_val = np.array(x_val)
     P_val = np.array(P_val)
@@ -696,3 +706,62 @@ def test_quad_form(x_val, P_val):
     prob.solve()
 
     assert np.isclose(prob.value, x_val.T @ P_val @ x_val)
+
+
+@pytest.mark.parametrize("x_val,P_val", [([1, 0], [[1, 0], [0, 1]])])
+def test_quad_form_inequality(x_val, P_val):
+    x = cp.Variable(2, name="x")
+    P = cp.Variable((2, 2), name="P", PSD=True)
+
+    x_val = np.array(x_val)
+    P_val = np.array(P_val)
+
+    P.value == P_val
+    assert P.is_psd()
+
+    f = saddle_quad_form(x, P)
+
+    obj = MinimizeMaximize(f)
+    prob = SaddleProblem(obj, [P << P_val, cp.sum(x) == 1, x >= 0])
+    prob.solve()
+
+    p_val = P.value
+    x_val = x.value
+
+    # validate
+    P_obj = x_val.T @ P @ x_val
+    P_prob = cp.Problem(cp.Maximize(P_obj), [P << P_val])
+    P_prob.solve()
+
+    x_obj = cp.quad_form(x, p_val)
+    x_prob = cp.Problem(cp.Minimize(x_obj), [cp.sum(x) == 1, x >= 0])
+    x_prob.solve()
+
+    assert np.isclose(P_prob.value, x_prob.value)
+
+
+def test_worst_case_covariance():
+    kappa = 0.1
+
+    Sigma = np.array([[1, -0.3], [-0.3, 1]])
+    delta = LocalVariable((2, 2), symmetric=True)
+    Sigma_pert = LocalVariable((2, 2), PSD=True)
+    v = cp.Variable(2)
+    obj = saddle_quad_form(v, Sigma_pert)
+    constraints = [Sigma + delta == Sigma_pert]
+    for i in range(2):
+        for j in range(2):
+            constraints += [cp.abs(delta[i, j]) <= kappa * (Sigma[i, i] * Sigma[j, j]) ** 0.5]
+
+    worst_case_risk = saddle_max(obj, [delta, Sigma_pert], constraints)
+
+    v_val = np.array([0, 1])
+
+    wc_ref = v_val.T @ Sigma @ v_val + kappa * (np.sqrt(np.diag(Sigma)) @ np.abs(v_val)) ** 2
+
+    v.value = v_val
+    assert np.isclose(wc_ref, worst_case_risk.value, atol=1e-4)
+
+    prob = cp.Problem(cp.Minimize(worst_case_risk), [v == v_val])
+    prob.solve()
+    assert np.isclose(wc_ref, prob.value)
