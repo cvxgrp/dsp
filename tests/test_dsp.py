@@ -8,7 +8,8 @@ from dsp.atoms import (
     saddle_max,
     saddle_min,
     saddle_quad_form,
-    weighted_log_sum_exp)
+    weighted_log_sum_exp,
+)
 from dsp.cone_transforms import (
     K_repr_ax,
     K_repr_x_Gy,
@@ -685,13 +686,12 @@ def test_robust_constraint_inf():
     assert np.isclose(problem.value, y_val, atol=1e-4)
 
 
-
 @pytest.mark.parametrize(
-    "x_val,P_val",  [([1,  0], [[1,  0],  [0, 1]]), ([1, 1], [[1, 0.2], [0.2,  1]])]
+    "x_val,P_val", [([1, 0], [[1, 0], [0, 1]]), ([1, 1], [[1, 0.2], [0.2, 1]])]
 )
 def test_quad_form_equality(x_val, P_val):
     x = cp.Variable(2, name="x")
-    P = cp.Variable((2,  2), name="P", PSD=True)
+    P = cp.Variable((2, 2), name="P", PSD=True)
 
     x_val = np.array(x_val)
     P_val = np.array(P_val)
@@ -765,4 +765,3 @@ def test_worst_case_covariance():
     prob = cp.Problem(cp.Minimize(worst_case_risk), [v == v_val])
     prob.solve()
     assert np.isclose(wc_ref, prob.value)
-

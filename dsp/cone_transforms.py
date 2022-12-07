@@ -12,7 +12,6 @@ from cvxpy.constraints.constraint import Constraint
 from cvxpy.constraints.psd import PSD
 from cvxpy.expressions.constants import Constant
 from cvxpy.expressions.variable import upper_tri_to_full
-from cvxpy.constraints.psd import PSD
 from cvxpy.problems.objective import Objective
 from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
 from scipy.linalg import block_diag
@@ -214,23 +213,15 @@ class LocalToGlob:
         offset = 0
         for var in variables:
             assert (
-                (
                 var.ndim <= 1
-               
                 or (var.ndim == 2 and min(var.shape) == 1)
-               
                 or (var.ndim == 2 and var.shape[0] == var.shape[1])
-            )
             )
             # TODO: ensure matrix variables are flattened correctly
             sz = (
-                (
                 var.size
-               
                 if not (var.ndim > 1 and var.is_symmetric())
-               
                 else (var.shape[0] * (var.shape[0] + 1) // 2)
-            ) 
             )  # fix for symmetric variables
             if var.attributes["diag"]:
                 raise NotImplementedError("Diagonal variables are not supported yet")
@@ -361,13 +352,9 @@ def get_cone_repr(
         for v in e.variables():
             start_ind = var_id_to_col[v.id]
             sz = (
-                (
                 v.size
-               
                 if not (v.ndim > 1 and v.is_symmetric())
-               
                 else (v.shape[0] * (v.shape[0] + 1) // 2)
-            ) 
             )  # fix for symmetric variables
             end_ind = start_ind + sz
             original_cols = np.append(original_cols, np.arange(start_ind, end_ind))
