@@ -536,6 +536,7 @@ class saddle_min(Atom):
         return self.f.shape
 
 
+
 class saddle_quad_form(ConvexConcaveAtom):
     def __init__(self, x: cp.Expression, P: cp.Expression) -> None:
         assert isinstance(x, cp.Expression)
@@ -569,8 +570,8 @@ class saddle_quad_form(ConvexConcaveAtom):
 
     def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         n = self.x.size
-        F_local = cp.Variable((n, n), name="F_quad_form_local", PSD=True)
-        A = cp.Variable((n + 1, n + 1), name="A_quad_form", PSD=True)
+        F_local = cp.Variable((n,  n), name="F_quad_form_local", PSD=True)
+        A = cp.Variable((n  +  1,  n  +  1), name="A_quad_form", PSD=True)
         t = cp.Variable(name="t_quad_form")
 
         constraints = [
@@ -589,17 +590,16 @@ class saddle_quad_form(ConvexConcaveAtom):
         constraints += [F_global == B.T @ cp.vec(F_local)]
 
         K_repr = KRepresentation(
-            f=F_global,
-            t=t,
-            constraints=constraints,
-            concave_expr=lambda x: self.get_concave_expression(),
+            f=F_global, t=t, constraints=constraints, concave_expr=lambda x: self.get_concave_expression(),
         )
 
         if switched:
             K_repr = switch_convex_concave(
-                constraints, F_global, t, self.get_convex_variables(), local_to_glob
+                
+                constraints, F_global_global, t, self.get_convex_variables(), local_to_glob
             )
-            K_repr.concave_expr = lambda x: self.get_convex_expression()
+            K_repr.concave_expr = lambda x: self.get_convex_expression(
+            )
 
         return K_repr
 
@@ -620,3 +620,4 @@ class saddle_quad_form(ConvexConcaveAtom):
 
     def is_decr(self, idx: int) -> bool:
         return False
+
