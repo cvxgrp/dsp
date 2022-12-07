@@ -99,17 +99,8 @@ def minimax_to_min(
         var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints + K.y_constraints, y_vars)
 
         n = len(e)
-        # TODO: this is a hack to get the right number of variables for the PSD
-        # cone, but I am not sure if we want to have lamb actually be the
-        # compressed representation here
-        # if len(cone_dims.psd) > 0:
-        #     for psd_dim in cone_dims.psd:
-        #         m = psd_dim*(psd_dim + 1) // 2
-        #         n -= m
-        #         n += psd_dim **2
-
         lamb = cp.Variable(n, name="lamb")
-        lamb_const = add_cone_constraints(lamb, cone_dims, dual=True)
+        lamb_const, lamb = add_cone_constraints(lamb, cone_dims, dual=True)
 
         D = var_id_to_mat["eta"]
 
@@ -118,7 +109,7 @@ def minimax_to_min(
             start, end = local_to_glob.var_to_glob[y.id]
             C[:, start:end] = var_id_to_mat[y.id]
 
-        lamb = scale_psd_dual(cone_dims, lamb)
+        # lamb = scale_psd_dual(cone_dims, lamb)
 
         if D.shape[1] > 0:
             constraints.append(D.T @ lamb == 0)
@@ -162,7 +153,7 @@ def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) ->
     S_bar = var_to_mat_mapping_dual[w.id]
 
     lamb = cp.Variable(len(s))
-    lamb_constr = add_cone_constraints(lamb, cone_dims, dual=True)
+    lamb_constr, lamb = add_cone_constraints(lamb, cone_dims, dual=True)
 
     t = cp.Variable(name="t_bilin_x_Gy")
 
@@ -264,11 +255,13 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
         start, end = local_to_glob.var_to_glob[y.id]
         R_bar[:, start:end] = var_to_mat_mapping[y.id]
 
+    cone_constraints, u = add_cone_constraints(u, cone_dims, dual=True)
+
     K_constr = [
         f == -R_bar.T @ u,
         t == s_bar @ u,
         p_bar.T @ u + 1 == 0,
-        *add_cone_constraints(u, cone_dims, dual=True),
+        *cone_constraints,
     ]
 
     if Q_bar.shape[1] > 0:
@@ -414,8 +407,9 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
         raise NotImplementedError
 
     assert offset == s.size
-
-    return s_const
+    
+    lamb = scale_psd_dual(cone_dims, s)
+    return s_const, lamb 
 
 
 def affine_to_canon(
@@ -491,8 +485,8 @@ def switch_convex_concave(
     var_to_mat_mapping, s, cone_dims = get_cone_repr(constraints, var_list)
 
     u_bar = cp.Variable(len(s))
-    u_bar_const = add_cone_constraints(u_bar, cone_dims, dual=True)
-    u_bar = scale_psd_dual(cone_dims, u_bar)
+    u_bar_const, u_bar = add_cone_constraints(u_bar, cone_dims, dual=True)
+    # u_bar = scale_psd_dual(cone_dims, u_bar)
 
     P = var_to_mat_mapping[f.id]
     p = var_to_mat_mapping[t.id].flatten()

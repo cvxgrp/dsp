@@ -123,18 +123,21 @@ def test_epigraph_exp(y_val):
 
     Ax_b = s_bar - (R_bar * y + t_primal * p_bar + Q_bar @ u_temp)
 
+    cone_constraints, _ =  add_cone_constraints(Ax_b, cone_dims, dual=False)
+
     prob = cp.Problem(
         cp.Minimize(t_primal),
-        [*add_cone_constraints(Ax_b, cone_dims, dual=False), y == y_val],
+        [*cone_constraints, y == y_val],
     )
     prob.solve(solver=cp.SCS)
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, y_val**4, atol=1e-3)
 
     u = cp.Variable((Q_bar.shape[0], 1))
+    cone_constraints, u = add_cone_constraints(u, cone_dims, dual=True)
     max_prob = cp.Problem(
         cp.Maximize((R_bar.T @ u) * y_val - s_bar.T @ u),
-        [-u.T @ p_bar == 1, Q_bar.T @ u == 0] + add_cone_constraints(u, cone_dims, dual=True),
+        [-u.T @ p_bar == 1, Q_bar.T @ u == 0] +cone_constraints ,
     )
     max_prob.solve(solver=cp.SCS)
     assert max_prob.status == cp.OPTIMAL
@@ -522,9 +525,14 @@ def test_mixed_curvature_affine():
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + np.array([1, 2]) @ cp.vstack([x, y]))
 
     constraints = [x == 0, y == 1]
-
     problem = SaddleProblem(obj, constraints)
-    problem.solve(solver=cp.SCS)
+
+    with pytest.raises(ValueError, match="Use inner"):
+        problem.solve(solver=cp.SCS)
+
+    obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + x + 2*y)
+    problem = SaddleProblem(obj, constraints)
+    problem.solve()
 
     assert np.isclose(problem.value, 1 + 2)
 
@@ -738,6 +746,27 @@ def test_quad_form_inequality(x_val, P_val):
     x_prob.solve()
 
     assert np.isclose(P_prob.value, x_prob.value)
+
+
+def test_PSD_saddle():
+    Y = cp.Variable((2, 2), PSD=True, name="Y")
+    f = cp.log_det(Y)
+    x = cp.Variable(name="x")
+
+    # verify that mosek can still handle log_det
+    ref_prob = cp.Problem(cp.Maximize(f), [Y == np.e* np.eye(2)])
+    ref_prob.solve()
+    ref_val = ref_prob.value
+    
+    # obj = MinimizeMaximize(f+x)
+    # obj = MinimizeMaximize(-f)
+    obj = MinimizeMaximize(cp.trace(Y))
+    # prob = SaddleProblem(obj, [Y == np.eye(2), x == 0], minimization_vars=[x])
+    prob = SaddleProblem(obj, [Y == np.e*np.eye(2)],maximization_vars=[Y])
+    prob.solve(solver=cp.SCS)
+
+    prob.value
+    raise NotImplementedError
 
 
 def test_worst_case_covariance():

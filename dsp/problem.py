@@ -191,6 +191,6 @@ def semi_infinite_epigraph(
 
     z = const_vec - expr  # Ax + b in K
 
-    cone_constraints = add_cone_constraints(z, cone_dims, dual=False)
+    cone_constraints, z = add_cone_constraints(z, cone_dims, dual=False)
 
     return obj, cone_constraints
