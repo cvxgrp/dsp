@@ -131,16 +131,22 @@ def minimax_to_min(
 
 
 def scale_psd_dual(cone_dims: ConeDims, lamb: cp.Variable) -> cp.Variable:
+    """
+    Scale entries of the dual variable lamb corresponding to off-diagonal entries of PSD
+    matrices by sqrt(2).
+    """
     if len(cone_dims.psd) > 0:
         n = lamb.shape[0]
-        # scale the PSD cone off diagonal variables by np.sqrt(2)
-        total_offset = sum([d * (d + 1) // 2 for d in cone_dims.psd])
-        mats = [np.eye(n - total_offset)]
+        scaling_mat_diag = np.ones(n)
+        n_psd_entries = sum([d * (d + 1) // 2 for d in cone_dims.psd])
+        offset = n - n_psd_entries
         for psd_dim in cone_dims.psd:
-            scale_vec = (Constant(upper_tri_to_full(psd_dim)).value.A).T @ np.ones(psd_dim**2)
-            mats.append(np.diag(scale_vec**0.5))
-        scaling_mat = block_diag(*mats)
-        lamb = scaling_mat @ lamb
+            # scale_vec has sqrt(2) on entries corresponding to off-diagonal entries, 1 otherwise
+            scale_vec = upper_tri_to_full(psd_dim).A.sum(axis=0) ** 0.5
+            compressed_vars = len(scale_vec)
+            scaling_mat_diag[offset : offset + compressed_vars] = scale_vec
+            offset += compressed_vars
+        lamb = np.diag(scaling_mat_diag) @ lamb
     return lamb
 
 
