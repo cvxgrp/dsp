@@ -603,6 +603,9 @@ class saddle_quad_form(ConvexConcaveAtom):
 
         return K_repr
 
+    def name(self) -> str:
+        return "saddle_quad_form(" + self.x.name() + ", " + self.P.name() + ")"
+
     def get_convex_variables(self) -> list[cp.Variable]:
         return self.x.variables()
 

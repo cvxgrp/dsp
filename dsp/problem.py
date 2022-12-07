@@ -180,7 +180,14 @@ def semi_infinite_epigraph(
     var_to_mat_mapping.pop("eta")
 
     for v_id, A_ in var_to_mat_mapping.items():
-        expr += A_ @ cp.vec(var_id_map[v_id])
+        v = var_id_map[v_id]
+        if v.ndim > 1 and v.is_symmetric():
+            # create v_vec, the symmetric part of v
+            assert v.shape[0] == v.shape[1]
+            inds = np.triu_indices(v.shape[0], k=0)  # includes diagonal
+            expr += A_ @ v[inds]
+        else:
+            expr += A_ @ cp.vec(v)
 
     z = const_vec - expr  # Ax + b in K
 

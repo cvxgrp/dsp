@@ -741,12 +741,12 @@ def test_quad_form_inequality(x_val, P_val):
 
 
 def test_worst_case_covariance():
-    kappa = 0.1
+    kappa = 0.5
 
-    Sigma = np.array([[1, -0.3], [-0.3, 1]])
-    delta = LocalVariable((2, 2), symmetric=True)
-    Sigma_pert = LocalVariable((2, 2), PSD=True)
-    v = cp.Variable(2)
+    Sigma = np.array([[1, -0.3], [-0.3, 2]])
+    delta = LocalVariable((2, 2), symmetric=True, name="delta")
+    Sigma_pert = LocalVariable((2, 2), PSD=True, name="Sigma_pert")
+    v = cp.Variable(2, name="v")
     obj = saddle_quad_form(v, Sigma_pert)
     constraints = [Sigma + delta == Sigma_pert]
     for i in range(2):
@@ -762,6 +762,17 @@ def test_worst_case_covariance():
     v.value = v_val
     assert np.isclose(wc_ref, worst_case_risk.value, atol=1e-4)
 
-    prob = cp.Problem(cp.Minimize(worst_case_risk), [v == v_val])
+    # prob = cp.Problem(cp.Minimize(worst_case_risk), [v == v_val])
+    prob = cp.Problem(cp.Minimize(worst_case_risk), [sum(v) == 1, v >= 0])
+
     prob.solve()
-    assert np.isclose(wc_ref, prob.value)
+    v_val_dsp = v.value
+
+    wc_ob_ref = cp.quad_form(v, Sigma) + kappa * cp.square(np.sqrt(np.diag(Sigma)) @ cp.abs(v))
+    ref_prob = cp.Problem(cp.Minimize(wc_ob_ref), [sum(v) == 1, v >= 0])
+    ref_prob.solve()
+    v_val_ref = v.value
+
+    assert np.isclose(ref_prob.value, prob.value, atol=1e-2)
+    # TODO: is the approximation numerical or a math/code error?
+    # TODO: breaks with ECOS
