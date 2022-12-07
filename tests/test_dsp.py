@@ -765,12 +765,12 @@ def test_worst_case_covariance():
     # prob = cp.Problem(cp.Minimize(worst_case_risk), [v == v_val])
     prob = cp.Problem(cp.Minimize(worst_case_risk), [sum(v) == 1, v >= 0])
 
-    prob.solve()
+    prob.solve(solver=cp.SCS)
     v_val_dsp = v.value
 
     wc_ob_ref = cp.quad_form(v, Sigma) + kappa * cp.square(np.sqrt(np.diag(Sigma)) @ cp.abs(v))
     ref_prob = cp.Problem(cp.Minimize(wc_ob_ref), [sum(v) == 1, v >= 0])
-    ref_prob.solve()
+    ref_prob.solve(solver=cp.SCS)
     v_val_ref = v.value
 
     assert np.isclose(ref_prob.value, prob.value, atol=1e-2)
