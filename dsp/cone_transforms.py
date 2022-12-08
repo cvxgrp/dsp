@@ -14,7 +14,6 @@ from cvxpy.expressions.constants import Constant
 from cvxpy.expressions.variable import upper_tri_to_full
 from cvxpy.problems.objective import Objective
 from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
-from scipy.linalg import block_diag
 
 
 @dataclass
@@ -108,8 +107,6 @@ def minimax_to_min(
         for y in y_vars:
             start, end = local_to_glob.var_to_glob[y.id]
             C[:, start:end] = var_id_to_mat[y.id]
-
-        # lamb = scale_psd_dual(cone_dims, lamb)
 
         if D.shape[1] > 0:
             constraints.append(D.T @ lamb == 0)
@@ -413,9 +410,9 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
         raise NotImplementedError
 
     assert offset == s.size
-    
+
     lamb = scale_psd_dual(cone_dims, s)
-    return s_const, lamb 
+    return s_const, lamb
 
 
 def affine_to_canon(

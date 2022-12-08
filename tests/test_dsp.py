@@ -123,7 +123,7 @@ def test_epigraph_exp(y_val):
 
     Ax_b = s_bar - (R_bar * y + t_primal * p_bar + Q_bar @ u_temp)
 
-    cone_constraints, _ =  add_cone_constraints(Ax_b, cone_dims, dual=False)
+    cone_constraints, _ = add_cone_constraints(Ax_b, cone_dims, dual=False)
 
     prob = cp.Problem(
         cp.Minimize(t_primal),
@@ -137,7 +137,7 @@ def test_epigraph_exp(y_val):
     cone_constraints, u = add_cone_constraints(u, cone_dims, dual=True)
     max_prob = cp.Problem(
         cp.Maximize((R_bar.T @ u) * y_val - s_bar.T @ u),
-        [-u.T @ p_bar == 1, Q_bar.T @ u == 0] +cone_constraints ,
+        [-u.T @ p_bar == 1, Q_bar.T @ u == 0] + cone_constraints,
     )
     max_prob.solve(solver=cp.SCS)
     assert max_prob.status == cp.OPTIMAL
@@ -530,7 +530,7 @@ def test_mixed_curvature_affine():
     with pytest.raises(ValueError, match="Use inner"):
         problem.solve(solver=cp.SCS)
 
-    obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + x + 2*y)
+    obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + x + 2 * y)
     problem = SaddleProblem(obj, constraints)
     problem.solve()
 
@@ -749,23 +749,43 @@ def test_quad_form_inequality(x_val, P_val):
 
 
 def test_PSD_saddle():
-    Y = cp.Variable((2, 2), PSD=True, name="Y")
+    n = 2
+    Y = cp.Variable((n, n), PSD=True, name="Y")
     f = cp.log_det(Y)
     x = cp.Variable(name="x")
 
-    # verify that mosek can still handle log_det
-    ref_prob = cp.Problem(cp.Maximize(f), [Y == np.e* np.eye(2)])
-    ref_prob.solve()
-    ref_val = ref_prob.value
-    
-    # obj = MinimizeMaximize(f+x)
-    # obj = MinimizeMaximize(-f)
-    obj = MinimizeMaximize(cp.trace(Y))
-    # prob = SaddleProblem(obj, [Y == np.eye(2), x == 0], minimization_vars=[x])
-    prob = SaddleProblem(obj, [Y == np.e*np.eye(2)],maximization_vars=[Y])
+    obj = MinimizeMaximize(f)
+    # obj = MinimizeMaximize(-cp.trace(Y))
+    # obj = MinimizeMaximize(cp.lambda_max(Y))
+
+    prob = SaddleProblem(obj, [Y == np.e * np.eye(n)], maximization_vars=[Y])
+
+    prob.solve(solver=cp.MOSEK)
+    #
+    # I get the following fatal error (i.e. stops the debug session, etc) when
+    # using MOSEK and the log_det objective with 2x2 Y (but not 1x1):
+    #
+    # tests/test_dsp.py MOSEK fatal error stoptask
+    # Version : 10.0.30
+    # File    : src/prslv/prlog.c
+    # Line    : 19278
+    # Msg     : Assertion failed at src/prslv/prlog.c(19278).
+    # MOSEK fatal error stopenv
+    # Version : 10.0.30
+    # Platform: MACOSX/64-X86
+    # File    : src/prslv/prlog.c
+    # Line    : 19278
+    # Msg     : Assertion failed at src/prslv/prlog.c(19278)
+
     prob.solve(solver=cp.SCS)
+    # n = 1: infeasible
+    # n = 2: unbounded
+    # n = 3: infeasible
+    # n = 4: infeasible
+    # n = 5: infeasible
 
     prob.value
+
     raise NotImplementedError
 
 

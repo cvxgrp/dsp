@@ -230,7 +230,9 @@ class Parser:
             or (set(expr.variables()) <= self.concave_vars)
         ):
             return self.parse_known_curvature_repr(expr * (1 if not switched else -1), **kwargs)
-        elif ((not repr_parse) and (expr.is_convex() or expr.is_concave())) and not isinstance(expr, (AddExpression, NegExpression, MulExpression, multiply)): 
+        elif ((not repr_parse) and (expr.is_convex() or expr.is_concave())) and not isinstance(
+            expr, (AddExpression, NegExpression, MulExpression, multiply)
+        ):
             return self.parse_known_curvature_vars(expr, switched)
 
         # convex and concave variables
