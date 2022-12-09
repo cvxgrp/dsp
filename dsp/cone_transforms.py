@@ -324,17 +324,12 @@ def get_cone_repr(
     assert {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}
     aux_prob = cp.Problem(cp.Minimize(0), const)
     solver_opts = {"use_quad_obj": False}
-    chain = aux_prob._construct_chain(solver_opts=solver_opts)
-    chain.reductions = chain.reductions[:-1]  # skip solver reduction
-    prob_canon = chain.apply(aux_prob)[0]  # grab problem instance
-    # get cone representation of c, A, and b for some problem.
 
+    # get cone representation of c, A, and b for some problem.
     problem_data = aux_prob.get_problem_data(solver_opts=solver_opts, solver=cp.SCS)
 
-    Ab = (
-        problem_data[0]["param_prob"].A.toarray().reshape((-1, prob_canon.x.size + 1), order="F")
-    )  # TODO: keep sparsity
-    A, const_vec = Ab[:, :-1], Ab[:, -1]
+    A, const_vec = problem_data[0]["A"].toarray(), problem_data[0]["b"]  # TODO: keep sparsity
+
     unused_mask = np.ones(A.shape[1], dtype=bool)
 
     var_id_to_col = problem_data[0]["param_prob"].var_id_to_col
@@ -355,10 +350,10 @@ def get_cone_repr(
             end_ind = start_ind + sz
             original_cols = np.append(original_cols, np.arange(start_ind, end_ind))
 
-        var_to_mat_mapping[e.id] = -A[:, original_cols]
+        var_to_mat_mapping[e.id] = A[:, original_cols]
         unused_mask[original_cols] = 0
 
-    var_to_mat_mapping["eta"] = -A[:, unused_mask]
+    var_to_mat_mapping["eta"] = A[:, unused_mask]
 
     cone_dims = problem_data[0]["dims"]
 
@@ -489,7 +484,6 @@ def switch_convex_concave(
 
     u_bar = cp.Variable(len(s))
     u_bar_const, u_bar = add_cone_constraints(u_bar, cone_dims, dual=True)
-    # u_bar = scale_psd_dual(cone_dims, u_bar)
 
     P = var_to_mat_mapping[f.id]
     p = var_to_mat_mapping[t.id].flatten()
