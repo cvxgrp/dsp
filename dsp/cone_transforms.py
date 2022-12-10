@@ -123,11 +123,15 @@ def scale_psd_dual(cone_dims: ConeDims, lamb: cp.Variable) -> cp.Variable:
     Scale entries of the dual variable lamb corresponding to off-diagonal entries of PSD
     matrices by sqrt(2).
     """
+
+    assert not cone_dims.p3d, "p3d cones not supported"
+
     if len(cone_dims.psd) > 0:
+        exp_offset = 3 * cone_dims.exp
         n = lamb.shape[0]
         scaling_mat_diag = np.ones(n)
         n_psd_entries = sum([d * (d + 1) // 2 for d in cone_dims.psd])
-        offset = n - n_psd_entries
+        offset = n - n_psd_entries - exp_offset
         for psd_dim in cone_dims.psd:
             # scale_vec has sqrt(2) on entries corresponding to off-diagonal entries, 1 otherwise
             scale_vec = upper_tri_to_full(psd_dim).A.sum(axis=0) ** 0.5
@@ -375,6 +379,17 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
         for soc_dim in cone_dims.soc:
             s_const.append(SOC(t=s[offset], X=s[offset + 1 : offset + soc_dim]))
             offset += soc_dim
+    if len(cone_dims.psd) > 0:
+        for psd_dim in cone_dims.psd:
+            m = psd_dim * (psd_dim + 1) // 2
+            z = s[offset : offset + m]
+
+            fill_coeff = Constant(upper_tri_to_full(psd_dim))
+            flat_mat = fill_coeff @ z
+            full_mat = reshape(flat_mat, (psd_dim, psd_dim))
+            s_const.append(PSD(full_mat))
+            offset += m
+
     if cone_dims.exp > 0:
         end = offset + 3 * cone_dims.exp
         if dual:
@@ -389,17 +404,6 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
             s_const.append(ExpCone(x, y, z))
 
         offset += 3 * cone_dims.exp
-
-    if len(cone_dims.psd) > 0:
-        for psd_dim in cone_dims.psd:
-            m = psd_dim * (psd_dim + 1) // 2
-            z = s[offset : offset + m]
-
-            fill_coeff = Constant(upper_tri_to_full(psd_dim))
-            flat_mat = fill_coeff @ z
-            full_mat = reshape(flat_mat, (psd_dim, psd_dim))
-            s_const.append(PSD(full_mat))
-            offset += m
 
     if len(cone_dims.p3d) > 0:
         raise NotImplementedError

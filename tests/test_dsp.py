@@ -778,15 +778,8 @@ def test_PSD_saddle():
     # Msg     : Assertion failed at src/prslv/prlog.c(19278)
 
     prob.solve(solver=cp.SCS)
-    # n = 1: infeasible
-    # n = 2: unbounded
-    # n = 3: infeasible
-    # n = 4: infeasible
-    # n = 5: infeasible
 
-    prob.value
-
-    raise NotImplementedError
+    assert np.isclose(prob.value, n, atol=1e-4)
 
 
 def test_worst_case_covariance():
