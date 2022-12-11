@@ -782,6 +782,19 @@ def test_PSD_saddle():
     assert np.isclose(prob.value, n, atol=1e-4)
 
 
+def test_psd_exp():
+    n = 2
+    Y = cp.Variable((n, n), PSD=True, name="Y")
+
+    obj = MinimizeMaximize(cp.exp(cp.lambda_max(Y)))
+
+    prob = SaddleProblem(obj, [Y >> np.eye(n)], minimization_vars=[Y])
+
+    prob.solve()
+
+    assert np.isclose(prob.value, np.e, atol=1e-4)
+
+
 def test_worst_case_covariance():
     kappa = 0.5
 
