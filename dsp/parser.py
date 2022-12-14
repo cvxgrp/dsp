@@ -20,6 +20,10 @@ from dsp.cone_transforms import (
 )
 
 
+class DSPError(Exception):
+    pass
+
+
 def affine_error_message(affine_vars: list[cp.Variable]) -> str:
     return (
         f"Cannot resolve curvature of variables {[v.name() for v in affine_vars]}. "
@@ -33,7 +37,9 @@ class Parser:
 
         self.convex_vars: set[cp.Variable] = convex_vars
         self.concave_vars: set[cp.Variable] = concave_vars
-        assert not (self.convex_vars & self.concave_vars)
+        if self.convex_vars & self.concave_vars:
+            raise DSPError("Cannot have variables in both maximization_vars and minimization_vars.")
+
         self.affine_vars: set[int] = set()
         self._x_constraints = None
         self._y_constraints = None
@@ -106,17 +112,16 @@ class Parser:
 
     def add_to_convex_vars(self, variables: Iterable[cp.Variable]) -> None:
         variables = set(variables)
-        assert not (variables & self.concave_vars), (
-            "Cannot add variables to both " "convex and concave set."
-        )
+        if variables & self.concave_vars:
+            raise DSPError("Cannot add variables to both " "convex and concave set.")
         self.affine_vars -= variables
         self.convex_vars |= variables
 
     def add_to_concave_vars(self, variables: Iterable[cp.Variable]) -> None:
         variables = set(variables)
-        assert not (variables & self.convex_vars), (
-            "Cannot add variables to both " "convex and concave set."
-        )
+        if variables & self.convex_vars:
+            raise DSPError("Cannot add variables to both convex and concave set.")
+
         self.affine_vars -= variables
         self.concave_vars |= variables
 
@@ -309,7 +314,8 @@ def initialize_parser(
     parser._x_constraints = x_constraints
     parser._y_constraints = y_constraints
 
-    assert not parser.affine_vars, affine_error_message(parser.affine_vars)
+    if parser.affine_vars:
+        raise DSPError(affine_error_message(parser.affine_vars))
 
     x_constraint_vars = set(
         itertools.chain.from_iterable(constraint.variables() for constraint in x_constraints)
@@ -318,6 +324,7 @@ def initialize_parser(
         itertools.chain.from_iterable(constraint.variables() for constraint in y_constraints)
     )
     prob_vars = x_constraint_vars | y_constraint_vars | set(expr.variables())
-    assert parser.convex_vars | parser.concave_vars == prob_vars, "Likely passed unused variables"
 
+    if not parser.convex_vars | parser.concave_vars == prob_vars:
+        raise DSPError("Likely passed unused variables")
     return parser

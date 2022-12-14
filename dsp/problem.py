@@ -15,7 +15,7 @@ from dsp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dsp.parser import initialize_parser
+from dsp.parser import DSPError, initialize_parser
 
 
 class MinimizeMaximize:
@@ -33,7 +33,7 @@ class MinimizeMaximize:
             raise TypeError(f"Cannot parse {expr=}")
 
 
-class SaddleProblem(cp.Problem):
+class SaddlePointProblem(cp.Problem):
     def __init__(
         self,
         minmax_objective: MinimizeMaximize | Objective,
@@ -90,11 +90,15 @@ class SaddleProblem(cp.Problem):
     ) -> tuple[list[cp.Variable], list[cp.Variable]]:
         if isinstance(objective, cp.Minimize):
             vars = set(objective.variables())
-            assert not vars & maximization_vars
+            assert (
+                not vars & maximization_vars
+            ), "Maximization variables are not allowed in minimization objective"
             minimization_vars |= vars
         elif isinstance(objective, cp.Maximize):
             vars = set(objective.variables())
-            assert not vars & minimization_vars
+            assert (
+                not vars & minimization_vars
+            ), "Minimization variables are not allowed in maximization objective"
             maximization_vars |= vars
 
         return minimization_vars, maximization_vars
@@ -147,9 +151,14 @@ class SaddleProblem(cp.Problem):
         return self._value
 
     def is_dsp(self) -> bool:
-        raise NotImplementedError
-        # Currently if I construct a SaddleProblem with a non-DSP objective, it
-        # will break on asserts, rather than on solve.
+        # try to form "x_prob = self.x_prob" and catch the exception
+        try:
+            self.x_prob
+        except DSPError:
+            return False
+        # TODO: modify all internal DSP checking to raise DSPError's.
+
+        return True
 
 
 def semi_infinite_epigraph(
@@ -160,7 +169,7 @@ def semi_infinite_epigraph(
     minimization_vars = variables if mode == "inf" else []
     maximization_vars = variables if mode == "sup" else []
 
-    aux_prob = SaddleProblem(
+    aux_prob = SaddlePointProblem(
         MinimizeMaximize(expr), constraints, minimization_vars, maximization_vars
     )
     prob = aux_prob.x_prob if mode == "sup" else aux_prob.y_prob

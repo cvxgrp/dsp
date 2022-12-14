@@ -19,7 +19,8 @@ from dsp.cone_transforms import (
     minimax_to_min,
 )
 from dsp.local import LocalVariable
-from dsp.problem import MinimizeMaximize, SaddleProblem
+from dsp.parser import DSPError
+from dsp.problem import MinimizeMaximize, SaddlePointProblem
 
 
 def test_matrix_game_x_Gy():
@@ -90,7 +91,7 @@ def test_by(b_neg, y_val):
     X_const = [x == 0]
     Y_const = [y == y_val]
 
-    prob = SaddleProblem(MinimizeMaximize(by), X_const + Y_const, minimization_vars={x})
+    prob = SaddlePointProblem(MinimizeMaximize(by), X_const + Y_const, minimization_vars={x})
     prob.solve(solver=cp.SCS)
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, expected, atol=1e-3)
@@ -157,7 +158,7 @@ def test_matrix_game_nemirovski_Fx_Gy():
 
     objective = MinimizeMaximize(FxGy)
     constraints = [-1 <= x, x <= 1, -1 <= y, y <= 1]
-    prob = SaddleProblem(objective, constraints)
+    prob = SaddlePointProblem(objective, constraints)
     prob.solve(solver=cp.SCS)
     assert np.isclose(prob.value, 0, atol=1e-4)
 
@@ -168,7 +169,7 @@ def test_overload_bilin():
 
     objective = MinimizeMaximize(x * y)
     constraints = [-1 <= x, x <= 1, -1.2 <= y, y <= -0.8]
-    prob = SaddleProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
+    prob = SaddlePointProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
 
     with pytest.raises(ValueError, match="Use inner instead"):
         prob.solve()
@@ -192,7 +193,7 @@ def test_saddle_composition(obj):
     # TODO: why are these different? Optimal y only correct in second formulation
 
     constraints = [-1 <= x, x <= 1, -1.2 <= y, y <= -0.8]
-    prob = SaddleProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
+    prob = SaddlePointProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
 
     print(prob.y_prob)
 
@@ -242,7 +243,7 @@ def test_wlse_composition_switch(x_val, y_val, c):
     x_constraints = [x1 + x2 <= x_val]
     y_constraints = [y >= y_val]
 
-    prob = SaddleProblem(obj, x_constraints + y_constraints)
+    prob = SaddlePointProblem(obj, x_constraints + y_constraints)
     opt_val = -np.log(x_val * np.exp(np.exp(y_val)))
 
     prob.x_prob.solve(solver=cp.SCS)
@@ -274,7 +275,7 @@ def test_wlse_composition(x_val, y_val, c):
     x_constraints = [x1 >= x_val, x2 >= x_val]
     y_constraints = [y <= y_val]
 
-    prob = SaddleProblem(obj, x_constraints + y_constraints)
+    prob = SaddlePointProblem(obj, x_constraints + y_constraints)
     opt_val = np.log(y_val * np.exp(f_val))
 
     prob.solve(solver=cp.SCS)
@@ -333,7 +334,7 @@ def test_wlse_multi_var(x_val, y_val, c):
     x_constraints = [x1 >= x_val, x2 >= x_val]
     y_constraints = [y <= y_val]
 
-    prob = SaddleProblem(obj, x_constraints + y_constraints)
+    prob = SaddlePointProblem(obj, x_constraints + y_constraints)
 
     opt_val = np.log((sum(a) * y_val + c) * np.exp(x_val)) + np.exp(x_val) + np.log(y_val)
 
@@ -362,7 +363,7 @@ def test_wlse_switching(x_val, y_val, c):
     x_constraints = [x1 + x2 <= x_val]
     y_constraints = [y >= y_val]
 
-    prob = SaddleProblem(obj, x_constraints + y_constraints)
+    prob = SaddlePointProblem(obj, x_constraints + y_constraints)
     opt_val = -np.log(x_val * np.exp(y_val))
 
     prob.x_prob.solve(solver=cp.SCS)
@@ -386,7 +387,7 @@ def test_wlse_multi_var_switching(x_val, y_val, c):
     x_constraints = [x == x_val]
     y_constraints = [y1 == y_val, y2 == y_val]
 
-    prob = SaddleProblem(obj, x_constraints + y_constraints)
+    prob = SaddlePointProblem(obj, x_constraints + y_constraints)
 
     opt_val = -np.log(2 * x_val * np.exp(2 * a * y_val + c)) + np.exp(x_val) + np.log(y_val)
 
@@ -418,7 +419,7 @@ def test_neg_wlse(x_val, y_val, c):
     x_constraints = [x_val >= x1]  # , x2 >= x_val]
     y_constraints = [y_val <= y1]
 
-    prob = SaddleProblem(obj, x_constraints + y_constraints)
+    prob = SaddlePointProblem(obj, x_constraints + y_constraints)
     prob.solve(solver=cp.SCS)
     assert prob.status == cp.OPTIMAL
     assert np.isclose(prob.value, -np.log(x_val * np.exp(y_val)))
@@ -470,7 +471,7 @@ def test_weighted_sum_exp_with_switching(n):
 
 def test_constant():
     obj = MinimizeMaximize(10)
-    problem = SaddleProblem(obj)
+    problem = SaddlePointProblem(obj)
     problem.solve(solver=cp.SCS)
     assert problem.value == 10
 
@@ -481,27 +482,27 @@ def test_variable():
 
     obj = MinimizeMaximize(k)
     with pytest.raises(ValueError, match="Cannot split"):
-        SaddleProblem(obj, constraints).solve()
+        SaddlePointProblem(obj, constraints).solve()
 
-    with pytest.raises(AssertionError, match="Cannot resolve"):
-        SaddleProblem(obj, []).solve()
+    with pytest.raises(DSPError, match="Cannot resolve"):
+        SaddlePointProblem(obj, []).solve()
 
-    problem = SaddleProblem(obj, constraints, minimization_vars={k})
+    problem = SaddlePointProblem(obj, constraints, minimization_vars={k})
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, -10)
 
-    problem = SaddleProblem(obj, constraints, maximization_vars={k})
+    problem = SaddlePointProblem(obj, constraints, maximization_vars={k})
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 10)
 
     # No need to specify when convex/concave terms are present
     obj = MinimizeMaximize(k + 1e-10 * cp.pos(k))
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddlePointProblem(obj, constraints)
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, -10)
 
     obj = MinimizeMaximize(k - 1e-10 * cp.pos(k))
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddlePointProblem(obj, constraints)
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 10)
 
@@ -512,7 +513,7 @@ def test_sum():
 
     obj = MinimizeMaximize(x + y)
     constraints = [-1 <= x, x <= 1, -2 <= y, y <= 2]
-    problem = SaddleProblem(obj, constraints, minimization_vars={x}, maximization_vars={y})
+    problem = SaddlePointProblem(obj, constraints, minimization_vars={x}, maximization_vars={y})
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0)
 
@@ -525,13 +526,13 @@ def test_mixed_curvature_affine():
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + np.array([1, 2]) @ cp.vstack([x, y]))
 
     constraints = [x == 0, y == 1]
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddlePointProblem(obj, constraints)
 
     with pytest.raises(ValueError, match="Use inner"):
         problem.solve(solver=cp.SCS)
 
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + x + 2 * y)
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddlePointProblem(obj, constraints)
     problem.solve()
 
     assert np.isclose(problem.value, 1 + 2)
@@ -542,10 +543,10 @@ def test_indeterminate_problem():
     y = cp.Variable(name="y")
     z = cp.Variable(name="z")
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + z)
-    with pytest.raises(AssertionError, match="Cannot resolve"):
-        SaddleProblem(obj).solve()
+    with pytest.raises(DSPError, match="Cannot resolve"):
+        SaddlePointProblem(obj).solve()
 
-    prob = SaddleProblem(obj, minimization_vars={z}, constraints=[y >= 0, x >= 0, z >= 0])
+    prob = SaddlePointProblem(obj, minimization_vars={z}, constraints=[y >= 0, x >= 0, z >= 0])
     assert set(prob.x_prob.variables()) & set(prob.variables()) == {x, z}
     assert set(prob.y_prob.variables()) & set(prob.variables()) == {y}
 
@@ -567,7 +568,7 @@ def test_stacked_variables():
         1 <= y2,
         y2 <= 3,
     ]
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddlePointProblem(obj, constraints)
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 2 * np.exp(-1) + np.log(3) + 2 * np.sqrt(3))
 
@@ -582,7 +583,7 @@ def test_Gx_Fy():
     low = 2
     constraints = [low <= x, x <= 4, 2 <= y, y <= 3]
 
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddlePointProblem(obj, constraints)
     problem.solve(solver=cp.SCS)
 
     assert np.isclose(problem.value, 2 * np.exp(low) * np.log(3))
@@ -600,7 +601,7 @@ def test_wlse_comp(x_val, y_val):
 
     constraints = [x >= x_val, y <= y_val]
 
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddlePointProblem(obj, constraints)
     opt_val = np.log(np.log(np.log(y_val)) * np.exp(x_val**2))
 
     problem.solve(solver=cp.SCS)
@@ -618,7 +619,7 @@ def test_wsle_with_external_affine_constraints():
 
     constraints = [x >= 1, y <= 2, y == np.ones((4, 2)) @ z]
 
-    problem = SaddleProblem(obj, constraints)
+    problem = SaddlePointProblem(obj, constraints)
     opt_val = np.log(8 * np.exp(1)) + 2
 
     problem.solve(solver=cp.SCS)
@@ -639,10 +640,10 @@ def test_robust_constraint():
     constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
     # TODO, auto min vars
-    with pytest.raises(AssertionError, match="Likely"):
-        SaddleProblem(obj2, constraints, maximization_vars=[y]).solve()  # objective is affine  in x
+    with pytest.raises(DSPError, match="Likely"):
+        SaddlePointProblem(obj2, constraints, maximization_vars=[y]).solve()  # objective is affine  in x
 
-    problem = SaddleProblem(obj1, constraints)  # , maximization_vars=[y])
+    problem = SaddlePointProblem(obj1, constraints)  # , maximization_vars=[y])
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
 
@@ -661,7 +662,7 @@ def test_robust_constraint_min():
 
     constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
-    problem = SaddleProblem(obj2, constraints)  # , maximization_vars=[y])
+    problem = SaddlePointProblem(obj2, constraints)  # , maximization_vars=[y])
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
 
@@ -710,7 +711,7 @@ def test_quad_form_equality(x_val, P_val):
     f = saddle_quad_form(x, P)
 
     obj = MinimizeMaximize(f)
-    prob = SaddleProblem(obj, [P == P_val, x == x_val])
+    prob = SaddlePointProblem(obj, [P == P_val, x == x_val])
     prob.solve()
 
     assert np.isclose(prob.value, x_val.T @ P_val @ x_val)
@@ -730,7 +731,7 @@ def test_quad_form_inequality(x_val, P_val):
     f = saddle_quad_form(x, P)
 
     obj = MinimizeMaximize(f)
-    prob = SaddleProblem(obj, [P << P_val, cp.sum(x) == 1, x >= 0])
+    prob = SaddlePointProblem(obj, [P << P_val, cp.sum(x) == 1, x >= 0])
     prob.solve()
 
     p_val = P.value
@@ -758,7 +759,7 @@ def test_PSD_saddle():
     # obj = MinimizeMaximize(-cp.trace(Y))
     # obj = MinimizeMaximize(cp.lambda_max(Y))
 
-    prob = SaddleProblem(obj, [Y == np.e * np.eye(n)], maximization_vars=[Y])
+    prob = SaddlePointProblem(obj, [Y == np.e * np.eye(n)], maximization_vars=[Y])
 
     prob.solve(solver=cp.MOSEK)
     #
@@ -788,7 +789,7 @@ def test_psd_exp():
 
     obj = MinimizeMaximize(cp.exp(cp.lambda_max(Y)))
 
-    prob = SaddleProblem(obj, [Y >> np.eye(n)], minimization_vars=[Y])
+    prob = SaddlePointProblem(obj, [Y >> np.eye(n)], minimization_vars=[Y])
 
     prob.solve()
 

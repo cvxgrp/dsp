@@ -5,7 +5,7 @@ import pytest
 from dsp.atoms import inner, saddle_max, saddle_min, weighted_log_sum_exp
 from dsp.cvxpy_integration import extend_cone_canon_methods
 from dsp.local import LocalVariable
-from dsp.problem import MinimizeMaximize, SaddleProblem
+from dsp.problem import MinimizeMaximize, SaddlePointProblem
 
 extend_cone_canon_methods()
 
@@ -22,7 +22,7 @@ def test_semi_infinite_matrix():
 
     # Saddle problem
     saddle_obj = MinimizeMaximize(inner_expr)
-    saddle_problem = SaddleProblem(saddle_obj, [cp.sum(x) == 1, cp.sum(y) == 1])
+    saddle_problem = SaddlePointProblem(saddle_obj, [cp.sum(x) == 1, cp.sum(y) == 1])
     saddle_problem.solve()
 
     assert np.isclose(saddle_problem.value, 2.0, atol=1e-4)

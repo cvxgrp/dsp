@@ -2,7 +2,7 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from dsp import MinimizeMaximize, SaddleProblem
+from dsp import MinimizeMaximize, SaddlePointProblem
 from dsp.atoms import weighted_log_sum_exp
 
 # from dsp.problem import Parser
@@ -54,10 +54,10 @@ def test_curvature_lumping():
     x = cp.Variable(name="x")
     y = cp.Variable(name="y", nonneg=True)
     obj_ccv = MinimizeMaximize(cp.log(y) + x)
-    prob = SaddleProblem(obj_ccv, [y == 1, x == 1])
+    prob = SaddlePointProblem(obj_ccv, [y == 1, x == 1])
     with pytest.raises(ValueError, match="specify"):
         prob.solve()
 
-    prob = SaddleProblem(obj_ccv, [y == 1, x == 1], minimization_vars=[x])
+    prob = SaddlePointProblem(obj_ccv, [y == 1, x == 1], minimization_vars=[x])
     prob.solve()
     assert np.isclose(prob.x_prob.value, 1)
