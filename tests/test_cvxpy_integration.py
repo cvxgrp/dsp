@@ -5,9 +5,9 @@ import pytest
 import dsp
 from dsp.atoms import inner, saddle_max, saddle_min, weighted_log_sum_exp
 from dsp.cvxpy_integration import extend_cone_canon_methods
-from dsp.local import LocalVariable
+from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError
-from dsp.problem import MinimizeMaximize, SaddlePointProblem
+from dsp.problem import MinimizeMaximize, SaddlePointProblem, is_dsp
 
 extend_cone_canon_methods()
 
@@ -99,9 +99,8 @@ def test_semi_infinite_expr():
     assert sup_y_f.is_dsp()
 
     # trying to use the same dummy variable in a new SE raises an error
-    sup_y_f_reused_local = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy], [y_dummy <= 1])
-    assert sup_y_f_reused_local.is_dcp()
-    assert not sup_y_f_reused_local.is_dsp()
+    with pytest.raises(LocalVariableError):
+        sup_y_f_reused_local = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy], [y_dummy <= 1])
 
     # trying to get the value of the saddle_max before x has a value returns None
     assert sup_y_f.numeric(values=np.ones(1)) is None
@@ -183,9 +182,8 @@ def test_nested_saddle():
     sup_y_f = saddle_max(f, [y_1], [y_1 <= 1])
 
     g = weighted_log_sum_exp(sup_y_f, y_1[1])
-    sup_y_g = saddle_max(g, [y_1], [y_1 <= 1])
-    assert sup_y_g.is_dcp()
-    assert not sup_y_g.is_dsp()
+    with pytest.raises(LocalVariableError):
+        sup_y_g = saddle_max(g, [y_1], [y_1 <= 1])
 
     g = weighted_log_sum_exp(sup_y_f, y_2)
     sup_y_g = saddle_max(g, [y_2], [y_2 <= 1])
@@ -228,3 +226,37 @@ def test_saddle_max():
 
     assert np.isclose(x1.value, 1)
     assert np.isclose(x2.value, 1)
+
+
+def test_non_dsp_saddle():
+    x = cp.Variable(2, name="x", nonneg=True)
+    y = LocalVariable(2, name="y", nonneg=True)
+
+    f = weighted_log_sum_exp(x, y) + cp.exp(y[1])
+
+    sup_y_f = saddle_max(f, [y], [y <= 1])
+
+    assert not sup_y_f.is_dsp()
+
+    prob = cp.Problem(cp.Minimize(sup_y_f), [x >= 1])
+
+    assert not is_dsp(prob)
+    assert prob.is_dcp()
+
+    # currently a DCPError is raised. Do we want a DCPError or a DSPError?
+    with pytest.raises(DSPError):
+        prob.solve()
+
+
+def test_dsp_canon_error():
+    x = cp.Variable(2, name="x", nonneg=True)
+    y = cp.Variable(2, name="y", nonneg=True)
+
+    f = weighted_log_sum_exp(x, y)
+
+    sup_y_f = saddle_max(f, [y], [y <= 1])
+
+    prob = cp.Problem(cp.Minimize(sup_y_f), [x >= 1])
+
+    with pytest.raises(DSPError):
+        prob.solve()

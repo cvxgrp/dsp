@@ -464,7 +464,7 @@ class saddle_max(SaddleExtremum):
 
     def is_atom_convex(self) -> bool:
         """Is the atom convex?"""
-        return True
+        return True  # self.is_dsp()
 
     def is_atom_concave(self) -> bool:
         """Is the atom concave?"""
@@ -569,7 +569,7 @@ class saddle_min(SaddleExtremum):
 
     def is_atom_concave(self) -> bool:
         """Is the atom concave?"""
-        return True
+        return True  # self.is_dsp()
 
     def is_incr(self, idx: int) -> bool:
         return False
