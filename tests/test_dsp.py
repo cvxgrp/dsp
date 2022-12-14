@@ -836,3 +836,32 @@ def test_worst_case_covariance():
     assert np.isclose(ref_prob.value, prob.value, atol=1e-2)
     # TODO: is the approximation numerical or a math/code error?
     # TODO: breaks with ECOS
+
+
+def test_aux_variable_in_constraints():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y")
+    z = cp.Variable(name="z")
+
+    wlse = weighted_log_sum_exp(x, y)
+
+    saddle_prob = SaddlePointProblem(MinimizeMaximize(wlse), [x == 1, y <= z, z <= 1])
+    saddle_prob.solve()
+    assert np.isclose(saddle_prob.value, 1, atol=1e-4)
+
+
+def test_SE_variable_in_constraint():
+    x = cp.Variable(name="x")
+    y = LocalVariable(name="y")
+    z = LocalVariable(name="z")
+    z_nonlocal = cp.Variable(name="z_nonloacl")
+
+    wlse = weighted_log_sum_exp(x, y)
+
+    se_nonlocal = saddle_max(wlse, [y, z_nonlocal], [y <= z_nonlocal, z_nonlocal <= 1])
+    assert not se_nonlocal.is_dsp()
+
+    se = saddle_max(wlse, [y, z], [y <= z, z <= 1])
+    problem = cp.Problem(cp.Minimize(se), [x == 1])
+    problem.solve()
+    assert np.isclose(problem.value, 1, atol=1e-4)
