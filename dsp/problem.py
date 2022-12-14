@@ -8,7 +8,9 @@ import numpy as np
 from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
+from cvxpy.utilities import Canonical
 
+from dsp.atoms import SaddleExtremum
 from dsp.cone_transforms import (
     LocalToGlob,
     add_cone_constraints,
@@ -154,11 +156,10 @@ class SaddlePointProblem(cp.Problem):
         # try to form "x_prob = self.x_prob" and catch the exception
         try:
             self.x_prob
+            return True
         except DSPError:
             return False
         # TODO: modify all internal DSP checking to raise DSPError's.
-
-        return True
 
 
 def semi_infinite_epigraph(
@@ -203,3 +204,30 @@ def semi_infinite_epigraph(
     cone_constraints, z = add_cone_constraints(z, cone_dims, dual=False)
 
     return obj, cone_constraints
+
+
+def get_problem_SE_atoms(problem: cp.Problem) -> list[SaddleExtremum]:
+    SE_atoms = []
+    SE_atoms += get_SE_atoms(problem.objective)
+    for constraint in problem.constraints:
+        SE_atoms += get_SE_atoms(constraint)
+    return SE_atoms
+
+
+def get_SE_atoms(expr: Canonical) -> list[SaddleExtremum]:
+    if isinstance(expr, SaddleExtremum):
+        return [expr]
+    elif not expr.args:
+        return []
+    else:
+        return list(chain.from_iterable([get_SE_atoms(arg) for arg in expr.args]))
+
+
+def is_dsp(obj: cp.Problem | SaddlePointProblem) -> bool:
+    if isinstance(obj, SaddlePointProblem):
+        return obj.is_dsp()
+    elif isinstance(obj, cp.Problem):
+        all_SE_atoms = get_problem_SE_atoms(obj)
+        return obj.is_dcp() and all([atom.is_dsp() for atom in all_SE_atoms])
+    else:
+        return False

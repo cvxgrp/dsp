@@ -2,9 +2,11 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
+import dsp
 from dsp.atoms import inner, saddle_max, saddle_min, weighted_log_sum_exp
 from dsp.cvxpy_integration import extend_cone_canon_methods
 from dsp.local import LocalVariable
+from dsp.parser import DSPError
 from dsp.problem import MinimizeMaximize, SaddlePointProblem
 
 extend_cone_canon_methods()
@@ -63,8 +65,8 @@ def test_dcp_concave_max_and_dummy():
     A = np.array([[1, 2], [3, 4]])
     inner_expr = inner(x, A @ y)
 
-    with pytest.raises(AssertionError, match="vars must be"):
-        f_max = saddle_max(inner_expr, [y], [cp.sum(y) == 1])
+    f_max = saddle_max(inner_expr, [y], [cp.sum(y) == 1])
+    assert not dsp.is_dsp(cp.Problem(cp.Minimize(f_max)))
 
     y2 = LocalVariable(2, name="y", nonneg=True)
 
@@ -85,17 +87,21 @@ def test_semi_infinite_expr():
     wlse = weighted_log_sum_exp(x, y)
 
     # Trying to create a saddle_max with a variable for y (instead of a dummy)
-    with pytest.raises(AssertionError, match="vars must be Dummy variables"):
-        sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
+    sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
+    assert sup_y_f.is_dcp()
+    assert not sup_y_f.is_dsp()
 
     wlse = weighted_log_sum_exp(x, y_dummy)
 
     # creating a valid saddle_max with a dummy variable
     sup_y_f = saddle_max(2 * wlse + y_dummy[1] + cp.exp(x[1]), [y_dummy], [y_dummy <= 1])
+    assert sup_y_f.is_dcp()
+    assert sup_y_f.is_dsp()
 
     # trying to use the same dummy variable in a new SE raises an error
-    with pytest.raises(AssertionError, match="Cannot assign a Dummy to multiple SEs."):
-        sup_y_f = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy], [y_dummy <= 1])
+    sup_y_f_reused_local = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy], [y_dummy <= 1])
+    assert sup_y_f_reused_local.is_dcp()
+    assert not sup_y_f_reused_local.is_dsp()
 
     # trying to get the value of the saddle_max before x has a value returns None
     assert sup_y_f.numeric(values=np.ones(1)) is None
@@ -121,12 +127,14 @@ def test_multiple_dummies():
     wlse = weighted_log_sum_exp(x, cp.hstack([y1, y2]))
 
     # only one dummy variable is specified
-    with pytest.raises(AssertionError, match="Must specify"):
-        sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1], [y1 <= 1])
+    sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1], [y1 <= 1])
+    assert sup_y_f.is_dcp()
+    assert not sup_y_f.is_dsp()
 
     # trying a mix of dummy and variable
-    with pytest.raises(AssertionError, match="vars must be Dummy variables"):
-        sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1, y], [y1 <= 1, y <= 1])
+    sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1, y], [y1 <= 1, y <= 1])
+    assert sup_y_f.is_dcp()
+    assert not sup_y_f.is_dsp()
 
     sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1, y2], [y1 <= 1, y2 <= 1])
 
@@ -175,8 +183,9 @@ def test_nested_saddle():
     sup_y_f = saddle_max(f, [y_1], [y_1 <= 1])
 
     g = weighted_log_sum_exp(sup_y_f, y_1[1])
-    with pytest.raises(AssertionError, match="Cannot assign a Dummy to multiple SEs."):
-        sup_y_g = saddle_max(g, [y_1], [y_1 <= 1])
+    sup_y_g = saddle_max(g, [y_1], [y_1 <= 1])
+    assert sup_y_g.is_dcp()
+    assert not sup_y_g.is_dsp()
 
     g = weighted_log_sum_exp(sup_y_f, y_2)
     sup_y_g = saddle_max(g, [y_2], [y_2 <= 1])
@@ -187,3 +196,35 @@ def test_nested_saddle():
     assert np.isclose(prob.value, np.log(2 * np.e))
 
     # TODO: prevent local variables from appearing in dcp/dsp problems
+
+
+def test_saddle_max():
+    x1 = LocalVariable(name="x1", nonneg=True)
+    x2 = LocalVariable(name="x2", nonneg=True)
+    y = cp.Variable(2, name="y", nonneg=True)
+
+    x = cp.Variable(name="x", nonneg=True)
+
+    wlse = weighted_log_sum_exp(cp.hstack([x1, x2]), y)
+
+    # only one dummy variable is specified
+    inf_x_f = saddle_min(2 * wlse + x1 + cp.log(y[1]), [x1], [x1 >= 1])
+    assert inf_x_f.is_dcp()
+    assert not inf_x_f.is_dsp()
+
+    # trying a mix of dummy and variable
+    inf_x_f = saddle_min(2 * wlse + x + cp.log(y[1]), [x1, x], [x1 >= 1, x >= 1])
+    assert inf_x_f.is_dcp()
+    assert not inf_x_f.is_dsp()
+
+    inf_x_f = saddle_min(2 * wlse + x1 + cp.log(y[1]), [x1, x2], [x1 >= 1, x2 >= 1])
+
+    # TODO: This is not working yet
+    # assert inf_x_f.numeric(values=np.ones(2)) is None
+    # assert x1.value is None
+    # assert x2.value is None
+
+    y.value = np.ones(2)
+
+    assert np.isclose(x1.value, 1)
+    assert np.isclose(x2.value, 1)

@@ -2,6 +2,7 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
+import dsp
 from dsp.atoms import (
     inner,
     saddle_inner,
@@ -481,7 +482,7 @@ def test_variable():
     constraints = [-10 <= k, k <= 10]
 
     obj = MinimizeMaximize(k)
-    with pytest.raises(ValueError, match="Cannot split"):
+    with pytest.raises(DSPError, match="Cannot split"):
         SaddlePointProblem(obj, constraints).solve()
 
     with pytest.raises(DSPError, match="Cannot resolve"):
@@ -633,17 +634,22 @@ def test_robust_constraint():
     obj1 = MinimizeMaximize(cp.square(x))
     obj2 = MinimizeMaximize(x)
 
-    obj2 = cp.Minimize(x)
-
     constraints = [x >= 1]
 
     constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
     # TODO, auto min vars
-    with pytest.raises(DSPError, match="Likely"):
-        SaddlePointProblem(obj2, constraints, maximization_vars=[y]).solve()  # objective is affine  in x
 
-    problem = SaddlePointProblem(obj1, constraints)  # , maximization_vars=[y])
+    invalid_saddle_problem = SaddlePointProblem(
+        obj2, constraints, minimization_vars=[x], maximization_vars=[y]
+    )
+    assert not invalid_saddle_problem.is_dsp()
+    assert not dsp.is_dsp(invalid_saddle_problem)
+    with pytest.raises(DSPError, match="Likely passed unused variables"):
+        invalid_saddle_problem.solve()
+
+    problem = SaddlePointProblem(obj1, constraints)
+    assert dsp.is_dsp(problem)
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
 
@@ -657,8 +663,6 @@ def test_robust_constraint_min():
     obj2 = cp.Minimize(x)
 
     constraints = [x >= 1]
-
-    # constraints += [RobustConstraint(weighted_log_sum_exp(x, y), 1.0, [y <= 1])]
 
     constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 

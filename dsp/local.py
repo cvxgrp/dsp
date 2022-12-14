@@ -6,6 +6,7 @@ import cvxpy as cp
 import numpy as np
 
 import dsp
+from dsp.parser import DSPError
 
 
 class LocalVariable(cp.Variable):
@@ -21,14 +22,15 @@ class LocalVariable(cp.Variable):
 
     @property
     def expr(self) -> dsp.saddle_min | dsp.saddle_max:
-        assert self._saddle_expr is not None, "Must be assosciated with an SE."
+        assert self._saddle_expr is not None, "Must be associated with an SE."
         assert isinstance(self._saddle_expr, (dsp.saddle_min, dsp.saddle_max))
         return self._saddle_expr
 
     @expr.setter
     def expr(self, new_value: dsp.saddle_min | dsp.saddle_max) -> None:
         assert isinstance(new_value, (dsp.saddle_min, dsp.saddle_max))
-        assert self._saddle_expr is None, "Cannot assign a Dummy to multiple SEs."
+        if self._saddle_expr is not None:
+            raise DSPError("Cannot assign a Dummy to multiple SEs.")
         self._saddle_expr = new_value
 
     @property

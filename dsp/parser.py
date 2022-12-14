@@ -288,7 +288,7 @@ def _split_constraints(
                 parser.affine_vars -= c_vars
 
         if con_len == len(constraints):
-            raise ValueError(
+            raise DSPError(
                 "Cannot split constraints, specify minimization_vars and " "maximization_vars"
             )
 

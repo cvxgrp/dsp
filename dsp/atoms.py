@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
+from typing import Iterable
 
 import cvxpy as cp
 import numpy as np
@@ -18,7 +19,7 @@ from dsp.cone_transforms import (
     switch_convex_concave,
 )
 from dsp.local import LocalVariable
-from dsp.parser import Parser, initialize_parser
+from dsp.parser import DSPError, Parser, initialize_parser
 
 
 class ConvexConcaveAtom(Atom, ABC):
@@ -346,7 +347,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
 
 def init_parser_wrapper(
-    expr: cp.Expression, constraints: list[Constraint], vars: set[cp.Variable], mode: str
+    expr: cp.Expression, constraints: list[Constraint], variables: set[cp.Variable], mode: str
 ) -> Parser:
     assert mode in ["sup", "inf"]
     # min_vars = vars if mode == "inf" else []
@@ -358,46 +359,76 @@ def init_parser_wrapper(
         # expr, minimization_vars=min_vars, maximization_vars=max_vars, constraints=constraints
         expr,
         minimization_vars=[],
-        maximization_vars=vars,
+        maximization_vars=variables,
         constraints=constraints,
     )
 
     return parser
 
 
-class saddle_max(Atom):
+class SaddleExtremum(Atom):
+    def _validate_arguments(
+        self, constraints: list[Constraint], variables: list[LocalVariable]
+    ) -> None:
+        assert self.f.size == 1
+        assert isinstance(variables, Iterable)
+        assert isinstance(constraints, Iterable)
+        assert isinstance(self.f, cp.Expression)
+
+    def is_dsp(self) -> bool:
+        try:
+            self.parser
+            return True
+        except DSPError:
+            return False
+
+
+class saddle_max(SaddleExtremum):
     r"""sup_{y\in Y}f(x,y)"""
 
     def __init__(
-        self, f: cp.Expression, vars: list[LocalVariable], constraints: list[Constraint]
+        self,
+        f: cp.Expression,
+        concave_vars: Iterable[LocalVariable],
+        constraints: Iterable[Constraint],
     ) -> None:
         self.f = f
-        self.constraints = constraints
-        self.concave_vars = vars  # variables to maximize over
 
-        self._validate_arguments()
+        self._validate_arguments(constraints, concave_vars)
+        self.constraints = list(constraints)
+        self.concave_vars = list(concave_vars)  # variables to maximize over
 
-        self.parser = init_parser_wrapper(self.f, constraints, set(vars), mode="sup")
-        assert set(self.concave_vars) == set(
-            self.parser.concave_vars
-        ), "Must specify all concave variables."
+        self._parser = None
+        self.is_dsp()  # Make sure local variable expressions are set
+        super().__init__(*[v for v in f.variables() if v not in set(concave_vars)])
 
-        for v in self.concave_vars:
-            v.expr = self
+    @property
+    def convex_vars(self) -> list[cp.Variable]:
+        return self.parser.convex_vars
 
-        self.convex_vars = self.parser.convex_vars
+    @property
+    def parser(self) -> Parser:
+        if self._parser is None:
+            parser = init_parser_wrapper(
+                self.f, self.constraints, set(self.concave_vars), mode="sup"
+            )
 
-        super().__init__(*self.convex_vars)  # TODO: What do with args?
+            all_concave_vars_specified = set(self.concave_vars) == set(parser.concave_vars)
+            all_concave_vars_local = all([isinstance(v, LocalVariable) for v in self.concave_vars])
 
-    def _validate_arguments(self) -> None:
-        assert self.f.size == 1
-        assert isinstance(self.concave_vars, list)
-        assert all(
-            [isinstance(v, LocalVariable) for v in self.concave_vars]
-        ), "vars must be Dummy variables"
+            if not (all_concave_vars_specified and all_concave_vars_local):
+                raise DSPError(
+                    "Must specify all concave variables, which all must be instances of"
+                    "LocalVariable."
+                )
 
-        assert isinstance(self.constraints, list)
-        assert isinstance(self.f, cp.Expression)
+            for v in self.concave_vars:
+                v.expr = self
+
+            self._parser = parser
+            return parser
+        else:
+            return self._parser
 
     def name(self) -> str:
         return (
@@ -408,12 +439,12 @@ class saddle_max(Atom):
             + "])"
         )
 
-    def numeric(self, values: list) -> np.ndarray:
+    def numeric(self, values: list) -> np.ndarray | None:
         r"""
         Compute sup_{y\in Y}f(x,y) numerically
         """
 
-        local_to_glob_y = LocalToGlob(self.parser.convex_vars, self.parser.concave_vars)
+        local_to_glob_y = LocalToGlob(self.convex_vars, self.concave_vars)
 
         K_repr = self.parser.parse_expr_repr(self.f, switched=False, local_to_glob=local_to_glob_y)
 
@@ -450,39 +481,52 @@ class saddle_max(Atom):
         return self.f.shape
 
 
-class saddle_min(Atom):
+class saddle_min(SaddleExtremum):
     r"""inf_{x\in X}f(x,y)"""
 
     def __init__(
-        self, f: cp.Expression, vars: list[LocalVariable], constraints: list[Constraint]
+        self,
+        f: cp.Expression,
+        convex_vars: Iterable[LocalVariable],
+        constraints: Iterable[Constraint],
     ) -> None:
         self.f = f
-        self.constraints = constraints
-        self.convex_vars = vars  # variables to minimize over
 
-        self._validate_arguments()
+        self._validate_arguments(constraints, convex_vars)
+        self.constraints = list(constraints)
+        self.convex_vars = list(convex_vars)  # variables to minimize over
 
-        self.parser = init_parser_wrapper(self.f, constraints, set(vars), mode="inf")
-        assert set(self.convex_vars) == set(
-            self.parser.concave_vars  # since parser constructed with -f
-        ), "Must specify all convex variables."
+        self._parser = None
+        self.is_dsp()  # Make sure local variable expressions are set
+        super().__init__(*[v for v in f.variables() if v not in set(convex_vars)])
 
-        for v in self.convex_vars:
-            v.expr = self
+    @property
+    def concave_vars(self) -> list[cp.Variable]:
+        return self.parser.concave_vars
 
-        self.concave_vars = self.parser.convex_vars  # since parser constructed with -f
+    @property
+    def parser(self) -> Parser:
+        if self._parser is None:
+            parser = init_parser_wrapper(
+                self.f, self.constraints, set(self.convex_vars), mode="inf"
+            )
 
-        super().__init__(*self.concave_vars)  # TODO: What do with args?
+            all_convex_vars_specified = set(self.convex_vars) == set(parser.concave_vars)
+            all_convex_vars_local = all([isinstance(v, LocalVariable) for v in self.convex_vars])
 
-    def _validate_arguments(self) -> None:
-        assert self.f.size == 1
-        assert isinstance(self.convex_vars, list)
-        assert all(
-            [isinstance(v, LocalVariable) for v in self.convex_vars]
-        ), "vars must be Dummy variables"
+            if not (all_convex_vars_specified and all_convex_vars_local):
+                raise DSPError(
+                    "Must specify all convex variables, which all must be instances of"
+                    "LocalVariable."
+                )
 
-        assert isinstance(self.constraints, list)
-        assert isinstance(self.f, cp.Expression)
+            for v in self.convex_vars:
+                v.expr = self
+
+            self._parser = parser
+            return parser
+        else:
+            return self._parser
 
     def name(self) -> str:
         return (
@@ -493,23 +537,25 @@ class saddle_min(Atom):
             + "])"
         )
 
-    def numeric(self, values: list) -> np.ndarray:
+    def numeric(self, values: list) -> np.ndarray | None:
         r"""
-        Compute inf_{x\in X}f(x,y) numerically
+        Compute inf_{x\in X}f(x,y) numerically via -sup_{x\in X}-f(x,y)
         """
+        neg_parser = init_parser_wrapper(
+            -self.f, self.constraints, set(self.convex_vars), mode="sup"
+        )
+        neg_local_to_glob = LocalToGlob(neg_parser.convex_vars, neg_parser.concave_vars)
+        neg_K_repr = neg_parser.parse_expr_repr(
+            -self.f, switched=False, local_to_glob=neg_local_to_glob
+        )
 
-        local_to_glob_x = LocalToGlob(
-            self.parser.concave_vars, self.parser.convex_vars
-        )  # note switching
-
-        K_repr = self.parser.parse_expr_repr(-self.f, switched=False, local_to_glob=local_to_glob_x)
-
-        cvx = -K_repr.concave_expr(
-            values
-        )  # note switching, since using concave_expr from negated expr
-        aux_problem = cp.Problem(cp.Minimize(cvx), self.constraints)
-        aux_problem.solve()
-        return aux_problem.value
+        ccv = neg_K_repr.concave_expr(values)
+        if ccv is None:
+            return None
+        else:
+            aux_problem = cp.Problem(cp.Minimize(-ccv), self.constraints)
+            aux_problem.solve()
+            return aux_problem.value
 
     def sign_from_args(self) -> tuple[bool, bool]:
         is_positive = self.f.is_nonneg()
