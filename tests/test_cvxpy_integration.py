@@ -67,7 +67,7 @@ def test_dcp_concave_max_and_dummy():
 
     with pytest.raises(LocalVariableError):
         f_max = saddle_max(inner_expr, [y], [cp.sum(y) == 1])
-    
+
     y2 = LocalVariable(2, name="y", nonneg=True)
 
     A = np.array([[1, 2], [3, 4]])
@@ -132,7 +132,7 @@ def test_multiple_dummies():
     assert not sup_y_f.is_dsp()
 
     # trying a mix of dummy and variable. This raises a local variable error on
-    # construction. 
+    # construction.
     with pytest.raises(LocalVariableError):
         sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1, y], [y1 <= 1, y <= 1])
 
@@ -252,7 +252,7 @@ def test_dsp_canon_error():
     x = cp.Variable(2, name="x", nonneg=True)
     y = LocalVariable(2, name="y", nonneg=True)
 
-    f = weighted_log_sum_exp(x, y)+ cp.exp(y[1])
+    f = weighted_log_sum_exp(x, y) + cp.exp(y[1])
 
     sup_y_f = saddle_max(f, [y], [y <= 1])
 

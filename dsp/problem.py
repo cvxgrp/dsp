@@ -9,16 +9,15 @@ from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
 from cvxpy.utilities import Canonical
+
 from dsp.atoms import SaddleExtremum
-
-
 from dsp.cone_transforms import (
     LocalToGlob,
     add_cone_constraints,
     get_cone_repr,
     minimax_to_min,
 )
-from dsp.parser import DSPError, initialize_parser
+from dsp.parser import AffineDSPError, DSPError, initialize_parser
 
 
 class MinimizeMaximize:
@@ -232,6 +231,20 @@ def is_dsp(obj: cp.Problem | SaddlePointProblem | cp.Expression) -> bool:
         return obj.is_dcp() and all([atom.is_dsp() for atom in all_SE_atoms])
     elif isinstance(obj, cp.Expression):
         prob = SaddlePointProblem(MinimizeMaximize(obj), [], [], [])
-        return prob.is_dsp()
+        try:
+            prob.x_prob
+            return prob.is_dsp()
+        except AffineDSPError as e:
+            s = str(e)
+            var_id_list = list(map(int, s[s.find("[") + 1 : s.find("]")].split(",")))
+            min_vars = []
+            for v in prob.variables():
+                if v.id in var_id_list:
+                    min_vars.append(v)
+
+            prob = SaddlePointProblem(MinimizeMaximize(obj), [], min_vars, [])
+            return prob.is_dsp()
+        except DSPError:
+            return False
     else:
         return False

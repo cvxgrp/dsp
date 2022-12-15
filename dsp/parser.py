@@ -24,9 +24,13 @@ class DSPError(Exception):
     pass
 
 
+class AffineDSPError(DSPError):
+    pass
+
+
 def affine_error_message(affine_vars: list[cp.Variable]) -> str:
     return (
-        f"Cannot resolve curvature of variables {[v.name() for v in affine_vars]}. "
+        f"Cannot resolve curvature of variables {[v.id for v in affine_vars]}. "
         f"Specify curvature of these variables as "
         f"SaddleProblem(obj, constraints, minimization_vars, maximization_vars)."
     )
@@ -201,9 +205,9 @@ class Parser:
             raise ValueError("Unexpected; should fail in variable parse.")
         else:
             if all(arg.is_affine() for arg in expr.args):
-                raise ValueError("Use inner instead for bilinear forms.")
+                raise DSPError("Use inner instead for bilinear forms.")
             else:
-                raise ValueError("Use convex_concave_inner instead.")
+                raise DSPError("Use convex_concave_inner instead.")
 
     def parse_expr_variables(self, expr: cp.Expression, switched: bool, **kwargs: dict) -> None:
         self._parse_expr(expr, switched, repr_parse=False, **kwargs)
@@ -317,7 +321,7 @@ def initialize_parser(
     parser._y_constraints = y_constraints
 
     if parser.affine_vars:
-        raise DSPError(affine_error_message(parser.affine_vars))
+        raise AffineDSPError(affine_error_message(parser.affine_vars))
 
     x_constraint_vars = set(
         itertools.chain.from_iterable(constraint.variables() for constraint in x_constraints)

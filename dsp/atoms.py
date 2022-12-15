@@ -418,8 +418,7 @@ class saddle_max(SaddleExtremum):
 
             if not all_concave_vars_local:
                 raise LocalVariableError(
-                    "All concave variables must be instances of"
-                    "LocalVariable."
+                    "All concave variables must be instances of" "LocalVariable."
                 )
 
             if not all_concave_vars_specified:
@@ -522,8 +521,7 @@ class saddle_min(SaddleExtremum):
 
             if not all_convex_vars_local:
                 raise LocalVariableError(
-                    "All convex variables must be instances of"
-                    "LocalVariable."
+                    "All convex variables must be instances of" "LocalVariable."
                 )
 
             if not all_convex_vars_specified:
