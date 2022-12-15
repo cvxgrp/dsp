@@ -230,20 +230,22 @@ def is_dsp(obj: cp.Problem | SaddlePointProblem | cp.Expression) -> bool:
         all_SE_atoms = get_problem_SE_atoms(obj)
         return obj.is_dcp() and all([atom.is_dsp() for atom in all_SE_atoms])
     elif isinstance(obj, cp.Expression):
-        prob = SaddlePointProblem(MinimizeMaximize(obj), [], [], [])
+        if obj.is_dcp():
+            return True
         try:
-            prob.x_prob
-            return prob.is_dsp()
+            initialize_parser(obj, minimization_vars=[], maximization_vars=[], constraints=[])
         except AffineDSPError as e:
             s = str(e)
             var_id_list = list(map(int, s[s.find("[") + 1 : s.find("]")].split(",")))
             min_vars = []
-            for v in prob.variables():
+            for v in obj.variables():
                 if v.id in var_id_list:
                     min_vars.append(v)
 
-            prob = SaddlePointProblem(MinimizeMaximize(obj), [], min_vars, [])
-            return prob.is_dsp()
+            parser = initialize_parser(obj, min_vars, maximization_vars=[], constraints=[])
+            constraints = [y == 1 for y in parser.concave_vars]
+            new_prob = SaddlePointProblem(MinimizeMaximize(obj), constraints, min_vars, [])
+            return new_prob.is_dsp()
         except DSPError:
             return False
     else:

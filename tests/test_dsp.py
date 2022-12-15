@@ -172,7 +172,7 @@ def test_overload_bilin():
     constraints = [-1 <= x, x <= 1, -1.2 <= y, y <= -0.8]
     prob = SaddlePointProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
 
-    with pytest.raises(ValueError, match="Use inner instead"):
+    with pytest.raises(DSPError, match="Use inner instead"):
         prob.solve()
 
 
@@ -529,7 +529,7 @@ def test_mixed_curvature_affine():
     constraints = [x == 0, y == 1]
     problem = SaddlePointProblem(obj, constraints)
 
-    with pytest.raises(ValueError, match="Use inner"):
+    with pytest.raises(DSPError, match="Use inner"):
         problem.solve(solver=cp.SCS)
 
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + x + 2 * y)

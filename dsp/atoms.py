@@ -347,18 +347,21 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
 
 def init_parser_wrapper(
-    expr: cp.Expression, constraints: list[Constraint], variables: set[cp.Variable], mode: str
+    expr: cp.Expression,
+    constraints: list[Constraint],
+    variables: set[cp.Variable],
+    mode: str,
+    other_variables: list[cp.Variable] | None = None,
 ) -> Parser:
     assert mode in ["sup", "inf"]
-    # min_vars = vars if mode == "inf" else []
-    # max_vars = vars if mode == "sup" else []
 
     expr = expr if mode == "sup" else -expr
 
+    other_variables = other_variables if other_variables is not None else []
+
     parser = initialize_parser(
-        # expr, minimization_vars=min_vars, maximization_vars=max_vars, constraints=constraints
         expr,
-        minimization_vars=[],
+        minimization_vars=other_variables,
         maximization_vars=variables,
         constraints=constraints,
     )
@@ -372,7 +375,15 @@ class SaddleExtremum(Atom):
     ) -> None:
         assert self.f.size == 1
         assert isinstance(variables, Iterable)
+        if any([not isinstance(v, LocalVariable) for v in variables]):
+            raise LocalVariableError("All provided variables must be instances of" "LocalVariable.")
         assert isinstance(constraints, Iterable)
+        for c in constraints:
+            for v in c.variables():
+                if not isinstance(v, LocalVariable):
+                    raise LocalVariableError(
+                        "All variables in constraints must be instances of" "LocalVariable."
+                    )
         assert isinstance(self.f, cp.Expression)
 
     def is_dsp(self) -> bool:
@@ -399,8 +410,9 @@ class saddle_max(SaddleExtremum):
         self.concave_vars = list(concave_vars)  # variables to maximize over
 
         self._parser = None
+        self.other_variables = [v for v in f.variables() if v not in set(concave_vars)]
         self.is_dsp()  # Make sure local variable expressions are set
-        super().__init__(*[v for v in f.variables() if v not in set(concave_vars)])
+        super().__init__(*self.other_variables)
 
     @property
     def convex_vars(self) -> list[cp.Variable]:
@@ -410,7 +422,11 @@ class saddle_max(SaddleExtremum):
     def parser(self) -> Parser:
         if self._parser is None:
             parser = init_parser_wrapper(
-                self.f, self.constraints, set(self.concave_vars), mode="sup"
+                self.f,
+                self.constraints,
+                set(self.concave_vars),
+                mode="sup",
+                other_variables=self.other_variables,
             )
 
             all_concave_vars_specified = set(self.concave_vars) == set(parser.concave_vars)
@@ -502,8 +518,9 @@ class saddle_min(SaddleExtremum):
         self.convex_vars = list(convex_vars)  # variables to minimize over
 
         self._parser = None
+        self.other_variables = [v for v in f.variables() if v not in set(convex_vars)]
         self.is_dsp()  # Make sure local variable expressions are set
-        super().__init__(*[v for v in f.variables() if v not in set(convex_vars)])
+        super().__init__(*self.other_variables)
 
     @property
     def concave_vars(self) -> list[cp.Variable]:
@@ -513,7 +530,11 @@ class saddle_min(SaddleExtremum):
     def parser(self) -> Parser:
         if self._parser is None:
             parser = init_parser_wrapper(
-                self.f, self.constraints, set(self.convex_vars), mode="inf"
+                self.f,
+                self.constraints,
+                set(self.convex_vars),
+                mode="inf",
+                other_variables=self.other_variables,
             )
 
             all_convex_vars_specified = set(self.convex_vars) == set(parser.concave_vars)

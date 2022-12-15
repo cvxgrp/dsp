@@ -117,35 +117,37 @@ def test_semi_infinite_expr():
 
 def test_multiple_dummies():
     x = cp.Variable(2, name="x", nonneg=True)
-    y1 = LocalVariable(name="y1", nonneg=True)
-    y2 = LocalVariable(name="y2", nonneg=True)
+    y1_local = LocalVariable(name="y1_local", nonneg=True)
+    y2_local = LocalVariable(name="y2_local", nonneg=True)
 
     y = cp.Variable(name="y", nonneg=True)
 
-    wlse = weighted_log_sum_exp(x, cp.hstack([y1, y2]))
+    wlse = weighted_log_sum_exp(x, cp.hstack([y1_local, y2_local]))
 
     # only one dummy variable is specified. This raises a DSP error since not
     # all concave variables are specified, and not a local variable error,
     # because all of the concave variables are specified as local variables.
-    sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1], [y1 <= 1])
+    sup_y_f = saddle_max(2 * wlse + y1_local + cp.exp(x[1]), [y1_local], [y1_local <= 1])
     assert not sup_y_f.is_dcp()
     assert not sup_y_f.is_dsp()
 
     # trying a mix of dummy and variable. This raises a local variable error on
     # construction.
     with pytest.raises(LocalVariableError):
-        sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1, y], [y1 <= 1, y <= 1])
+        sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1_local, y], [y1_local <= 1, y <= 1])
 
-    sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1, y2], [y1 <= 1, y2 <= 1])
+    sup_y_f = saddle_max(
+        2 * wlse + y1_local + cp.exp(x[1]), [y1_local, y2_local], [y1_local <= 1, y2_local <= 1]
+    )
 
     assert sup_y_f.numeric(values=np.ones(1)) is None
-    assert y1.value is None
-    assert y2.value is None
+    assert y1_local.value is None
+    assert y2_local.value is None
 
     x.value = np.ones(2)
 
-    assert np.allclose(y1.value, np.ones(1))
-    assert np.allclose(y2.value, np.ones(1))
+    assert np.allclose(y1_local.value, np.ones(1))
+    assert np.allclose(y2_local.value, np.ones(1))
 
 
 def test_trivial_se():

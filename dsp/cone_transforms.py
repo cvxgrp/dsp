@@ -322,10 +322,24 @@ def K_repr_bilin(
     return KRepresentation(f=C.T @ Fx, t=Fx.T @ d, constraints=[])
 
 
+class NoYConstraintError(Exception):
+    pass
+
+
 def get_cone_repr(
     const: list[Constraint], exprs: list[cp.Variable | cp.Expression]
 ) -> tuple[dict[int, np.ndarray], np.ndarray, ConeDims]:
+    if not {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}:
+        if len(const) == 0:
+            raise NoYConstraintError(
+                "No y constraints in problem. Variables are "
+                + str([v.id for e in exprs for v in e.variables()])
+            )
+        else:
+            raise ValueError("Not all variables in exprs are constrained by const")
+
     assert {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}
+
     aux_prob = cp.Problem(cp.Minimize(0), const)
     solver_opts = {"use_quad_obj": False}
 
