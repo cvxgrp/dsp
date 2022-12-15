@@ -1,5 +1,5 @@
 from cvxpy.reductions.dcp2cone.atom_canonicalizers import CANON_METHODS
-from cvxpy import Problem
+from cvxpy import Problem, Expression
 
 from dsp.atoms import saddle_max, saddle_min
 from dsp.problem import is_dsp
@@ -22,3 +22,4 @@ def add_is_dsp() -> None:
     """Add the is_dsp method to the cvxpy Problem class."""
     # add as instance method
     setattr(Problem, 'is_dsp', lambda  self: is_dsp(self))
+    setattr(Expression, 'is_dsp', lambda  self: is_dsp(self))

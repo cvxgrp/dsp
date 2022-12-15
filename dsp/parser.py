@@ -259,6 +259,8 @@ class Parser:
                 return KRepresentation.sum_of_K_reprs(K_reprs)
             else:
                 return self.parse_bilin(expr, switched, repr_parse, **kwargs)
+        elif isinstance(expr, dsp.atoms.SaddleExtremum) and not expr.is_dsp():
+            raise DSPError("Saddle min or max using non-DSP argument.")
         else:
             raise ValueError
 
