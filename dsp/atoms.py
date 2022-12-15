@@ -18,7 +18,7 @@ from dsp.cone_transforms import (
     affine_to_canon,
     switch_convex_concave,
 )
-from dsp.local import LocalVariable
+from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError, Parser, initialize_parser
 
 
@@ -416,7 +416,13 @@ class saddle_max(SaddleExtremum):
             all_concave_vars_specified = set(self.concave_vars) == set(parser.concave_vars)
             all_concave_vars_local = all([isinstance(v, LocalVariable) for v in self.concave_vars])
 
-            if not (all_concave_vars_specified and all_concave_vars_local):
+            if not all_concave_vars_local:
+                raise LocalVariableError(
+                    "All concave variables must be instances of"
+                    "LocalVariable."
+                )
+
+            if not all_concave_vars_specified:
                 raise DSPError(
                     "Must specify all concave variables, which all must be instances of"
                     "LocalVariable."
@@ -464,7 +470,7 @@ class saddle_max(SaddleExtremum):
 
     def is_atom_convex(self) -> bool:
         """Is the atom convex?"""
-        return True  # self.is_dsp()
+        return self.is_dsp()
 
     def is_atom_concave(self) -> bool:
         """Is the atom concave?"""
@@ -514,7 +520,13 @@ class saddle_min(SaddleExtremum):
             all_convex_vars_specified = set(self.convex_vars) == set(parser.concave_vars)
             all_convex_vars_local = all([isinstance(v, LocalVariable) for v in self.convex_vars])
 
-            if not (all_convex_vars_specified and all_convex_vars_local):
+            if not all_convex_vars_local:
+                raise LocalVariableError(
+                    "All convex variables must be instances of"
+                    "LocalVariable."
+                )
+
+            if not all_convex_vars_specified:
                 raise DSPError(
                     "Must specify all convex variables, which all must be instances of"
                     "LocalVariable."
@@ -569,7 +581,7 @@ class saddle_min(SaddleExtremum):
 
     def is_atom_concave(self) -> bool:
         """Is the atom concave?"""
-        return True  # self.is_dsp()
+        return self.is_dsp()
 
     def is_incr(self, idx: int) -> bool:
         return False

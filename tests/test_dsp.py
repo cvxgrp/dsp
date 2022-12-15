@@ -19,7 +19,7 @@ from dsp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dsp.local import LocalVariable
+from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError
 from dsp.problem import MinimizeMaximize, SaddlePointProblem
 
@@ -846,6 +846,7 @@ def test_aux_variable_in_constraints():
     wlse = weighted_log_sum_exp(x, y)
 
     saddle_prob = SaddlePointProblem(MinimizeMaximize(wlse), [x == 1, y <= z, z <= 1])
+    assert saddle_prob.is_dsp()
     saddle_prob.solve()
     assert np.isclose(saddle_prob.value, 1, atol=1e-4)
 
@@ -858,8 +859,8 @@ def test_SE_variable_in_constraint():
 
     wlse = weighted_log_sum_exp(x, y)
 
-    se_nonlocal = saddle_max(wlse, [y, z_nonlocal], [y <= z_nonlocal, z_nonlocal <= 1])
-    assert not se_nonlocal.is_dsp()
+    with pytest.raises(LocalVariableError):
+        saddle_max(wlse, [y, z_nonlocal], [y <= z_nonlocal, z_nonlocal <= 1])
 
     se = saddle_max(wlse, [y, z], [y <= z, z <= 1])
     problem = cp.Problem(cp.Minimize(se), [x == 1])

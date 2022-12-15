@@ -65,9 +65,9 @@ def test_dcp_concave_max_and_dummy():
     A = np.array([[1, 2], [3, 4]])
     inner_expr = inner(x, A @ y)
 
-    f_max = saddle_max(inner_expr, [y], [cp.sum(y) == 1])
-    assert not dsp.is_dsp(cp.Problem(cp.Minimize(f_max)))
-
+    with pytest.raises(LocalVariableError):
+        f_max = saddle_max(inner_expr, [y], [cp.sum(y) == 1])
+    
     y2 = LocalVariable(2, name="y", nonneg=True)
 
     A = np.array([[1, 2], [3, 4]])
@@ -87,9 +87,8 @@ def test_semi_infinite_expr():
     wlse = weighted_log_sum_exp(x, y)
 
     # Trying to create a saddle_max with a variable for y (instead of a dummy)
-    sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
-    assert sup_y_f.is_dcp()
-    assert not sup_y_f.is_dsp()
+    with pytest.raises(LocalVariableError):
+        sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
 
     wlse = weighted_log_sum_exp(x, y_dummy)
 
@@ -125,15 +124,17 @@ def test_multiple_dummies():
 
     wlse = weighted_log_sum_exp(x, cp.hstack([y1, y2]))
 
-    # only one dummy variable is specified
+    # only one dummy variable is specified. This raises a DSP error since not
+    # all concave variables are specified, and not a local variable error,
+    # because all of the concave variables are specified as local variables.
     sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1], [y1 <= 1])
-    assert sup_y_f.is_dcp()
+    assert not sup_y_f.is_dcp()
     assert not sup_y_f.is_dsp()
 
-    # trying a mix of dummy and variable
-    sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1, y], [y1 <= 1, y <= 1])
-    assert sup_y_f.is_dcp()
-    assert not sup_y_f.is_dsp()
+    # trying a mix of dummy and variable. This raises a local variable error on
+    # construction. 
+    with pytest.raises(LocalVariableError):
+        sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1, y], [y1 <= 1, y <= 1])
 
     sup_y_f = saddle_max(2 * wlse + y1 + cp.exp(x[1]), [y1, y2], [y1 <= 1, y2 <= 1])
 
@@ -207,20 +208,19 @@ def test_saddle_max():
 
     # only one dummy variable is specified
     inf_x_f = saddle_min(2 * wlse + x1 + cp.log(y[1]), [x1], [x1 >= 1])
-    assert inf_x_f.is_dcp()
+    assert not inf_x_f.is_dcp()
     assert not inf_x_f.is_dsp()
 
     # trying a mix of dummy and variable
-    inf_x_f = saddle_min(2 * wlse + x + cp.log(y[1]), [x1, x], [x1 >= 1, x >= 1])
-    assert inf_x_f.is_dcp()
-    assert not inf_x_f.is_dsp()
+    with pytest.raises(LocalVariableError):
+        inf_x_f = saddle_min(2 * wlse + x + cp.log(y[1]), [x1, x], [x1 >= 1, x >= 1])
 
     inf_x_f = saddle_min(2 * wlse + x1 + cp.log(y[1]), [x1, x2], [x1 >= 1, x2 >= 1])
 
     # TODO: This is not working yet
-    # assert inf_x_f.numeric(values=np.ones(2)) is None
-    # assert x1.value is None
-    # assert x2.value is None
+    assert inf_x_f.numeric(values=np.ones(2)) is None
+    assert x1.value is None
+    assert x2.value is None
 
     y.value = np.ones(2)
 
@@ -241,22 +241,22 @@ def test_non_dsp_saddle():
     prob = cp.Problem(cp.Minimize(sup_y_f), [x >= 1])
 
     assert not is_dsp(prob)
-    assert prob.is_dcp()
+    assert not prob.is_dcp()
 
     # currently a DCPError is raised. Do we want a DCPError or a DSPError?
-    with pytest.raises(DSPError):
+    with pytest.raises(cp.error.DCPError):
         prob.solve()
 
 
 def test_dsp_canon_error():
     x = cp.Variable(2, name="x", nonneg=True)
-    y = cp.Variable(2, name="y", nonneg=True)
+    y = LocalVariable(2, name="y", nonneg=True)
 
-    f = weighted_log_sum_exp(x, y)
+    f = weighted_log_sum_exp(x, y)+ cp.exp(y[1])
 
     sup_y_f = saddle_max(f, [y], [y <= 1])
 
     prob = cp.Problem(cp.Minimize(sup_y_f), [x >= 1])
 
-    with pytest.raises(DSPError):
+    with pytest.raises(cp.error.DCPError):
         prob.solve()
