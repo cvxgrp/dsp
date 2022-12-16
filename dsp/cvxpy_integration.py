@@ -21,6 +21,5 @@ def extend_cone_canon_methods() -> None:
 
 def add_is_dsp() -> None:
     """Add the is_dsp method to the cvxpy Problem class."""
-    # add as instance method
-    setattr(Problem, "is_dsp", lambda self: is_dsp(self))
-    setattr(Expression, "is_dsp", lambda self: is_dsp(self))
+    Problem.is_dsp = lambda self: is_dsp(self)
+    Expression.is_dsp = lambda self: is_dsp(self)

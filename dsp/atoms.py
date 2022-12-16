@@ -324,7 +324,11 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
         concave_fun = (
             (lambda x: self.get_concave_expression())
             if not switched
-            else (lambda x: -self.get_convex_expression())
+            else (
+                lambda x: -self.get_convex_expression()
+                if self.get_convex_expression() is not None
+                else None
+            )
         )
         K_out.concave_expr = concave_fun
 
@@ -411,10 +415,13 @@ class saddle_max(SaddleExtremum):
 
         self._parser = None
         self.other_variables = [
-            v for v in f.variables()
+            v
+            for v in f.variables()
             if (v not in set(concave_vars) and not isinstance(v, LocalVariable))
         ]
-        self.is_dsp()  # Make sure local variable expressions are set
+        # self.is_dsp()  # Make sure local variable expressions are set
+        for v in filter(lambda v: isinstance(v, LocalVariable), f.variables()):
+            v.expr = self
         super().__init__(*self.other_variables)
 
     @property
@@ -521,20 +528,17 @@ class saddle_min(SaddleExtremum):
         self.convex_vars = list(convex_vars)  # variables to minimize over
 
         self._parser = None
-        assert self._parser is None
 
-        # self.other_variables = [
-        #     v for v in f.variables()
-        #     if (v not in set(convex_vars) and not isinstance(v, LocalVariable))
-        # ]
-        other_variables = []
-        for v in f.variables():
-            if (v not in set(convex_vars) and not isinstance(v, LocalVariable)):
-                other_variables.append(v)
-        self.other_variables = other_variables
+        self.other_variables = [
+            v
+            for v in f.variables()
+            if (v not in set(convex_vars) and not isinstance(v, LocalVariable))
+        ]
 
-        self.is_dsp()  # Make sure local variable expressions are set
-        super().__init__(*other_variables)
+        # self.is_dsp()  # Make sure local variable expressions are set
+        for v in filter(lambda v: isinstance(v, LocalVariable), f.variables()):
+            v.expr = self
+        super().__init__(*self.other_variables)
 
     @property
     def concave_vars(self) -> list[cp.Variable]:

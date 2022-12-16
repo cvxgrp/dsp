@@ -136,6 +136,9 @@ def test_multiple_dummies():
     with pytest.raises(LocalVariableError):
         sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1_local, y], [y1_local <= 1, y <= 1])
 
+    y1_local = LocalVariable(name="y1_local", nonneg=True)
+    y2_local = LocalVariable(name="y2_local", nonneg=True)
+    wlse = weighted_log_sum_exp(x, cp.hstack([y1_local, y2_local]))
     sup_y_f = saddle_max(
         2 * wlse + y1_local + cp.exp(x[1]), [y1_local, y2_local], [y1_local <= 1, y2_local <= 1]
     )
@@ -200,34 +203,39 @@ def test_nested_saddle():
 
 
 def test_saddle_max():
-    x1 = LocalVariable(name="x1", nonneg=True)
-    x2 = LocalVariable(name="x2", nonneg=True)
+    x1_local = LocalVariable(name="x1", nonneg=True)
+    x2_local = LocalVariable(name="x2", nonneg=True)
     y = cp.Variable(2, name="y", nonneg=True)
 
     x = cp.Variable(name="x", nonneg=True)
 
-    wlse = weighted_log_sum_exp(cp.hstack([x1, x2]), y)
+    wlse = weighted_log_sum_exp(cp.hstack([x1_local, x2_local]), y)
 
     # only one dummy variable is specified
-    inf_x_f = saddle_min(2 * wlse + x1 + cp.log(y[1]), [x1], [x1 >= 1])
+    inf_x_f = saddle_min(2 * wlse + x1_local + cp.log(y[1]), [x1_local], [x1_local >= 1])
     assert not inf_x_f.is_dcp()
     assert not inf_x_f.is_dsp()
 
     # trying a mix of dummy and variable
     with pytest.raises(LocalVariableError):
-        inf_x_f = saddle_min(2 * wlse + x + cp.log(y[1]), [x1, x], [x1 >= 1, x >= 1])
+        inf_x_f = saddle_min(2 * wlse + x + cp.log(y[1]), [x1_local, x], [x1_local >= 1, x >= 1])
 
-    inf_x_f = saddle_min(2 * wlse + x1 + cp.log(y[1]), [x1, x2], [x1 >= 1, x2 >= 1])
+    x1_local = LocalVariable(name="x1", nonneg=True)
+    x2_local = LocalVariable(name="x2", nonneg=True)
+    wlse = weighted_log_sum_exp(cp.hstack([x1_local, x2_local]), y)
+    inf_x_f = saddle_min(
+        2 * wlse + x1_local + cp.log(y[1]), [x1_local, x2_local], [x1_local >= 1, x2_local >= 1]
+    )
 
     # TODO: This is not working yet
     assert inf_x_f.numeric(values=np.ones(2)) is None
-    assert x1.value is None
-    assert x2.value is None
+    assert x1_local.value is None
+    assert x2_local.value is None
 
     y.value = np.ones(2)
 
-    assert np.isclose(x1.value, 1)
-    assert np.isclose(x2.value, 1)
+    assert np.isclose(x1_local.value, 1)
+    assert np.isclose(x2_local.value, 1)
 
 
 def test_non_dsp_saddle():
