@@ -33,8 +33,10 @@ class LocalVariable(cp.Variable):
     def expr(self, new_value: dsp.saddle_min | dsp.saddle_max) -> None:
         assert isinstance(new_value, (dsp.saddle_min, dsp.saddle_max))
         if self._saddle_expr is not None:
-
-            raise LocalVariableError("Cannot assign a Dummy to multiple SEs.")
+            if self._saddle_expr is not new_value:
+                raise LocalVariableError("Cannot assign a Dummy to multiple SEs.")
+            else:
+                return
         self._saddle_expr = new_value
 
     @property

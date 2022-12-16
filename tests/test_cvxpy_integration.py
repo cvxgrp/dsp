@@ -185,7 +185,7 @@ def test_nested_saddle():
     sup_y_f = saddle_max(f, [y_1], [y_1 <= 1])
 
     g = weighted_log_sum_exp(sup_y_f, y_1[1])
-    with pytest.raises(LocalVariableError):
+    with pytest.raises(LocalVariableError):  # adding a local variable to multiple SEs
         sup_y_g = saddle_max(g, [y_1], [y_1 <= 1])
 
     g = weighted_log_sum_exp(sup_y_f, y_2)

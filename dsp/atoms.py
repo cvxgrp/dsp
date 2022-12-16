@@ -376,7 +376,7 @@ class SaddleExtremum(Atom):
         assert self.f.size == 1
         assert isinstance(variables, Iterable)
         if any([not isinstance(v, LocalVariable) for v in variables]):
-            raise LocalVariableError("All provided variables must be instances of" "LocalVariable.")
+            raise LocalVariableError("All provided variables must be instances of LocalVariable.")
         assert isinstance(constraints, Iterable)
         for c in constraints:
             for v in c.variables():
@@ -410,7 +410,10 @@ class saddle_max(SaddleExtremum):
         self.concave_vars = list(concave_vars)  # variables to maximize over
 
         self._parser = None
-        self.other_variables = [v for v in f.variables() if v not in set(concave_vars)]
+        self.other_variables = [
+            v for v in f.variables()
+            if (v not in set(concave_vars) and not isinstance(v, LocalVariable))
+        ]
         self.is_dsp()  # Make sure local variable expressions are set
         super().__init__(*self.other_variables)
 
@@ -518,9 +521,20 @@ class saddle_min(SaddleExtremum):
         self.convex_vars = list(convex_vars)  # variables to minimize over
 
         self._parser = None
-        self.other_variables = [v for v in f.variables() if v not in set(convex_vars)]
+        assert self._parser is None
+
+        # self.other_variables = [
+        #     v for v in f.variables()
+        #     if (v not in set(convex_vars) and not isinstance(v, LocalVariable))
+        # ]
+        other_variables = []
+        for v in f.variables():
+            if (v not in set(convex_vars) and not isinstance(v, LocalVariable)):
+                other_variables.append(v)
+        self.other_variables = other_variables
+
         self.is_dsp()  # Make sure local variable expressions are set
-        super().__init__(*self.other_variables)
+        super().__init__(*other_variables)
 
     @property
     def concave_vars(self) -> list[cp.Variable]:
@@ -529,6 +543,7 @@ class saddle_min(SaddleExtremum):
     @property
     def parser(self) -> Parser:
         if self._parser is None:
+            print(f"{self.other_variables=}")
             parser = init_parser_wrapper(
                 self.f,
                 self.constraints,

@@ -223,6 +223,31 @@ def get_SE_atoms(expr: Canonical) -> list[SaddleExtremum]:
         return list(chain.from_iterable([get_SE_atoms(arg) for arg in expr.args]))
 
 
+def aux_prob_from_expr(obj: cp.Expression, min_vars: list[cp.Variable]) -> bool:
+    parser = initialize_parser(obj, min_vars, maximization_vars=[], constraints=[])
+    constraints = [y == 1 for y in parser.concave_vars]
+    new_prob = SaddlePointProblem(MinimizeMaximize(obj), constraints, min_vars, [])
+    return new_prob.is_dsp()
+
+
+def is_dsp_expr(obj: cp.Expression) -> bool:
+    if obj.is_dcp():
+        return True
+    try:
+        # initialize_parser(obj, minimization_vars=[], maximization_vars=[], constraints=[])
+        return aux_prob_from_expr(obj, [])
+    except AffineDSPError as e:
+        s = str(e)
+        var_id_list = list(map(int, s[s.find("[") + 1 : s.find("]")].split(",")))
+        min_vars = []
+        for v in obj.variables():
+            if v.id in var_id_list:
+                min_vars.append(v)
+        return aux_prob_from_expr(obj, min_vars)
+    except DSPError:
+        return False
+
+
 def is_dsp(obj: cp.Problem | SaddlePointProblem | cp.Expression) -> bool:
     if isinstance(obj, SaddlePointProblem):
         return obj.is_dsp()
@@ -230,23 +255,6 @@ def is_dsp(obj: cp.Problem | SaddlePointProblem | cp.Expression) -> bool:
         all_SE_atoms = get_problem_SE_atoms(obj)
         return obj.is_dcp() and all([atom.is_dsp() for atom in all_SE_atoms])
     elif isinstance(obj, cp.Expression):
-        if obj.is_dcp():
-            return True
-        try:
-            initialize_parser(obj, minimization_vars=[], maximization_vars=[], constraints=[])
-        except AffineDSPError as e:
-            s = str(e)
-            var_id_list = list(map(int, s[s.find("[") + 1 : s.find("]")].split(",")))
-            min_vars = []
-            for v in obj.variables():
-                if v.id in var_id_list:
-                    min_vars.append(v)
-
-            parser = initialize_parser(obj, min_vars, maximization_vars=[], constraints=[])
-            constraints = [y == 1 for y in parser.concave_vars]
-            new_prob = SaddlePointProblem(MinimizeMaximize(obj), constraints, min_vars, [])
-            return new_prob.is_dsp()
-        except DSPError:
-            return False
+        return is_dsp_expr(obj)
     else:
         return False
