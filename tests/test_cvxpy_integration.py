@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 import dsp
-from dsp.atoms import inner, saddle_max, saddle_min, weighted_log_sum_exp
+from dsp.atoms import conjugate, inner, saddle_max, saddle_min, weighted_log_sum_exp
 from dsp.cvxpy_integration import extend_cone_canon_methods
 from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError
@@ -270,3 +270,22 @@ def test_dsp_canon_error():
 
     with pytest.raises(cp.error.DCPError):
         prob.solve()
+
+
+def test_conj():
+    x = LocalVariable(name="x_local")
+    f = 0.5 * cp.square(x)
+
+    f_star = conjugate(f)
+
+    assert f_star.is_dcp()
+
+    f_star.variables()[0].value = 2
+
+    obj = cp.Minimize(f_star)
+    prob = cp.Problem(obj, [f_star.variables()[0] >= 1])
+
+    # TODO: this is not working yet. The problem is that the local variable is
+    # not copied correctly in canon
+    prob.solve()
+    prob.value

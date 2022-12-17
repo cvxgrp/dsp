@@ -419,7 +419,6 @@ class saddle_max(SaddleExtremum):
             for v in f.variables()
             if (v not in set(concave_vars) and not isinstance(v, LocalVariable))
         ]
-        # self.is_dsp()  # Make sure local variable expressions are set
         for v in filter(lambda v: isinstance(v, LocalVariable), f.variables()):
             v.expr = self
         super().__init__(*self.other_variables)
@@ -535,7 +534,6 @@ class saddle_min(SaddleExtremum):
             if (v not in set(convex_vars) and not isinstance(v, LocalVariable))
         ]
 
-        # self.is_dsp()  # Make sure local variable expressions are set
         for v in filter(lambda v: isinstance(v, LocalVariable), f.variables()):
             v.expr = self
         super().__init__(*self.other_variables)
@@ -719,3 +717,23 @@ class saddle_quad_form(ConvexConcaveAtom):
 
     def is_decr(self, idx: int) -> bool:
         return False
+
+
+class conjugate(saddle_max):
+    def __init__(self, f: cp.Expression, B: float = 1e6) -> None:
+        assert isinstance(f, cp.Expression)
+
+        x_vars = f.variables()
+
+        if not all(isinstance(x, LocalVariable) for x in x_vars):
+            raise LocalVariableError("All conjugate variables must be local variables.")
+
+        y_vars = [cp.Variable(name=f"{x.name()}_conjugate", shape=x.shape) for x in x_vars]
+
+        obj = -f
+        for x, y in zip(x_vars, y_vars):
+            obj += inner(cp.vec(y), cp.vec(x))
+
+        constraints = [x <= B for x in x_vars] + [x >= -B for x in x_vars]
+
+        super().__init__(obj, x_vars, constraints)

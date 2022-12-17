@@ -866,3 +866,12 @@ def test_SE_variable_in_constraint():
     problem = cp.Problem(cp.Minimize(se), [x == 1])
     problem.solve()
     assert np.isclose(problem.value, 1, atol=1e-4)
+
+
+def test_unconstrained():
+    x = cp.Variable(1, name="x", nonneg=True)
+    y = cp.Variable(1, name="y", nonneg=True)
+    f = cp.square(x) - cp.square(y)
+    obj = MinimizeMaximize(f)
+    saddle_problem = SaddlePointProblem(obj, [])
+    saddle_problem.is_dsp()  # should no constraints be a DSP error, etc
