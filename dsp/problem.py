@@ -237,12 +237,7 @@ def is_dsp_expr(obj: cp.Expression) -> bool:
         # initialize_parser(obj, minimization_vars=[], maximization_vars=[], constraints=[])
         return aux_prob_from_expr(obj, [])
     except AffineDSPError as e:
-        s = str(e)
-        var_id_list = list(map(int, s[s.find("[") + 1 : s.find("]")].split(",")))
-        min_vars = []
-        for v in obj.variables():
-            if v.id in var_id_list:
-                min_vars.append(v)
+        min_vars = [v for v in obj.variables() if v in e.affine_vars]
         return aux_prob_from_expr(obj, min_vars)
     except DSPError:
         return False

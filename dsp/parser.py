@@ -25,7 +25,9 @@ class DSPError(Exception):
 
 
 class AffineDSPError(DSPError):
-    pass
+    def __init__(self, message: str, affine_vars: set[cp.Variable]) -> None:
+        super().__init__(message)
+        self.affine_vars = affine_vars
 
 
 def affine_error_message(affine_vars: list[cp.Variable]) -> str:
@@ -44,7 +46,7 @@ class Parser:
         if self.convex_vars & self.concave_vars:
             raise DSPError("Cannot have variables in both maximization_vars and minimization_vars.")
 
-        self.affine_vars: set[int] = set()
+        self.affine_vars: set[cp.Variable] = set()
         self._x_constraints = None
         self._y_constraints = None
 
@@ -321,7 +323,7 @@ def initialize_parser(
     parser._y_constraints = y_constraints
 
     if parser.affine_vars:
-        raise AffineDSPError(affine_error_message(parser.affine_vars))
+        raise AffineDSPError(affine_error_message(parser.affine_vars), parser.affine_vars)
 
     x_constraint_vars = set(
         itertools.chain.from_iterable(constraint.variables() for constraint in x_constraints)
