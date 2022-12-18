@@ -865,10 +865,12 @@ def test_SE_variable_in_constraint():
 
 
 def test_unconstrained():
-    x = cp.Variable(1, name="x", nonneg=True)
-    y = cp.Variable(1, name="y", nonneg=True)
+    x = cp.Variable(1, name="x")
+    y = cp.Variable(1, name="y")
     f = cp.square(x) - cp.square(y)
     obj = MinimizeMaximize(f)
+
+    # TODO: Can we leverage using redundant constraints to try solving unconstrained problems?
     saddle_problem = SaddlePointProblem(obj, [0 * y == 0, 0 * x == 0])
     saddle_problem.is_dsp()
 
