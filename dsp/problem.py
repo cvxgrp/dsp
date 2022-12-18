@@ -120,7 +120,11 @@ class SaddlePointProblem(cp.Problem):
         K_repr = parser.parse_expr_repr(obj_expr, switched=False, local_to_glob=local_to_glob_y)
 
         single_obj, constraints = minimax_to_min(
-            K_repr, parser.x_constraints, parser.y_constraints, parser.concave_vars, local_to_glob_y
+            K_repr,
+            parser.x_constraints,
+            parser.y_constraints,
+            list(parser.concave_vars),
+            local_to_glob_y,
         )
 
         return constraints, single_obj
@@ -140,6 +144,7 @@ class SaddlePointProblem(cp.Problem):
         assert np.isclose(
             diff, 0, atol=eps
         ), f"Difference between x and y problem is {diff}, (should be 0)."
+        # TODO: Does this guarantee that we found a saddle point?
 
         self._status = cp.OPTIMAL
         self._value = self.x_prob.value
@@ -173,6 +178,8 @@ def semi_infinite_epigraph(
     aux_prob = SaddlePointProblem(
         MinimizeMaximize(expr), constraints, minimization_vars, maximization_vars
     )
+    # aux_prob.solve()  # TODO: should we solve here to verify saddle point property?
+    # assert aux_prob.status == cp.OPTIMAL
     prob = aux_prob.x_prob if mode == "sup" else aux_prob.y_prob
     obj = prob.objective.expr
     aux_constraints = prob.constraints  # aux_constraints may not be canonicalized

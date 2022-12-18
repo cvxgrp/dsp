@@ -753,38 +753,24 @@ def test_quad_form_inequality(x_val, P_val):
     assert np.isclose(P_prob.value, x_prob.value)
 
 
-def test_PSD_saddle():
-    n = 2
+@pytest.mark.parametrize("n", [1, 2, 3])
+@pytest.mark.parametrize(
+    "expr,expected",
+    [
+        (lambda Y: cp.log_det(Y), lambda n: n),
+        (lambda Y: cp.trace(Y), lambda n: n * np.e),
+        (lambda Y: -cp.lambda_max(Y), lambda n: -np.e),
+    ],
+)
+def test_PSD_saddle(n, expr, expected):
     Y = cp.Variable((n, n), PSD=True, name="Y")
-    f = cp.log_det(Y)
-    x = cp.Variable(name="x")
+    f = expr(Y)
 
     obj = MinimizeMaximize(f)
-    # obj = MinimizeMaximize(-cp.trace(Y))
-    # obj = MinimizeMaximize(cp.lambda_max(Y))
-
     prob = SaddlePointProblem(obj, [Y == np.e * np.eye(n)], maximization_vars=[Y])
 
-    prob.solve(solver=cp.MOSEK)
-    #
-    # I get the following fatal error (i.e. stops the debug session, etc) when
-    # using MOSEK and the log_det objective with 2x2 Y (but not 1x1):
-    #
-    # tests/test_dsp.py MOSEK fatal error stoptask
-    # Version : 10.0.30
-    # File    : src/prslv/prlog.c
-    # Line    : 19278
-    # Msg     : Assertion failed at src/prslv/prlog.c(19278).
-    # MOSEK fatal error stopenv
-    # Version : 10.0.30
-    # Platform: MACOSX/64-X86
-    # File    : src/prslv/prlog.c
-    # Line    : 19278
-    # Msg     : Assertion failed at src/prslv/prlog.c(19278)
-
     prob.solve(solver=cp.SCS)
-
-    assert np.isclose(prob.value, n, atol=1e-4)
+    assert np.isclose(prob.value, expected(n), atol=1e-4)
 
 
 def test_psd_exp():
@@ -839,7 +825,8 @@ def test_aux_variable_in_constraints():
     y = cp.Variable(name="y")
     z = cp.Variable(name="z")
 
-    wlse = weighted_log_sum_exp(x, y)
+    with pytest.warns(UserWarning, match="Weights are non-positive"):
+        wlse = weighted_log_sum_exp(x, y)
 
     saddle_prob = SaddlePointProblem(MinimizeMaximize(wlse), [x == 1, y <= z, z <= 1])
     assert saddle_prob.is_dsp()
@@ -853,7 +840,8 @@ def test_SE_variable_in_constraint():
     z = LocalVariable(name="z")
     z_nonlocal = cp.Variable(name="z_nonloacl")
 
-    wlse = weighted_log_sum_exp(x, y)
+    with pytest.warns(UserWarning, match="Weights are non-positive"):
+        wlse = weighted_log_sum_exp(x, y)
 
     with pytest.raises(LocalVariableError):
         saddle_max(wlse, [y, z_nonlocal], [y <= z_nonlocal, z_nonlocal <= 1])

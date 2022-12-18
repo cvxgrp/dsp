@@ -227,7 +227,6 @@ def test_saddle_max():
         2 * wlse + x1_local + cp.log(y[1]), [x1_local, x2_local], [x1_local >= 1, x2_local >= 1]
     )
 
-    # TODO: This is not working yet
     assert inf_x_f.numeric(values=np.ones(2)) is None
     assert x1_local.value is None
     assert x2_local.value is None

@@ -340,6 +340,10 @@ def get_cone_repr(
 
     assert {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}
 
+    # TODO: CVXPY does not have a stable API for getting the cone representation that is
+    #  solver independent. We use SCS in line with the CVXPY documentation.
+    #  Compare https://www.cvxpy.org/tutorial/advanced/index.html#getting-the-standard-form
+
     aux_prob = cp.Problem(cp.Minimize(0), const)
     solver_opts = {"use_quad_obj": False}
 
@@ -348,10 +352,9 @@ def get_cone_repr(
 
     A, const_vec = problem_data[0]["A"].toarray(), problem_data[0]["b"]  # TODO: keep sparsity
 
-    unused_mask = np.ones(A.shape[1], dtype=bool)
-
     var_id_to_col = problem_data[0]["param_prob"].var_id_to_col
 
+    unused_mask = np.ones(A.shape[1], dtype=bool)
     var_to_mat_mapping = {}
     for e in exprs:
         if not e.variables():
