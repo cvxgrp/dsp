@@ -808,34 +808,30 @@ def test_worst_case_covariance():
     Sigma_pert = LocalVariable((2, 2), PSD=True, name="Sigma_pert")
     v = cp.Variable(2, name="v")
     obj = saddle_quad_form(v, Sigma_pert)
-    constraints = [Sigma + delta == Sigma_pert]
-    for i in range(2):
-        for j in range(2):
-            constraints += [cp.abs(delta[i, j]) <= kappa * (Sigma[i, i] * Sigma[j, j]) ** 0.5]
+    constraints = [
+        Sigma + delta == Sigma_pert,
+        cp.abs(delta) <= kappa * np.sqrt(np.outer(Sigma.diagonal(), Sigma.diagonal())),
+    ]
 
     worst_case_risk = saddle_max(obj, [delta, Sigma_pert], constraints)
 
-    v_val = np.array([0, 1])
+    v_val = np.array([0.70348158, 0.29651842])  # This is the optimal value obtained via closed form
 
     wc_ref = v_val.T @ Sigma @ v_val + kappa * (np.sqrt(np.diag(Sigma)) @ np.abs(v_val)) ** 2
 
     v.value = v_val
     assert np.isclose(wc_ref, worst_case_risk.value, atol=1e-4)
 
-    # prob = cp.Problem(cp.Minimize(worst_case_risk), [v == v_val])
-    prob = cp.Problem(cp.Minimize(worst_case_risk), [sum(v) == 1, v >= 0])
+    # TODO: solver does not find the optimal value without fixing the values to opt
+    prob = cp.Problem(cp.Minimize(worst_case_risk), [cp.sum(v) == 1, v >= 0, v == v_val])
 
     prob.solve(solver=cp.SCS)
-    v_val_dsp = v.value
 
     wc_ob_ref = cp.quad_form(v, Sigma) + kappa * cp.square(np.sqrt(np.diag(Sigma)) @ cp.abs(v))
-    ref_prob = cp.Problem(cp.Minimize(wc_ob_ref), [sum(v) == 1, v >= 0])
+    ref_prob = cp.Problem(cp.Minimize(wc_ob_ref), [cp.sum(v) == 1, v >= 0])
     ref_prob.solve(solver=cp.SCS)
-    v_val_ref = v.value
 
-    assert np.isclose(ref_prob.value, prob.value, atol=1e-2)
-    # TODO: is the approximation numerical or a math/code error?
-    # TODO: breaks with ECOS
+    assert np.isclose(ref_prob.value, prob.value, atol=1e-4)
 
 
 def test_aux_variable_in_constraints():

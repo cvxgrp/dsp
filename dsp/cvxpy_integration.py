@@ -1,9 +1,9 @@
 from cvxpy import Expression, Problem
 from cvxpy.reductions.dcp2cone.atom_canonicalizers import CANON_METHODS
 
-from dsp.atoms import saddle_max, saddle_min
+from dsp.atoms import conjugate, saddle_max, saddle_min
 from dsp.problem import is_dsp
-from dsp.semi_infinite_canon import concave_max_canon, convex_min_canon
+from dsp.semi_infinite_canon import saddle_max_canon, saddle_min_canon
 
 
 def extend_cone_canon_methods() -> None:
@@ -13,8 +13,9 @@ def extend_cone_canon_methods() -> None:
 
     CANON_METHODS.update(
         {
-            saddle_max: concave_max_canon,
-            saddle_min: convex_min_canon,
+            saddle_max: saddle_max_canon,
+            saddle_min: saddle_min_canon,
+            conjugate: saddle_max_canon,
         }
     )
 

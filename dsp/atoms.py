@@ -720,6 +720,8 @@ class saddle_quad_form(ConvexConcaveAtom):
 
 
 class conjugate(saddle_max):
+    r"""f^*(y) = sup_{x\in \dom f} (y^Tx - f(x))"""
+
     def __init__(self, f: cp.Expression, B: float = 1e6) -> None:
         assert isinstance(f, cp.Expression)
 

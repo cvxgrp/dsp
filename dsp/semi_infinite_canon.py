@@ -12,7 +12,7 @@ from dsp.problem import semi_infinite_epigraph
 # TODO: handle arbitrary DSP expressions
 
 
-def concave_max_canon(expr: saddle_max, args: Any) -> tuple[cp.Expression, list[Constraint]]:
+def saddle_max_canon(expr: saddle_max, args: Any) -> tuple[cp.Expression, list[Constraint]]:
     if not expr.is_dsp():
         raise DSPError("The objective function must be a DSP expression.")
     mode = "sup"
@@ -20,7 +20,7 @@ def concave_max_canon(expr: saddle_max, args: Any) -> tuple[cp.Expression, list[
     return obj, aux_constraints
 
 
-def convex_min_canon(expr: saddle_min, args: Any) -> tuple[cp.Expression, list[Constraint]]:
+def saddle_min_canon(expr: saddle_min, args: Any) -> tuple[cp.Expression, list[Constraint]]:
     if not expr.is_dsp():
         raise DSPError("The objective function must be a DSP expression.")
     mode = "inf"

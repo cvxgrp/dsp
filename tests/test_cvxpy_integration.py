@@ -285,7 +285,5 @@ def test_conj():
     obj = cp.Minimize(f_star)
     prob = cp.Problem(obj, [f_star.variables()[0] >= 1])
 
-    # TODO: this is not working yet. The problem is that the local variable is
-    # not copied correctly in canon
     prob.solve()
-    prob.value
+    assert np.isclose(prob.value, 0.5)
