@@ -869,5 +869,8 @@ def test_unconstrained():
     y = cp.Variable(1, name="y", nonneg=True)
     f = cp.square(x) - cp.square(y)
     obj = MinimizeMaximize(f)
-    saddle_problem = SaddlePointProblem(obj, [])
-    saddle_problem.is_dsp()  # should no constraints be a DSP error, etc
+    saddle_problem = SaddlePointProblem(obj, [0 * y == 0, 0 * x == 0])
+    saddle_problem.is_dsp()
+
+    saddle_problem.solve()
+    assert np.isclose(saddle_problem.value, 0)
