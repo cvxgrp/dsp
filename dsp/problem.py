@@ -135,10 +135,10 @@ class SaddlePointProblem(cp.Problem):
 
     def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> None:  # noqa
         self.x_prob.solve(*args, **kwargs)
-        assert self.x_prob.status == cp.OPTIMAL # or self.x_prob.status == cp.OPTIMAL_INACCURATE
+        assert self.x_prob.status == cp.OPTIMAL  # or self.x_prob.status == cp.OPTIMAL_INACCURATE
 
         self.y_prob.solve(*args, **kwargs)
-        assert self.y_prob.status == cp.OPTIMAL # or self.y_prob.status == cp.OPTIMAL_INACCURATE
+        assert self.y_prob.status == cp.OPTIMAL  # or self.y_prob.status == cp.OPTIMAL_INACCURATE
 
         diff = self.x_prob.value + self.y_prob.value  # y_prob.value is negated
         assert np.isclose(
