@@ -19,7 +19,7 @@ def test_ubounded_domains_exp():
     )  # , x >= 1, cp.sum(x) == 2])
 
     saddle_problem.solve()
-    assert np.isclose(saddle_problem.value, 0.0)
+    assert np.isclose(saddle_problem.value, 0.0, atol=1e-6)
 
 
 def test_unbounded_domains_inv_pos():
@@ -48,7 +48,7 @@ def test_unbounded_domains_inv_pos():
 
     F = saddle_max(f, [y_local], [y_local >= 1])
     prob = cp.Problem(cp.Minimize(F), [x >= 1])
-    prob.solve(solver=cp.MOSEK)
+    prob.solve()
     prob.value
     x.value, y.value
 
