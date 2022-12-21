@@ -260,3 +260,15 @@ def test_bad_curvatures():
     F = saddle_max(f, [y_local, y1_local], [cp.sum(y_local) == y1_local, y1_local == 1])
     assert f.is_dsp()
     assert F.is_dsp()
+
+def test_affine_parts():
+    x = cp.Variable(2, name="x", nonneg=True)
+    y_local = LocalVariable(2, name="y_local", nonneg=True)
+    z = cp.Variable(name="z")
+    f = weighted_log_sum_exp(x, y_local) + z
+    assert f.is_dsp()
+
+    F = saddle_max(f, [y_local], [cp.sum(y_local) == 1])
+    assert F.is_dsp()
+
+    assert F.convex_vars == set([x, z])
