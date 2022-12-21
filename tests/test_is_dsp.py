@@ -270,5 +270,18 @@ def test_affine_parts():
 
     F = saddle_max(f, [y_local], [cp.sum(y_local) == 1])
     assert F.is_dsp()
-
     assert F.convex_vars == set([x, z])
+
+    y_local = LocalVariable(2, name="y_local", nonneg=True)
+    z_local = LocalVariable(name="z_local")
+    f = weighted_log_sum_exp(x, y_local) + z_local
+    assert f.is_dsp()
+
+    F = saddle_max(f, [y_local], [cp.sum(y_local) == 1])
+    assert not F.is_dsp()
+
+    y_local = LocalVariable(2, name="y_local", nonneg=True)
+    z_local = LocalVariable(name="z_local")
+    f = weighted_log_sum_exp(x, y_local) + z_local
+    F = saddle_max(f, [y_local, z_local], [cp.sum(y_local) == 1])
+    assert F.is_dsp()
