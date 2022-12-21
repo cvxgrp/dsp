@@ -71,8 +71,8 @@ class Parser:
         if isinstance(expr, cp.Constant) or isinstance(expr, (float, int)):
             return
         elif isinstance(expr, dsp.atoms.ConvexConcaveAtom):
-            self.add_to_convex_vars(expr.get_convex_variables())
-            self.add_to_concave_vars(expr.get_concave_variables())
+            self.add_to_convex_vars(expr.convex_variables())
+            self.add_to_concave_vars(expr.concave_variables())
         elif isinstance(expr, AddExpression):
             for arg in expr.args:
                 self.split_up_variables(arg)
@@ -86,8 +86,8 @@ class Parser:
             if isinstance(expr.args[0], dsp.atoms.ConvexConcaveAtom):
                 dsp_atom = expr.args[0]
                 assert isinstance(dsp_atom, dsp.atoms.ConvexConcaveAtom)
-                self.add_to_concave_vars(dsp_atom.get_convex_variables())
-                self.add_to_convex_vars(dsp_atom.get_concave_variables())
+                self.add_to_concave_vars(dsp_atom.convex_variables())
+                self.add_to_convex_vars(dsp_atom.concave_variables())
             elif isinstance(expr.args[0], AddExpression):
                 for arg in expr.args[0].args:
                     self.split_up_variables(-arg)
@@ -108,11 +108,11 @@ class Parser:
             dsp_atom = expr.args[1]
             assert isinstance(dsp_atom, dsp.atoms.ConvexConcaveAtom)
             if s.is_nonneg():
-                self.add_to_convex_vars(dsp_atom.get_convex_variables())
-                self.add_to_concave_vars(dsp_atom.get_concave_variables())
+                self.add_to_convex_vars(dsp_atom.convex_variables())
+                self.add_to_concave_vars(dsp_atom.concave_variables())
             else:
-                self.add_to_concave_vars(dsp_atom.get_convex_variables())
-                self.add_to_convex_vars(dsp_atom.get_concave_variables())
+                self.add_to_concave_vars(dsp_atom.convex_variables())
+                self.add_to_convex_vars(dsp_atom.concave_variables())
         else:
             raise ValueError(f"Cannot parse {expr=} with {expr.curvature=}.")
 
@@ -191,12 +191,8 @@ class Parser:
         if repr_parse:
             return expr.get_K_repr(**kwargs, switched=switched)
         else:
-            convex_vars = (
-                expr.get_convex_variables() if not switched else expr.get_concave_variables()
-            )
-            concave_vars = (
-                expr.get_concave_variables() if not switched else expr.get_convex_variables()
-            )
+            convex_vars = expr.convex_variables() if not switched else expr.concave_variables()
+            concave_vars = expr.concave_variables() if not switched else expr.convex_variables()
             self.add_to_convex_vars(convex_vars)
             self.add_to_concave_vars(concave_vars)
 

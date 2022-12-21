@@ -658,19 +658,18 @@ def test_robust_constraint_min():
     x = cp.Variable(name="x")
     y = LocalVariable(name="y", nonneg=True)
 
-    obj1 = MinimizeMaximize(cp.square(x))
-    # obj2 = MinimizeMaximize(x)
-    obj2 = cp.Minimize(x)
+    obj = dsp.MinimizeMaximize(x)
 
     constraints = [x >= 1]
 
     constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
 
-    problem = SaddlePointProblem(obj2, constraints)  # , maximization_vars=[y])
+    problem = SaddlePointProblem(obj, constraints, minimization_vars=[x])
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
 
-    problem = cp.Problem(obj2, constraints)  # , maximization_vars=[y])
+    obj = cp.Minimize(x)
+    problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
 

@@ -28,11 +28,11 @@ class ConvexConcaveAtom(Atom, ABC):
         pass
 
     @abstractmethod
-    def get_convex_variables(self) -> list[cp.Variable]:
+    def convex_variables(self) -> list[cp.Variable]:
         pass
 
     @abstractmethod
-    def get_concave_variables(self) -> list[cp.Variable]:
+    def concave_variables(self) -> list[cp.Variable]:
         pass
 
     @abstractmethod
@@ -126,10 +126,10 @@ class saddle_inner(ConvexConcaveAtom):
             K_out.concave_expr = lambda x: -self.get_convex_expression()
         return K_out
 
-    def get_convex_variables(self) -> list[cp.Variable]:
+    def convex_variables(self) -> list[cp.Variable]:
         return self.Fx.variables()
 
-    def get_concave_variables(self) -> list[cp.Variable]:
+    def concave_variables(self) -> list[cp.Variable]:
         return self.Gy.variables()
 
     def shape_from_args(self) -> tuple[int, ...]:
@@ -287,9 +287,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
         if self.concave_composition:
             if not switched:
-                x_vars_1 = (
-                    self.get_convex_variables() if not switched else self.get_concave_variables()
-                )
+                x_vars_1 = self.convex_variables() if not switched else self.concave_variables()
                 K_switch_1 = switch_convex_concave(
                     K_out.constraints,
                     K_out.f,
@@ -301,9 +299,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
                 K_switch_1.constraints += [self.weights >= z]
 
                 # dualize the outer concave exp variables if switched
-                x_vars_2 = (
-                    self.get_concave_variables() if not switched else self.get_convex_variables()
-                )
+                x_vars_2 = self.concave_variables() if not switched else self.convex_variables()
                 K_out = switch_convex_concave(
                     K_switch_1.constraints,
                     K_switch_1.f,
@@ -334,10 +330,10 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
         return K_out
 
-    def get_convex_variables(self) -> list[cp.Variable]:
+    def convex_variables(self) -> list[cp.Variable]:
         return self.exponents.variables()
 
-    def get_concave_variables(self) -> list[cp.Variable]:
+    def concave_variables(self) -> list[cp.Variable]:
         return self.weights.variables()
 
     def shape_from_args(self) -> tuple[int, ...]:
@@ -691,7 +687,7 @@ class saddle_quad_form(ConvexConcaveAtom):
 
         if switched:
             K_repr = switch_convex_concave(
-                constraints, F_global, t, self.get_convex_variables(), local_to_glob
+                constraints, F_global, t, self.convex_variables(), local_to_glob
             )
             K_repr.concave_expr = lambda x: self.get_convex_expression()
 
@@ -700,10 +696,10 @@ class saddle_quad_form(ConvexConcaveAtom):
     def name(self) -> str:
         return "saddle_quad_form(" + self.x.name() + ", " + self.P.name() + ")"
 
-    def get_convex_variables(self) -> list[cp.Variable]:
+    def convex_variables(self) -> list[cp.Variable]:
         return self.x.variables()
 
-    def get_concave_variables(self) -> list[cp.Variable]:
+    def concave_variables(self) -> list[cp.Variable]:
         return self.P.variables()
 
     def shape_from_args(self) -> tuple[int, ...]:

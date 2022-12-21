@@ -34,6 +34,9 @@ class MinimizeMaximize:
         else:
             raise TypeError(f"Cannot parse {expr=}")
 
+    def is_dsp(self) -> bool:
+        return self.expr.is_dsp()
+
 
 class SaddlePointProblem(cp.Problem):
     def __init__(
@@ -47,16 +50,9 @@ class SaddlePointProblem(cp.Problem):
         self.obj_expr = minmax_objective.expr
 
         # Optional inputs
-        minimization_vars = set(minimization_vars) if minimization_vars is not None else set()
-        maximization_vars = set(maximization_vars) if maximization_vars is not None else set()
+        self._minimization_vars = set(minimization_vars) if minimization_vars is not None else set()
+        self._maximization_vars = set(maximization_vars) if maximization_vars is not None else set()
         self._constraints_ = list(constraints) if constraints is not None else []  # copy
-
-        # Handle explicit minimization and maximization objective
-        minimization_vars, maximization_vars = self.handle_single_curvature_objective(
-            minmax_objective, minimization_vars, maximization_vars
-        )
-        self._minimization_vars = minimization_vars
-        self._maximization_vars = maximization_vars
 
         self._x_prob = None
         self._y_prob = None
@@ -84,27 +80,6 @@ class SaddlePointProblem(cp.Problem):
             self._y_prob = cp.Problem(single_obj_y, constraints_y)
         return self._y_prob
 
-    @staticmethod
-    def handle_single_curvature_objective(
-        objective: MinimizeMaximize | Objective,
-        minimization_vars: list[cp.Variable],
-        maximization_vars: list[cp.Variable],
-    ) -> tuple[list[cp.Variable], list[cp.Variable]]:
-        if isinstance(objective, cp.Minimize):
-            vars = set(objective.variables())
-            assert (
-                not vars & maximization_vars
-            ), "Maximization variables are not allowed in minimization objective"
-            minimization_vars |= vars
-        elif isinstance(objective, cp.Maximize):
-            vars = set(objective.variables())
-            assert (
-                not vars & minimization_vars
-            ), "Minimization variables are not allowed in maximization objective"
-            maximization_vars |= vars
-
-        return minimization_vars, maximization_vars
-
     def dualized_problem(
         self,
         obj_expr: cp.Expression,
@@ -131,7 +106,7 @@ class SaddlePointProblem(cp.Problem):
 
     @staticmethod
     def _validate_arguments(minmax_objective: MinimizeMaximize) -> None:
-        assert isinstance(minmax_objective, (MinimizeMaximize, Objective))
+        assert isinstance(minmax_objective, MinimizeMaximize)
 
     def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> None:  # noqa
         self.x_prob.solve(*args, **kwargs)

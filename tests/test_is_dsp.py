@@ -44,19 +44,17 @@ def test_is_dsp():
         not saddle_problem.is_dsp()
     )  # AssertionError: Cannot resolve curvature of variables ['z']. Specify curvature of these variables as SaddleProblem(obj, constraints, minimization_vars, maximization_vars).
 
-    obj = cp.Minimize(weighted_log_sum_exp(x, y))
-    saddle_problem = SaddlePointProblem(obj, [cp.sum(x) == 1, cp.sum(y) == 1])
+    obj = MinimizeMaximize(weighted_log_sum_exp(x, y))
+    saddle_problem = SaddlePointProblem(
+        obj, [cp.sum(x) == 1, cp.sum(y) == 1], minimization_vars=[x, y]
+    )
 
     assert (
         not saddle_problem.is_dsp()
     )  # AssertionError: Cannot add variables to both convex and concave set.
 
-    with pytest.raises(AssertionError):
-        saddle_problem = SaddlePointProblem(
-            obj, [cp.sum(x) == 1, cp.sum(y) == 1], minimization_vars=[x], maximization_vars=[y]
-        )
-    # TODO: to we want this to raise an error or just break an is_dsp() check?
-    # Additonally, do we even want the single curvature option?
+    with pytest.raises(DSPError, match="Cannot add variables to both convex and concave set."):
+        saddle_problem.solve()
 
 
 def test_concave_sadle_max():
@@ -261,6 +259,7 @@ def test_bad_curvatures():
     assert f.is_dsp()
     assert F.is_dsp()
 
+
 def test_affine_parts():
     x = cp.Variable(2, name="x", nonneg=True)
     y_local = LocalVariable(2, name="y_local", nonneg=True)
@@ -270,7 +269,7 @@ def test_affine_parts():
 
     F = saddle_max(f, [y_local], [cp.sum(y_local) == 1])
     assert F.is_dsp()
-    assert F.convex_vars == set([x, z])
+    assert F.convex_vars == {x, z}
 
     y_local = LocalVariable(2, name="y_local", nonneg=True)
     z_local = LocalVariable(name="z_local")
