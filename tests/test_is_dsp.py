@@ -1,24 +1,8 @@
 import cvxpy as cp
-import numpy as np
 import pytest
 
 from dsp import is_dsp
-from dsp.atoms import (
-    inner,
-    saddle_inner,
-    saddle_max,
-    saddle_min,
-    saddle_quad_form,
-    weighted_log_sum_exp,
-)
-from dsp.cone_transforms import (
-    K_repr_ax,
-    K_repr_x_Gy,
-    LocalToGlob,
-    add_cone_constraints,
-    get_cone_repr,
-    minimax_to_min,
-)
+from dsp.atoms import saddle_max, saddle_min, weighted_log_sum_exp
 from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError
 from dsp.problem import MinimizeMaximize, SaddlePointProblem
@@ -284,3 +268,15 @@ def test_affine_parts():
     f = weighted_log_sum_exp(x, y_local) + z_local
     F = saddle_max(f, [y_local, z_local], [cp.sum(y_local) == 1])
     assert F.is_dsp()
+
+
+def test_saddle_extremum_non_dcp_constraint():
+    x = cp.Variable(2, name="x", nonneg=True)
+    y_local = LocalVariable(2, name="y_local", nonneg=True)
+
+    f = weighted_log_sum_exp(x, y_local)
+    F = saddle_max(f, [y_local], [cp.sum(cp.abs(y_local)) == 1])
+    assert not F.is_dsp()
+
+    with pytest.raises(cp.DCPError):
+        cp.Problem(cp.Minimize(F), [x == 0]).solve()

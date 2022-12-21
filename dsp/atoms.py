@@ -389,7 +389,7 @@ class SaddleExtremum(Atom):
     def is_dsp(self) -> bool:
         try:
             self.parser
-            return True
+            return all([c.is_dcp() for c in self.constraints])
         except DSPError:
             return False
 
