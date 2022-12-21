@@ -254,6 +254,17 @@ def test_wlse_composition_switch(x_val, y_val, c):
     assert np.isclose(prob.value, opt_val)
 
 
+def test_wlse_non_dsp():
+    y = cp.Variable(name="y")
+    x = cp.Variable(name="x", nonneg=True)
+
+    with pytest.warns(UserWarning, match="Weights are non-positive."):
+        assert weighted_log_sum_exp(x, y).is_dsp()
+    with pytest.warns(UserWarning, match="Weights are non-positive."):
+        assert not weighted_log_sum_exp(cp.log(x), y).is_dsp()
+    assert not weighted_log_sum_exp(x, cp.exp(y)).is_dsp()
+
+
 @pytest.mark.parametrize("x_val,y_val,c", [(1, 1, 1), (1, 0.5, 1), (2.1, 0.5, 2), (1.1, 2, 3)])
 def test_wlse_composition(x_val, y_val, c):
     y = cp.Variable(name="y", nonneg=True)

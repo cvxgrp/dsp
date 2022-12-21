@@ -23,8 +23,13 @@ from dsp.parser import DSPError, Parser, initialize_parser
 
 
 class ConvexConcaveAtom(Atom, ABC):
-    @abstractmethod
     def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
+        if not self.is_dsp():
+            raise DSPError("This atom is not a DSP expression.")
+        return self._get_K_repr(local_to_glob, switched)
+
+    @abstractmethod
+    def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool) -> KRepresentation:
         pass
 
     @abstractmethod
@@ -41,6 +46,10 @@ class ConvexConcaveAtom(Atom, ABC):
 
     @abstractmethod
     def get_concave_expression(self) -> cp.Expression:
+        pass
+
+    @abstractmethod
+    def is_dsp(self) -> bool:
         pass
 
     def is_atom_convex(self) -> bool:
@@ -64,10 +73,6 @@ class saddle_inner(ConvexConcaveAtom):
         assert isinstance(Gy, cp.Expression)
 
         if not (Fx.is_affine() and Gy.is_affine()):
-            assert Fx.is_convex(), "Fx must be convex"
-            assert Fx.is_nonneg(), "Fx must be non-negative"
-            assert Gy.is_concave(), "Gy must be concave"
-
             if not Gy.is_nonneg():
                 warnings.warn(
                     "Gy is non-positive. The y domain of convex_concave_inner is Gy >="
@@ -86,6 +91,12 @@ class saddle_inner(ConvexConcaveAtom):
         assert Fx.shape == Gy.shape or Fx.size == Gy.size
 
         super().__init__(Fx, Gy)
+
+    def is_dsp(self) -> bool:
+        x_cvx = self.Fx.is_convex(), "Fx must be convex"
+        x_nonneg = self.Fx.is_nonneg(), "Fx must be non-negative"
+        y_ccv = self.Gy.is_concave(), "Gy must be concave"
+        return all([x_cvx, x_nonneg, y_ccv])
 
     def get_concave_expression(self) -> cp.Expression:
         Fx = self.Fx
@@ -107,7 +118,7 @@ class saddle_inner(ConvexConcaveAtom):
 
         return Fx @ Gy
 
-    def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
+    def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         if self.bilinear:
             K_out = (
                 K_repr_bilin(self.Fx, self.Gy, local_to_glob)
@@ -156,6 +167,11 @@ class inner(saddle_inner):
 
         super().__init__(Fx, Gy)
 
+    def is_dsp(self) -> bool:
+        x_aff = self.Fx.is_affine()
+        y_aff = self.Gy.is_affine()
+        return x_aff and y_aff
+
     def get_concave_expression(self) -> cp.Expression:
         return self.Fx.value @ self.Gy
 
@@ -183,10 +199,6 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
 
         assert isinstance(exponents, cp.Expression)
         assert isinstance(weights, cp.Expression)
-        assert exponents.is_convex(), "exponents must be convex"
-
-        # assert weights.is_affine(), "weights must be affine"
-        assert weights.is_concave(), "weights must be concave"
 
         if not weights.is_nonneg():
             warnings.warn(
@@ -206,6 +218,11 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
         assert exponents.shape == weights.shape or exponents.size == weights.size
 
         super().__init__(exponents, weights)
+
+    def is_dsp(self) -> bool:
+        x_cvx = self.exponents.is_convex()
+        y_ccv = self.weights.is_concave()
+        return x_cvx and y_ccv
 
     def get_concave_expression(self, eps: float = 1e-6) -> cp.Expression:
         x = self.exponents
@@ -237,7 +254,7 @@ class weighted_log_sum_exp(ConvexConcaveAtom):
         arg = y[nonneg] + np.log(x)[nonneg]
         return cp.log_sum_exp(arg)
 
-    def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
+    def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         z = cp.Variable(self.weights.size, name="z_wlse") if self.concave_composition else None
         f_local = cp.Variable(self.weights.size, name="f_wlse")
         t = cp.Variable(name="t_wlse")
@@ -630,7 +647,6 @@ class saddle_quad_form(ConvexConcaveAtom):
     def __init__(self, x: cp.Expression, P: cp.Expression) -> None:
         assert isinstance(x, cp.Expression)
         assert isinstance(P, cp.Expression)
-        assert P.is_psd()
 
         assert x.size == P.shape[0]
 
@@ -638,6 +654,9 @@ class saddle_quad_form(ConvexConcaveAtom):
         self.P = P
 
         super().__init__(x, P)
+
+    def is_dsp(self) -> bool:
+        return self.P.is_psd() and self.x.is_affine()
 
     def get_concave_expression(self) -> cp.Expression:
         x = self.x
@@ -657,7 +676,7 @@ class saddle_quad_form(ConvexConcaveAtom):
 
         return cp.quad_form(x, P)
 
-    def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
+    def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         n = self.x.size
         F_local = cp.Variable((n, n), name="F_quad_form_local", PSD=True)
         A = cp.Variable((n + 1, n + 1), name="A_quad_form", PSD=True)
