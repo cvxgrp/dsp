@@ -277,6 +277,8 @@ def test_wlse_composition(x_val, y_val, c):
     y_constraints = [y <= y_val]
 
     prob = SaddlePointProblem(obj, x_constraints + y_constraints)
+    assert set(prob.convex_variables()) == {x1, x2}
+    assert set(prob.concave_variables()) == {y}
     opt_val = np.log(y_val * np.exp(f_val))
 
     prob.solve(solver=cp.SCS)

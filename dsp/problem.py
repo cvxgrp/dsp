@@ -59,7 +59,7 @@ class SaddlePointProblem(cp.Problem):
 
         self._value: float | None = None
         self._status: str | None = None
-        super().__init__(cp.Minimize(self.obj_expr))
+        super().__init__(cp.Minimize(self.obj_expr), constraints)
 
     @property
     def x_prob(self) -> cp.Problem:
@@ -140,6 +140,18 @@ class SaddlePointProblem(cp.Problem):
         except DSPError:
             return False
         # TODO: modify all internal DSP checking to raise DSPError's.
+
+    def convex_variables(self) -> list[cp.Variable]:
+        parser = initialize_parser(
+            self.obj_expr, self._minimization_vars, self._maximization_vars, self._constraints_
+        )
+        return list(parser.convex_vars)
+
+    def concave_variables(self) -> list[cp.Variable]:
+        parser = initialize_parser(
+            self.obj_expr, self._minimization_vars, self._maximization_vars, self._constraints_
+        )
+        return list(parser.concave_vars)
 
 
 def semi_infinite_epigraph(
