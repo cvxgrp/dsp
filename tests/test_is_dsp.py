@@ -170,9 +170,9 @@ def test_saddle_extremum_local_affine():
 
     assert f.is_dsp()
 
-    F = saddle_max(f, [y], [cp.sum(y) == 1])
+    F = saddle_max(f, [], [cp.sum(y) == 1])
     assert (
-        not F.is_dsp()
+        F.is_dsp()
     )  # z is a local variable appearing in the objective, and not listed as a concave variable
 
     x = LocalVariable(2, name="x_local", nonneg=True)
@@ -180,9 +180,9 @@ def test_saddle_extremum_local_affine():
     z = LocalVariable(name="z_local")
     f = weighted_log_sum_exp(x, y) + z
 
-    G = saddle_min(f, [x], [cp.sum(x) == 1])
+    G = saddle_min(f, [], [cp.sum(x) == 1])
     assert (
-        not G.is_dsp()
+        G.is_dsp()
     )  # z is a local variable appearing in the objective, and not listed as a convex variable
 
 
@@ -260,13 +260,13 @@ def test_affine_parts():
     f = weighted_log_sum_exp(x, y_local) + z_local
     assert f.is_dsp()
 
-    F = saddle_max(f, [y_local], [cp.sum(y_local) == 1])
-    assert not F.is_dsp()
+    F = saddle_max(f, [], [cp.sum(y_local) == 1])
+    assert F.is_dsp()
 
     y_local = LocalVariable(2, name="y_local", nonneg=True)
     z_local = LocalVariable(name="z_local")
     f = weighted_log_sum_exp(x, y_local) + z_local
-    F = saddle_max(f, [y_local, z_local], [cp.sum(y_local) == 1])
+    F = saddle_max(f, [], [cp.sum(y_local) == 1])
     assert F.is_dsp()
 
 

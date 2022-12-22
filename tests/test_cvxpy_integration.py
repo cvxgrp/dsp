@@ -127,9 +127,9 @@ def test_multiple_dummies():
     # only one dummy variable is specified. This raises a DSP error since not
     # all concave variables are specified, and not a local variable error,
     # because all of the concave variables are specified as local variables.
-    sup_y_f = saddle_max(2 * wlse + y1_local + cp.exp(x[1]), [y1_local], [y1_local <= 1])
-    assert not sup_y_f.is_dcp()
-    assert not sup_y_f.is_dsp()
+    sup_y_f = saddle_max(2 * wlse + y1_local + cp.exp(x[1]), [], [y1_local <= 1])
+    assert sup_y_f.is_dcp()
+    assert sup_y_f.is_dsp()
 
     # trying a mix of dummy and variable. This raises a local variable error on
     # construction.
@@ -212,9 +212,9 @@ def test_saddle_max():
     wlse = weighted_log_sum_exp(cp.hstack([x1_local, x2_local]), y)
 
     # only one dummy variable is specified
-    inf_x_f = saddle_min(2 * wlse + x1_local + cp.log(y[1]), [x1_local], [x1_local >= 1])
-    assert not inf_x_f.is_dcp()
-    assert not inf_x_f.is_dsp()
+    inf_x_f = saddle_min(2 * wlse + x1_local + cp.log(y[1]), [], [x1_local >= 1])
+    assert inf_x_f.is_dcp()
+    assert inf_x_f.is_dsp()
 
     # trying a mix of dummy and variable
     with pytest.raises(LocalVariableError):

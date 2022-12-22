@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import warnings
 from abc import ABC, abstractmethod
 from typing import Iterable
@@ -424,16 +425,16 @@ class saddle_max(SaddleExtremum):
 
         self._validate_arguments(constraints, concave_vars)
         self.constraints = list(constraints)
-        self.concave_vars = list(concave_vars)  # variables to maximize over
+
+        self.concave_vars = set(filter(lambda v: isinstance(v, LocalVariable), f.variables()))
+        self.concave_vars |= set(itertools.chain.from_iterable(c.variables() for c in constraints))
 
         self._parser = None
-        self.other_variables = [
-            v
-            for v in f.variables()
-            if (v not in set(concave_vars) and not isinstance(v, LocalVariable))
-        ]
-        for v in filter(lambda v: isinstance(v, LocalVariable), f.variables()):
+        self.other_variables = [v for v in f.variables() if not isinstance(v, LocalVariable)]
+
+        for v in self.concave_vars:
             v.expr = self
+
         super().__init__(*self.other_variables)
 
     @property
@@ -451,7 +452,7 @@ class saddle_max(SaddleExtremum):
                 other_variables=self.other_variables,
             )
 
-            all_concave_vars_specified = set(self.concave_vars) == set(parser.concave_vars)
+            # all_concave_vars_specified = set(self.concave_vars) == set(parser.concave_vars)
             all_concave_vars_local = all([isinstance(v, LocalVariable) for v in self.concave_vars])
 
             if not all_concave_vars_local:
@@ -459,11 +460,11 @@ class saddle_max(SaddleExtremum):
                     "All concave variables must be instances of" "LocalVariable."
                 )
 
-            if not all_concave_vars_specified:
-                raise DSPError(
-                    "Must specify all concave variables, which all must be instances of"
-                    "LocalVariable."
-                )
+            # if not all_concave_vars_specified:
+            #     raise DSPError(
+            #         "Must specify all concave variables, which all must be instances of"
+            #         "LocalVariable."
+            #     )
 
             for v in self.concave_vars:
                 v.expr = self
@@ -537,18 +538,16 @@ class saddle_min(SaddleExtremum):
 
         self._validate_arguments(constraints, convex_vars)
         self.constraints = list(constraints)
-        self.convex_vars = list(convex_vars)  # variables to minimize over
+
+        self.convex_vars = set(filter(lambda v: isinstance(v, LocalVariable), f.variables()))
+        self.convex_vars |= set(itertools.chain.from_iterable(c.variables() for c in constraints))
 
         self._parser = None
+        self.other_variables = [v for v in f.variables() if not isinstance(v, LocalVariable)]
 
-        self.other_variables = [
-            v
-            for v in f.variables()
-            if (v not in set(convex_vars) and not isinstance(v, LocalVariable))
-        ]
-
-        for v in filter(lambda v: isinstance(v, LocalVariable), f.variables()):
+        for v in self.convex_vars:
             v.expr = self
+
         super().__init__(*self.other_variables)
 
     @property
@@ -567,7 +566,7 @@ class saddle_min(SaddleExtremum):
                 other_variables=self.other_variables,
             )
 
-            all_convex_vars_specified = set(self.convex_vars) == set(parser.concave_vars)
+            # all_convex_vars_specified = set(self.convex_vars) == set(parser.concave_vars)
             all_convex_vars_local = all([isinstance(v, LocalVariable) for v in self.convex_vars])
 
             if not all_convex_vars_local:
@@ -575,11 +574,11 @@ class saddle_min(SaddleExtremum):
                     "All convex variables must be instances of" "LocalVariable."
                 )
 
-            if not all_convex_vars_specified:
-                raise DSPError(
-                    "Must specify all convex variables, which all must be instances of"
-                    "LocalVariable."
-                )
+            # if not all_convex_vars_specified:
+            #     raise DSPError(
+            #         "Must specify all convex variables, which all must be instances of"
+            #         "LocalVariable."
+            #     )
 
             for v in self.convex_vars:
                 v.expr = self
