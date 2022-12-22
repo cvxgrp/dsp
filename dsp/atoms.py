@@ -22,7 +22,7 @@ from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError, Parser, initialize_parser
 
 
-class ConvexConcaveAtom(Atom, ABC):
+class SaddleAtom(Atom, ABC):
     def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         if not self.is_dsp():
             raise DSPError("This atom is not a DSP expression.")
@@ -67,7 +67,7 @@ class ConvexConcaveAtom(Atom, ABC):
         raise NotImplementedError
 
 
-class saddle_inner(ConvexConcaveAtom):
+class saddle_inner(SaddleAtom):
     def __init__(self, Fx: cp.Expression, Gy: cp.Expression) -> None:
         assert isinstance(Fx, cp.Expression)
         assert isinstance(Gy, cp.Expression)
@@ -179,7 +179,7 @@ class inner(saddle_inner):
         return self.Fx @ self.Gy.value
 
 
-class weighted_log_sum_exp(ConvexConcaveAtom):
+class weighted_log_sum_exp(SaddleAtom):
     def __init__(self, exponents: cp.Expression, weights: cp.Expression) -> None:
         """
         Implements the function f(x,y) = log(sum(exp(x_i) * y_i)) for vectors x and y.
@@ -643,7 +643,7 @@ class saddle_min(SaddleExtremum):
         return self.f.shape
 
 
-class saddle_quad_form(ConvexConcaveAtom):
+class saddle_quad_form(SaddleAtom):
     def __init__(self, x: cp.Expression, P: cp.Expression) -> None:
         assert isinstance(x, cp.Expression)
         assert isinstance(P, cp.Expression)

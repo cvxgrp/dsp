@@ -70,7 +70,7 @@ class Parser:
 
         if isinstance(expr, cp.Constant) or isinstance(expr, (float, int)):
             return
-        elif isinstance(expr, dsp.atoms.ConvexConcaveAtom):
+        elif isinstance(expr, dsp.atoms.SaddleAtom):
             self.add_to_convex_vars(expr.convex_variables())
             self.add_to_concave_vars(expr.concave_variables())
         elif isinstance(expr, AddExpression):
@@ -83,9 +83,9 @@ class Parser:
         elif expr.is_concave():
             self.add_to_concave_vars(expr.variables())
         elif isinstance(expr, NegExpression):
-            if isinstance(expr.args[0], dsp.atoms.ConvexConcaveAtom):
+            if isinstance(expr.args[0], dsp.atoms.SaddleAtom):
                 dsp_atom = expr.args[0]
-                assert isinstance(dsp_atom, dsp.atoms.ConvexConcaveAtom)
+                assert isinstance(dsp_atom, dsp.atoms.SaddleAtom)
                 self.add_to_concave_vars(dsp_atom.convex_variables())
                 self.add_to_convex_vars(dsp_atom.concave_variables())
             elif isinstance(expr.args[0], AddExpression):
@@ -93,7 +93,7 @@ class Parser:
                     self.split_up_variables(-arg)
             elif isinstance(expr.args[0], NegExpression):  # double negation
                 dsp_atom = expr.args[0].args[0]
-                assert isinstance(dsp_atom, dsp.atoms.ConvexConcaveAtom)
+                assert isinstance(dsp_atom, dsp.atoms.SaddleAtom)
                 self.split_up_variables(dsp_atom)
             elif isinstance(expr.args[0], multiply):  # negated multiplication of dsp atom
                 mult = expr.args[0]
@@ -106,7 +106,7 @@ class Parser:
             s = expr.args[0]
             assert isinstance(s, cp.Constant)
             dsp_atom = expr.args[1]
-            assert isinstance(dsp_atom, dsp.atoms.ConvexConcaveAtom)
+            assert isinstance(dsp_atom, dsp.atoms.SaddleAtom)
             if s.is_nonneg():
                 self.add_to_convex_vars(dsp_atom.convex_variables())
                 self.add_to_concave_vars(dsp_atom.concave_variables())
@@ -187,7 +187,7 @@ class Parser:
     def parse_dsp_atom(
         self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
-        assert isinstance(expr, dsp.atoms.ConvexConcaveAtom)
+        assert isinstance(expr, dsp.atoms.SaddleAtom)
         if repr_parse:
             return expr.get_K_repr(**kwargs, switched=switched)
         else:
@@ -252,7 +252,7 @@ class Parser:
                 return self.parse_scalar_mul(expr, switched, repr_parse, **kwargs)
             else:
                 return self.parse_bilin(expr, switched, repr_parse, **kwargs)
-        elif isinstance(expr, dsp.atoms.ConvexConcaveAtom):
+        elif isinstance(expr, dsp.atoms.SaddleAtom):
             return self.parse_dsp_atom(expr, switched, repr_parse, **kwargs)
         elif isinstance(expr, MulExpression):
             if expr.is_affine() and repr_parse:
