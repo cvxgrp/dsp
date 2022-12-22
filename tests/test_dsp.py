@@ -649,7 +649,7 @@ def test_robust_constraint():
 
     constraints = [x >= 1]
 
-    constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
+    constraints += [saddle_max(weighted_log_sum_exp(x, y), [y <= 1]) <= 1]
 
     # TODO, auto min vars
 
@@ -675,7 +675,7 @@ def test_robust_constraint_min():
 
     constraints = [x >= 1]
 
-    constraints += [saddle_max(weighted_log_sum_exp(x, y), [y], [y <= 1]) <= 1]
+    constraints += [saddle_max(weighted_log_sum_exp(x, y), [y <= 1]) <= 1]
 
     problem = SaddlePointProblem(obj, constraints, minimization_vars=[x])
     problem.solve(solver=cp.SCS)
@@ -700,7 +700,7 @@ def test_robust_constraint_inf():
     constraints = [y <= y_val]
 
     constraints += [
-        saddle_min(weighted_log_sum_exp(x, y), [x], [x >= x_val]) >= np.log(y_val * np.exp(x_val))
+        saddle_min(weighted_log_sum_exp(x, y), [x >= x_val]) >= np.log(y_val * np.exp(x_val))
     ]
 
     obj = cp.Maximize(y)
@@ -811,7 +811,7 @@ def test_worst_case_covariance():
         cp.abs(delta) <= kappa * np.sqrt(np.outer(Sigma.diagonal(), Sigma.diagonal())),
     ]
 
-    worst_case_risk = saddle_max(obj, [delta, Sigma_pert], constraints)
+    worst_case_risk = saddle_max(obj, constraints)
 
     v_val = np.array([0.70348158, 0.29651842])  # This is the optimal value obtained via closed form
 
@@ -856,9 +856,9 @@ def test_SE_variable_in_constraint():
         wlse = weighted_log_sum_exp(x, y)
 
     with pytest.raises(LocalVariableError):
-        saddle_max(wlse, [y, z_nonlocal], [y <= z_nonlocal, z_nonlocal <= 1])
+        saddle_max(wlse, [y <= z_nonlocal, z_nonlocal <= 1])
 
-    se = saddle_max(wlse, [y, z], [y <= z, z <= 1])
+    se = saddle_max(wlse, [y <= z, z <= 1])
     problem = cp.Problem(cp.Minimize(se), [x == 1])
     problem.solve()
     assert np.isclose(problem.value, 1, atol=1e-4)

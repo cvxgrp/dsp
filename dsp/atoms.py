@@ -389,12 +389,9 @@ def init_parser_wrapper(
 
 class SaddleExtremum(Atom):
     def _validate_arguments(
-        self, constraints: list[Constraint], variables: list[LocalVariable]
+        self, constraints: list[Constraint]
     ) -> None:
         assert self.f.size == 1
-        assert isinstance(variables, Iterable)
-        if any([not isinstance(v, LocalVariable) for v in variables]):
-            raise LocalVariableError("All provided variables must be instances of LocalVariable.")
         assert isinstance(constraints, Iterable)
         for c in constraints:
             for v in c.variables():
@@ -418,12 +415,11 @@ class saddle_max(SaddleExtremum):
     def __init__(
         self,
         f: cp.Expression,
-        concave_vars: Iterable[LocalVariable],
         constraints: Iterable[Constraint],
     ) -> None:
         self.f = f
 
-        self._validate_arguments(constraints, concave_vars)
+        self._validate_arguments(constraints)
         self.constraints = list(constraints)
 
         self.concave_vars = set(filter(lambda v: isinstance(v, LocalVariable), f.variables()))
@@ -531,12 +527,11 @@ class saddle_min(SaddleExtremum):
     def __init__(
         self,
         f: cp.Expression,
-        convex_vars: Iterable[LocalVariable],
         constraints: Iterable[Constraint],
     ) -> None:
         self.f = f
 
-        self._validate_arguments(constraints, convex_vars)
+        self._validate_arguments(constraints)
         self.constraints = list(constraints)
 
         self.convex_vars = set(filter(lambda v: isinstance(v, LocalVariable), f.variables()))
@@ -752,4 +747,4 @@ class conjugate(saddle_max):
 
         constraints = [x <= B for x in x_vars] + [x >= -B for x in x_vars]
 
-        super().__init__(obj, x_vars, constraints)
+        super().__init__(obj, constraints)

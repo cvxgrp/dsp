@@ -46,7 +46,7 @@ def test_unbounded_domains_inv_pos():
     f_ccv = cp.power(y_local, 0.01)
     f = saddle_inner(f_cvx, f_ccv)
 
-    F = saddle_max(f, [y_local], [y_local >= 1])
+    F = saddle_max(f, [y_local >= 1])
     prob = cp.Problem(cp.Minimize(F), [x >= 1])
     prob.solve()
     prob.value

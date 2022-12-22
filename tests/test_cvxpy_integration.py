@@ -35,7 +35,7 @@ def test_semi_infinite_matrix():
 
     inner_expr = inner(x, A @ y_d)
 
-    obj = cp.Minimize(saddle_max(inner_expr, [y_d], [cp.sum(y_d) == 1]))
+    obj = cp.Minimize(saddle_max(inner_expr, [cp.sum(y_d) == 1]))
     constraints = [cp.sum(x) == 1]
 
     problem = cp.Problem(obj, constraints)
@@ -47,7 +47,7 @@ def test_semi_infinite_matrix():
 
     inner_expr = inner(x_d, A @ y)
 
-    f = saddle_min(inner_expr, [x_d], [cp.sum(x_d) == 1])
+    f = saddle_min(inner_expr, [cp.sum(x_d) == 1])
     obj = cp.Maximize(f)
     constraints = [cp.sum(y) == 1]
 
@@ -66,14 +66,14 @@ def test_dcp_concave_max_and_dummy():
     inner_expr = inner(x, A @ y)
 
     with pytest.raises(LocalVariableError):
-        f_max = saddle_max(inner_expr, [y], [cp.sum(y) == 1])
+        f_max = saddle_max(inner_expr, [cp.sum(y) == 1])
 
     y2 = LocalVariable(2, name="y", nonneg=True)
 
     A = np.array([[1, 2], [3, 4]])
     inner_expr = inner(x, A @ y2)
 
-    f_max = saddle_max(inner_expr, [y2], [cp.sum(y2) == 1])
+    f_max = saddle_max(inner_expr, [cp.sum(y2) == 1])
 
     obj = cp.Maximize(f_max)
     assert not obj.is_dcp()
@@ -88,18 +88,18 @@ def test_semi_infinite_expr():
 
     # Trying to create a saddle_max with a variable for y (instead of a dummy)
     with pytest.raises(LocalVariableError):
-        sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y], [y <= 1])
+        sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y <= 1])
 
     wlse = weighted_log_sum_exp(x, y_dummy)
 
     # creating a valid saddle_max with a dummy variable
-    sup_y_f = saddle_max(2 * wlse + y_dummy[1] + cp.exp(x[1]), [y_dummy], [y_dummy <= 1])
+    sup_y_f = saddle_max(2 * wlse + y_dummy[1] + cp.exp(x[1]), [y_dummy <= 1])
     assert sup_y_f.is_dcp()
     assert sup_y_f.is_dsp()
 
     # trying to use the same dummy variable in a new SE raises an error
     with pytest.raises(LocalVariableError):
-        sup_y_f_reused_local = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy], [y_dummy <= 1])
+        sup_y_f_reused_local = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy <= 1])
 
     # trying to get the value of the saddle_max before x has a value returns None
     assert sup_y_f.numeric(values=np.ones(1)) is None
@@ -127,20 +127,20 @@ def test_multiple_dummies():
     # only one dummy variable is specified. This raises a DSP error since not
     # all concave variables are specified, and not a local variable error,
     # because all of the concave variables are specified as local variables.
-    sup_y_f = saddle_max(2 * wlse + y1_local + cp.exp(x[1]), [], [y1_local <= 1])
+    sup_y_f = saddle_max(2 * wlse + y1_local + cp.exp(x[1]), [y1_local <= 1])
     assert sup_y_f.is_dcp()
     assert sup_y_f.is_dsp()
 
     # trying a mix of dummy and variable. This raises a local variable error on
     # construction.
     with pytest.raises(LocalVariableError):
-        sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1_local, y], [y1_local <= 1, y <= 1])
+        sup_y_f = saddle_max(2 * wlse + y + cp.exp(x[1]), [y1_local <= 1, y <= 1])
 
     y1_local = LocalVariable(name="y1_local", nonneg=True)
     y2_local = LocalVariable(name="y2_local", nonneg=True)
     wlse = weighted_log_sum_exp(x, cp.hstack([y1_local, y2_local]))
     sup_y_f = saddle_max(
-        2 * wlse + y1_local + cp.exp(x[1]), [y1_local, y2_local], [y1_local <= 1, y2_local <= 1]
+        2 * wlse + y1_local + cp.exp(x[1]), [y1_local <= 1, y2_local <= 1]
     )
 
     assert sup_y_f.numeric(values=np.ones(1)) is None
@@ -159,7 +159,7 @@ def test_trivial_se():
     f = cp.exp(x)
 
     # trivial saddle max with no dummy variable
-    F = saddle_max(f, [], [])
+    F = saddle_max(f, [])
 
     prob = cp.Problem(cp.Minimize(F), [x >= 1])
     prob.solve()
@@ -170,7 +170,7 @@ def test_trivial_se():
     f = cp.log(y)
 
     # trivial saddle min with no dummy variable
-    F = saddle_min(f, [], [])
+    F = saddle_min(f, [])
 
     prob = cp.Problem(cp.Maximize(F), [y <= 1])
     prob.solve()
@@ -185,14 +185,14 @@ def test_nested_saddle():
 
     f = weighted_log_sum_exp(x, y_1)
 
-    sup_y_f = saddle_max(f, [y_1], [y_1 <= 1])
+    sup_y_f = saddle_max(f, [y_1 <= 1])
 
     g = weighted_log_sum_exp(sup_y_f, y_1[1])
     with pytest.raises(LocalVariableError):  # adding a local variable to multiple SEs
-        sup_y_g = saddle_max(g, [y_1], [y_1 <= 1])
+        sup_y_g = saddle_max(g, [y_1 <= 1])
 
     g = weighted_log_sum_exp(sup_y_f, y_2)
-    sup_y_g = saddle_max(g, [y_2], [y_2 <= 1])
+    sup_y_g = saddle_max(g, [y_2 <= 1])
 
     prob = cp.Problem(cp.Minimize(sup_y_g), [x >= 1])
     prob.solve()
@@ -212,19 +212,19 @@ def test_saddle_max():
     wlse = weighted_log_sum_exp(cp.hstack([x1_local, x2_local]), y)
 
     # only one dummy variable is specified
-    inf_x_f = saddle_min(2 * wlse + x1_local + cp.log(y[1]), [], [x1_local >= 1])
+    inf_x_f = saddle_min(2 * wlse + x1_local + cp.log(y[1]), [x1_local >= 1])
     assert inf_x_f.is_dcp()
     assert inf_x_f.is_dsp()
 
     # trying a mix of dummy and variable
     with pytest.raises(LocalVariableError):
-        inf_x_f = saddle_min(2 * wlse + x + cp.log(y[1]), [x1_local, x], [x1_local >= 1, x >= 1])
+        inf_x_f = saddle_min(2 * wlse + x + cp.log(y[1]), [x1_local >= 1, x >= 1])
 
     x1_local = LocalVariable(name="x1", nonneg=True)
     x2_local = LocalVariable(name="x2", nonneg=True)
     wlse = weighted_log_sum_exp(cp.hstack([x1_local, x2_local]), y)
     inf_x_f = saddle_min(
-        2 * wlse + x1_local + cp.log(y[1]), [x1_local, x2_local], [x1_local >= 1, x2_local >= 1]
+        2 * wlse + x1_local + cp.log(y[1]), [x1_local >= 1, x2_local >= 1]
     )
 
     assert inf_x_f.numeric(values=np.ones(2)) is None
@@ -243,7 +243,7 @@ def test_non_dsp_saddle():
 
     f = weighted_log_sum_exp(x, y) + cp.exp(y[1])
 
-    sup_y_f = saddle_max(f, [y], [y <= 1])
+    sup_y_f = saddle_max(f, [y <= 1])
 
     assert not sup_y_f.is_dsp()
 
@@ -263,7 +263,7 @@ def test_dsp_canon_error():
 
     f = weighted_log_sum_exp(x, y) + cp.exp(y[1])
 
-    sup_y_f = saddle_max(f, [y], [y <= 1])
+    sup_y_f = saddle_max(f, [y <= 1])
 
     prob = cp.Problem(cp.Minimize(sup_y_f), [x >= 1])
 
