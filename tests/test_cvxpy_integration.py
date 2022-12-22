@@ -19,7 +19,7 @@ def test_semi_infinite_matrix():
     x_d = LocalVariable(2, name="x_d", nonneg=True)
     y_d = LocalVariable(2, name="y_d", nonneg=True)
 
-    A = np.array([[1, 2], [3, 4]])
+    A = np.array([[1, 2], [3, 1]])
     inner_expr = inner(x, A @ y)
 
     # Saddle problem
@@ -27,9 +27,9 @@ def test_semi_infinite_matrix():
     saddle_problem = SaddlePointProblem(saddle_obj, [cp.sum(x) == 1, cp.sum(y) == 1])
     saddle_problem.solve()
 
-    assert np.isclose(saddle_problem.value, 2.0, atol=1e-4)
-    assert np.allclose(x.value, [1, 0], atol=1e-4)
-    assert np.allclose(y.value, [0, 1], atol=1e-4)
+    assert np.isclose(saddle_problem.value, 1.66666, atol=1e-4)
+    assert np.allclose(x.value, [.66666, .33333], atol=1e-4)
+    assert np.allclose(y.value, [.33333, .66666], atol=1e-4)
 
     # Saddle max problem
 
@@ -41,7 +41,7 @@ def test_semi_infinite_matrix():
     problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
 
-    assert np.isclose(problem.value, 2.0, atol=1e-4)
+    assert np.isclose(problem.value, 1.66666, atol=1e-4)
 
     # Saddle min problem
 
@@ -53,9 +53,9 @@ def test_semi_infinite_matrix():
 
     problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
-    assert np.isclose(problem.value, 2.0, atol=1e-4)
-    assert np.allclose(x.value, [1, 0], atol=1e-4)
-    assert np.allclose(y.value, [0, 1], atol=1e-4)
+    assert np.isclose(saddle_problem.value, 1.66666, atol=1e-4)
+    assert np.allclose(x.value, [.66666, .33333], atol=1e-4)
+    assert np.allclose(y.value, [.33333, .66666], atol=1e-4)
 
 
 def test_dcp_concave_max_and_dummy():
