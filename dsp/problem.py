@@ -17,7 +17,7 @@ from dsp.cone_transforms import (
     get_cone_repr,
     minimax_to_min,
 )
-from dsp.parser import AffineDSPError, DSPError, initialize_parser
+from dsp.parser import DSPError, Parser, initialize_parser
 
 
 class MinimizeMaximize:
@@ -234,11 +234,9 @@ def is_dsp_expr(obj: cp.Expression) -> bool:
     if obj.is_dcp():
         return True
     try:
-        # initialize_parser(obj, minimization_vars=[], maximization_vars=[], constraints=[])
-        return aux_prob_from_expr(obj, [])
-    except AffineDSPError as e:
-        min_vars = [v for v in obj.variables() if v in e.affine_vars]
-        return aux_prob_from_expr(obj, min_vars)
+        parser = Parser(set(), set())
+        parser.parse_expr_variables(obj, switched=False)
+        return True
     except DSPError:
         return False
 
