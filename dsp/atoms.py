@@ -41,6 +41,10 @@ class SaddleAtom(Atom, ABC):
     def concave_variables(self) -> list[cp.Variable]:
         pass
 
+    def affine_variables(self) -> list[cp.Variable]:
+        known_curvature_vars = set(self.convex_variables() + self.concave_variables())
+        return [v for v in self.variables() if v not in known_curvature_vars]
+
     @abstractmethod
     def get_convex_expression(self) -> cp.Expression:
         pass
@@ -388,9 +392,7 @@ def init_parser_wrapper(
 
 
 class SaddleExtremum(Atom):
-    def _validate_arguments(
-        self, constraints: list[Constraint]
-    ) -> None:
+    def _validate_arguments(self, constraints: list[Constraint]) -> None:
         assert self.f.size == 1
         assert isinstance(constraints, Iterable)
         for c in constraints:

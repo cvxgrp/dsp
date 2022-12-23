@@ -145,13 +145,19 @@ class SaddlePointProblem(cp.Problem):
         parser = initialize_parser(
             self.obj_expr, self._minimization_vars, self._maximization_vars, self._constraints_
         )
-        return list(parser.convex_vars)
+        return sorted(parser.convex_vars, key=lambda x: x.id)
 
     def concave_variables(self) -> list[cp.Variable]:
         parser = initialize_parser(
             self.obj_expr, self._minimization_vars, self._maximization_vars, self._constraints_
         )
-        return list(parser.concave_vars)
+        return sorted(parser.concave_vars, key=lambda x: x.id)
+
+    def affine_variables(self) -> list[cp.Variable]:
+        parser = initialize_parser(
+            self.obj_expr, self._minimization_vars, self._maximization_vars, self._constraints_
+        )
+        return sorted(parser.affine_vars, key=lambda x: x.id)
 
 
 def semi_infinite_epigraph(
