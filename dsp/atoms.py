@@ -750,3 +750,135 @@ class conjugate(saddle_max):
         constraints = [x <= B for x in x_vars] + [x >= -B for x in x_vars]
 
         super().__init__(obj, constraints)
+
+
+class weighted_norm2(SaddleAtom):
+    def __init__(self, x: cp.Expression, y: cp.Expression) -> None:
+        """
+        Implements the function f(x,y) = (sum_i y_i x_i^2)^(1/2) for vectors x and y.
+        The weights, y, must be non-negative. If they are non recognized by
+        cvxpy as nonnegative, an implicit domain constraint is added and a
+        warning is provided.
+        The exponents can be any convex cvxpy expression.
+
+        The conic representation is:
+            (sum_i y_i x_i^2)^(1/2)
+            min. f, t       f @ y + t
+            subject to      f >= 0
+                            t >= 0
+                            sqrt(t*f) >= 0.5 * abs(x)
+        """
+
+        assert isinstance(x, cp.Expression)
+        assert isinstance(y, cp.Expression)
+
+        if not y.is_nonneg():
+            warnings.warn(
+                "Weights are non-positive. The domain of weighted_norm2 is y >="
+                " 0. The implicit constraint y >= 0 will be added to"
+                " the problem."
+            )
+
+        self.concave_composition = not y.is_affine()
+
+        self.x = x
+        self.y = y
+
+        assert len(x.shape) == 1 and len(y.shape) == 1
+        assert x.shape == y.shape
+
+        super().__init__(x, y)
+
+    def is_dsp(self) -> bool:
+        x_cvx = self.x.is_convex()
+        y_ccv = self.y.is_concave()
+        return x_cvx and y_ccv
+
+    def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool) -> KRepresentation:
+        f_local = cp.Variable(self.y.size, name="f_wnorm2")
+        t = cp.Variable(name="t_wnorm2")
+
+        lhs = cp.hstack([cp.geo_mean(cp.hstack([t, f_local[i]])) for i in range(self.y.size)])
+        constraints = [
+            t >= 0,
+            f_local >= 0,
+            lhs >= 0.5 * cp.abs(self.x),
+        ]
+
+        t_global = cp.Variable(name="t_global")
+        B, c = affine_to_canon(self.y, local_to_glob, switched)
+        constraints += [t_global == t + f_local @ c]
+        f_global = cp.Variable(
+            local_to_glob.y_size if not switched else local_to_glob.x_size,
+            name="f_global_wlse",
+        )
+        constraints += [f_global == B.T @ f_local]
+
+        K_repr = KRepresentation(
+            f=f_global,
+            t=t_global,
+            constraints=constraints,
+        )
+
+        switching_variables = self.x.variables()
+        K_out = (
+            switch_convex_concave(
+                constraints,
+                f_global,
+                t_global,
+                switching_variables,
+                local_to_glob,
+            )
+            if switched
+            else K_repr
+        )
+
+        if not self.y.is_nonneg():
+            if switched:
+                K_out.constraints += [self.y >= 0]
+            else:
+                K_out.y_constraints += [self.y >= 0]
+
+        concave_fun = (
+            (lambda x: self.get_concave_expression())
+            if not switched
+            else (
+                lambda x: -self.get_convex_expression()
+                if self.get_convex_expression() is not None
+                else None
+            )
+        )
+        K_out.concave_expr = concave_fun
+
+        return K_out
+
+    def get_concave_expression(self) -> cp.Expression:
+        x = self.x
+        assert x.value is not None
+
+        y = self.y
+
+        return cp.sqrt(y.T @ np.square(x))
+
+    def get_convex_expression(self) -> cp.Expression:
+        y = self.y
+        assert y.value is not None
+
+        x = self.x
+
+        return cp.norm2(x * np.sqrt(y))
+
+    def convex_variables(self) -> list[cp.Variable]:
+        return self.x.variables()
+
+    def concave_variables(self) -> list[cp.Variable]:
+        return self.y.variables()
+
+    def shape_from_args(self) -> tuple[int, ...]:
+        return ()
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        return (True, False)
+
+    def is_incr(self, idx: int) -> bool:
+        return True
