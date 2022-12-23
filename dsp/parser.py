@@ -307,7 +307,6 @@ def initialize_parser(
     minimization_vars: Iterable[cp.Variable],
     maximization_vars: Iterable[cp.Variable],
     constraints: list[Constraint] | None = None,
-    assign_affine_vars_to_convex: bool = False,
 ) -> Parser:
     parser = Parser(set(minimization_vars), set(maximization_vars))
     parser.parse_expr_variables(expr, switched=False)
@@ -318,11 +317,6 @@ def initialize_parser(
 
     parser._x_constraints = x_constraints
     parser._y_constraints = y_constraints
-
-    # assign affine vars to convex for expressions DSP check or SE construction
-    if assign_affine_vars_to_convex:
-        parser.convex_vars |= parser.affine_vars
-        parser.affine_vars = set()
 
     if parser.affine_vars:
         raise AffineDSPError(affine_error_message(parser.affine_vars), parser.affine_vars)

@@ -800,7 +800,6 @@ def test_psd_exp():
 
 def test_worst_case_covariance():
     kappa = 0.5
-
     Sigma = np.array([[1, -0.3], [-0.3, 2]])
     delta = LocalVariable((2, 2), symmetric=True, name="delta")
     Sigma_pert = LocalVariable((2, 2), PSD=True, name="Sigma_pert")

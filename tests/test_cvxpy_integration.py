@@ -28,8 +28,8 @@ def test_semi_infinite_matrix():
     saddle_problem.solve()
 
     assert np.isclose(saddle_problem.value, 1.66666, atol=1e-4)
-    assert np.allclose(x.value, [.66666, .33333], atol=1e-4)
-    assert np.allclose(y.value, [.33333, .66666], atol=1e-4)
+    assert np.allclose(x.value, [0.66666, 0.33333], atol=1e-4)
+    assert np.allclose(y.value, [0.33333, 0.66666], atol=1e-4)
 
     # Saddle max problem
 
@@ -54,8 +54,8 @@ def test_semi_infinite_matrix():
     problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
     assert np.isclose(saddle_problem.value, 1.66666, atol=1e-4)
-    assert np.allclose(x.value, [.66666, .33333], atol=1e-4)
-    assert np.allclose(y.value, [.33333, .66666], atol=1e-4)
+    assert np.allclose(x.value, [0.66666, 0.33333], atol=1e-4)
+    assert np.allclose(y.value, [0.33333, 0.66666], atol=1e-4)
 
 
 def test_dcp_concave_max_and_dummy():
@@ -139,9 +139,7 @@ def test_multiple_dummies():
     y1_local = LocalVariable(name="y1_local", nonneg=True)
     y2_local = LocalVariable(name="y2_local", nonneg=True)
     wlse = weighted_log_sum_exp(x, cp.hstack([y1_local, y2_local]))
-    sup_y_f = saddle_max(
-        2 * wlse + y1_local + cp.exp(x[1]), [y1_local <= 1, y2_local <= 1]
-    )
+    sup_y_f = saddle_max(2 * wlse + y1_local + cp.exp(x[1]), [y1_local <= 1, y2_local <= 1])
 
     assert sup_y_f.numeric(values=np.ones(1)) is None
     assert y1_local.value is None
@@ -223,9 +221,7 @@ def test_saddle_max():
     x1_local = LocalVariable(name="x1", nonneg=True)
     x2_local = LocalVariable(name="x2", nonneg=True)
     wlse = weighted_log_sum_exp(cp.hstack([x1_local, x2_local]), y)
-    inf_x_f = saddle_min(
-        2 * wlse + x1_local + cp.log(y[1]), [x1_local >= 1, x2_local >= 1]
-    )
+    inf_x_f = saddle_min(2 * wlse + x1_local + cp.log(y[1]), [x1_local >= 1, x2_local >= 1])
 
     assert inf_x_f.numeric(values=np.ones(2)) is None
     assert x1_local.value is None
