@@ -795,6 +795,7 @@ class weighted_norm2(SaddleAtom):
         return x_cvx and y_ccv
 
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool) -> KRepresentation:
+        z = cp.Variable(self.y.size, name="z_wlse") if self.concave_composition else None
         f_local = cp.Variable(self.y.size, name="f_wnorm2")
         t = cp.Variable(name="t_wnorm2")
 
@@ -806,13 +807,18 @@ class weighted_norm2(SaddleAtom):
         ]
 
         t_global = cp.Variable(name="t_global")
-        B, c = affine_to_canon(self.y, local_to_glob, switched)
-        constraints += [t_global == t + f_local @ c]
-        f_global = cp.Variable(
-            local_to_glob.y_size if not switched else local_to_glob.x_size,
-            name="f_global_wlse",
-        )
-        constraints += [f_global == B.T @ f_local]
+        if self.concave_composition:
+            constraints += [t_global == t]
+            f_global = cp.Variable(self.y.size, name="f_global_wlse_comp")
+            constraints += [f_global == f_local]
+        else:
+            B, c = affine_to_canon(self.y, local_to_glob, switched)
+            constraints += [t_global == t + f_local @ c]
+            f_global = cp.Variable(
+                local_to_glob.y_size if not switched else local_to_glob.x_size,
+                name="f_global_wlse",
+            )
+            constraints += [f_global == B.T @ f_local]
 
         K_repr = KRepresentation(
             f=f_global,
@@ -821,6 +827,7 @@ class weighted_norm2(SaddleAtom):
         )
 
         switching_variables = self.x.variables()
+        precomp = z if self.concave_composition else None
         K_out = (
             switch_convex_concave(
                 constraints,
@@ -828,10 +835,37 @@ class weighted_norm2(SaddleAtom):
                 t_global,
                 switching_variables,
                 local_to_glob,
+                precomp,
             )
             if switched
             else K_repr
         )
+
+        if self.concave_composition:
+            if not switched:
+                x_vars_1 = self.convex_variables() if not switched else self.concave_variables()
+                K_switch_1 = switch_convex_concave(
+                    K_out.constraints,
+                    K_out.f,
+                    K_out.t,
+                    x_vars_1,
+                    local_to_glob,
+                    precomp=z,
+                )
+                K_switch_1.constraints += [self.y >= z]
+
+                # dualize the outer concave exp variables if switched
+                x_vars_2 = self.concave_variables() if not switched else self.convex_variables()
+                K_out = switch_convex_concave(
+                    K_switch_1.constraints,
+                    K_switch_1.f,
+                    K_switch_1.t,
+                    x_vars_2,
+                    local_to_glob,
+                )
+
+            else:
+                K_out.constraints += [z <= self.y]
 
         if not self.y.is_nonneg():
             if switched:
