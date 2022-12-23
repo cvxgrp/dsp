@@ -21,6 +21,7 @@ from dsp.cone_transforms import (
 )
 from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError, Parser, initialize_parser
+from dsp.utils import np_vec
 
 
 class SaddleAtom(Atom, ABC):
@@ -106,21 +107,15 @@ class saddle_inner(SaddleAtom):
     def get_concave_expression(self) -> cp.Expression:
         Fx = self.Fx
         assert Fx.value is not None
-        Fx = np.reshape(Fx.value, (Fx.size,), order="F")
-
-        Gy = self.Gy
-        Gy = cp.reshape(Gy, (Gy.size,), order="F")
-
+        Fx = np_vec(Fx.value, order="F")
+        Gy = cp.vec(self.Gy, order="F")
         return Fx @ Gy
 
     def get_convex_expression(self) -> cp.Expression:
         Gy = self.Gy
         assert Gy.value is not None
-        Gy = np.reshape(Gy.value, (Gy.size,), order="F")
-
-        Fx = self.Fx
-        Fx = cp.reshape(Fx, (Fx.size,), order="F")
-
+        Gy = np_vec(Gy.value, order="F")
+        Fx = cp.vec(self.Fx, order="F")
         return Fx @ Gy
 
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
@@ -231,29 +226,21 @@ class weighted_log_sum_exp(SaddleAtom):
 
     def get_concave_expression(self, eps: float = 1e-6) -> cp.Expression:
         x = self.exponents
-
-        # assert x.value is not None, f"{x.name()} must have a value"
         if x.value is None:
             return None
 
-        x = np.reshape(x.value, (x.size,), order="F")
-
-        y = self.weights
-        y = cp.reshape(y, (y.size,), order="F")
-
+        x = np_vec(x.value, order="F")
+        y = cp.vec(self.weights, order="F")
         arg = y @ np.exp(x)
         return cp.log(arg)
 
     def get_convex_expression(self, eps: float = 1e-6) -> cp.Expression:
         x = self.weights
-        # assert x.value is not None
         if x.value is None:
             return None
 
-        x = np.reshape(x.value, (x.size,), order="F")
-
-        y = self.exponents
-        y = cp.reshape(y, (y.size,), order="F")
+        x = np_vec(x.value, order="F")
+        y = cp.vec(self.exponents, order="F")
 
         nonneg = np.where(x > eps)[0]
         arg = y[nonneg] + np.log(x)[nonneg]
@@ -644,7 +631,7 @@ class saddle_quad_form(SaddleAtom):
         assert isinstance(x, cp.Expression)
         assert isinstance(P, cp.Expression)
 
-        assert x.size == P.shape[0]
+        assert x.size == P.shape[0] == P.shape[1]
 
         self.x = x
         self.P = P
@@ -657,19 +644,15 @@ class saddle_quad_form(SaddleAtom):
     def get_concave_expression(self) -> cp.Expression:
         x = self.x
         assert x.value is not None
-        x = np.reshape(x.value, (x.size,), order="F")
-
+        x = np_vec(x.value, order="F")
         P = self.P
-
         return x.T @ P @ x
 
     def get_convex_expression(self) -> cp.Expression:
         P = self.P
         assert P.value is not None
-        P = np.reshape(P.value, (P.shape,), order="F")
 
         x = self.x
-
         return cp.quad_form(x, P)
 
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
@@ -795,7 +778,7 @@ class weighted_norm2(SaddleAtom):
         return x_cvx and y_ccv
 
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool) -> KRepresentation:
-        z = cp.Variable(self.y.size, name="z_wlse") if self.concave_composition else None
+        z = cp.Variable(self.y.size, name="z_wnorm2") if self.concave_composition else None
         f_local = cp.Variable(self.y.size, name="f_wnorm2")
         t = cp.Variable(name="t_wnorm2")
 
@@ -809,14 +792,14 @@ class weighted_norm2(SaddleAtom):
         t_global = cp.Variable(name="t_global")
         if self.concave_composition:
             constraints += [t_global == t]
-            f_global = cp.Variable(self.y.size, name="f_global_wlse_comp")
+            f_global = cp.Variable(self.y.size, name="f_global_wnorm2_comp")
             constraints += [f_global == f_local]
         else:
             B, c = affine_to_canon(self.y, local_to_glob, switched)
             constraints += [t_global == t + f_local @ c]
             f_global = cp.Variable(
                 local_to_glob.y_size if not switched else local_to_glob.x_size,
-                name="f_global_wlse",
+                name="f_global_wnorm2",
             )
             constraints += [f_global == B.T @ f_local]
 
@@ -854,7 +837,7 @@ class weighted_norm2(SaddleAtom):
                 )
                 K_switch_1.constraints += [self.y >= z]
 
-                # dualize the outer concave exp variables if switched
+                # dualize the outer concave x variables if switched
                 x_vars_2 = self.concave_variables() if not switched else self.convex_variables()
                 K_out = switch_convex_concave(
                     K_switch_1.constraints,
