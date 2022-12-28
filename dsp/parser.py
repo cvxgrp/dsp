@@ -205,7 +205,7 @@ class Parser:
             if all(arg.is_affine() for arg in expr.args):
                 raise DSPError("Use inner instead for bilinear forms.")
             else:
-                raise DSPError("Use convex_concave_inner instead.")
+                raise DSPError("Use saddle_inner instead.")
 
     def parse_expr_variables(self, expr: cp.Expression, switched: bool, **kwargs: dict) -> None:
         self._parse_expr(expr, switched, repr_parse=False, **kwargs)

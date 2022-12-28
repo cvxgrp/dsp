@@ -81,7 +81,7 @@ class saddle_inner(SaddleAtom):
         if not (Fx.is_affine() and Gy.is_affine()):
             if not Gy.is_nonneg():
                 warnings.warn(
-                    "Gy is non-positive. The y domain of convex_concave_inner is Gy >="
+                    "Gy is non-positive. The y domain of saddle_inner is Gy >="
                     " 0. The implicit constraint Gy >= 0 will be added to the problem."
                 )
             self.bilinear = False
