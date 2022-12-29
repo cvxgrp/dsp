@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 import cvxpy as cp
 import numpy as np
+import scipy.sparse as sp
 from cvxpy import SOC
 from cvxpy.atoms import reshape
 from cvxpy.constraints import ExpCone
@@ -103,7 +104,7 @@ def minimax_to_min(
 
         D = var_id_to_mat["eta"]
 
-        C = np.zeros((len(e), local_to_glob.y_size))
+        C = sp.lil_matrix((len(e), local_to_glob.y_size), dtype=float)
         for y in y_vars:
             start, end = local_to_glob.var_to_glob[y.id]
             C[:, start:end] = var_id_to_mat[y.id]
@@ -164,7 +165,7 @@ def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) ->
 
     t = cp.Variable(name="t_bilin_x_Gy")
 
-    R_bar = np.zeros((S_bar.shape[0], local_to_glob.y_size))
+    R_bar = sp.lil_matrix((S_bar.shape[0], local_to_glob.y_size), dtype=float)
     f = cp.Variable(local_to_glob.y_size, name="f_xGy")
 
     for y in y_vars:
@@ -255,7 +256,7 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
     u = cp.Variable(p_bar.shape[0], name="u_by")
     t = cp.Variable(name="t_by")
 
-    R_bar = np.zeros((p_bar.shape[0], local_to_glob.y_size))
+    R_bar = sp.lil_matrix((p_bar.shape[0], local_to_glob.y_size), dtype=float)
     f = cp.Variable(local_to_glob.y_size, name="f_by")
 
     for y in y_vars:
@@ -350,7 +351,7 @@ def get_cone_repr(
     # get cone representation of c, A, and b for some problem.
     problem_data = aux_prob.get_problem_data(solver_opts=solver_opts, solver=cp.SCS)
 
-    A, const_vec = problem_data[0]["A"].toarray(), problem_data[0]["b"]  # TODO: keep sparsity
+    A, const_vec = problem_data[0]["A"].tocsc(), problem_data[0]["b"]
 
     var_id_to_col = problem_data[0]["param_prob"].var_id_to_col
 
@@ -448,18 +449,18 @@ def affine_to_canon(
     assert rows == expr.size
 
     cols = local_to_glob.y_size if not switched else local_to_glob.x_size
-    B = np.zeros((rows, cols))
+    B = sp.lil_matrix((rows, cols), dtype=float)
     for v in vars:
         start, end = local_to_glob.var_to_glob[v.id]
         B[:, start:end] = var_to_mat_mapping[v.id][:rows]
 
     aux_columns = var_to_mat_mapping[aux.id][:rows]
-    assert np.allclose(np.abs(aux_columns), np.eye(aux.size))
-    assert (np.sign(np.diag(aux_columns)) == np.ones(rows)).all() or (
-        np.sign(np.diag(aux_columns)) == -np.ones(rows)
+    assert (np.abs(aux_columns) - sp.eye(aux.size)).nnz == 0
+    assert (np.sign(aux_columns.diagonal()) == np.ones(rows)).all() or (
+        np.sign(aux_columns.diagonal()) == -np.ones(rows)
     ).all()
 
-    sgn = -np.sign(np.diag(aux_columns))[0]
+    sgn = -np.sign(aux_columns.diagonal())[0]
     B = B * sgn
 
     c = c[:rows]
@@ -507,10 +508,10 @@ def switch_convex_concave(
     u_bar_const, u_bar = add_cone_constraints(u_bar, cone_dims, dual=True)
 
     P = var_to_mat_mapping[f.id]
-    p = var_to_mat_mapping[t.id].flatten()
+    p = var_to_mat_mapping[t.id].toarray().flatten()
     Q = var_to_mat_mapping["eta"]
 
-    R = np.zeros((len(s), local_to_glob.y_size))
+    R = sp.lil_matrix((len(s), local_to_glob.y_size), dtype=float)
     for v in x_vars:
         start, end = local_to_glob.var_to_glob[v.id]
         R[:, start:end] = var_to_mat_mapping[v.id]

@@ -11,5 +11,5 @@ def test_affine_to_canon():
     ltg = LocalToGlob([], [x])
 
     B, c = affine_to_canon(aff, ltg, False)
-    assert np.allclose(B, np.ones(2)[None, :])
+    assert np.allclose(B.toarray(), np.ones(2)[None, :])
     assert np.allclose(c, -2)
