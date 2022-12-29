@@ -26,6 +26,10 @@ def test_robust_bond():
 
     delta = LocalVariable(T)
     y = y_nominal + delta
+    # TODO: investigate why
+    # y = LocalVariable(T)
+    # delta = y - y_nominal
+    # breaks
 
     # Objective
     phi = 0.5 * cp.norm1(w - w_bar)
