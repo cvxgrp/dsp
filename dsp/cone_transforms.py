@@ -104,10 +104,8 @@ def minimax_to_min(
 
         D = var_id_to_mat["eta"]
 
-        C = sp.lil_matrix((len(e), local_to_glob.y_size), dtype=float)
-        for y in y_vars:
-            start, end = local_to_glob.var_to_glob[y.id]
-            C[:, start:end] = var_id_to_mat[y.id]
+        C_shape = (len(e), local_to_glob.y_size)
+        C = create_sparse_matrix_from_columns(C_shape, y_vars, local_to_glob, var_id_to_mat)
 
         if D.shape[1] > 0:
             constraints.append(D.T @ lamb == 0)
@@ -164,13 +162,12 @@ def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) ->
     lamb_constr, lamb = add_cone_constraints(lamb, cone_dims, dual=True)
 
     t = cp.Variable(name="t_bilin_x_Gy")
-
-    R_bar = sp.lil_matrix((S_bar.shape[0], local_to_glob.y_size), dtype=float)
     f = cp.Variable(local_to_glob.y_size, name="f_xGy")
 
-    for y in y_vars:
-        start, end = local_to_glob.var_to_glob[y.id]
-        R_bar[:, start:end] = var_to_mat_mapping_dual[y.id]
+    R_bar_shape = (S_bar.shape[0], local_to_glob.y_size)
+    R_bar = create_sparse_matrix_from_columns(
+        R_bar_shape, y_vars, local_to_glob, var_to_mat_mapping_dual
+    )
 
     K_constr = [
         f + R_bar.T @ lamb == 0,
@@ -255,13 +252,12 @@ def K_repr_by(b_neg: cp.Expression, local_to_glob: LocalToGlob) -> KRepresentati
 
     u = cp.Variable(p_bar.shape[0], name="u_by")
     t = cp.Variable(name="t_by")
-
-    R_bar = sp.lil_matrix((p_bar.shape[0], local_to_glob.y_size), dtype=float)
     f = cp.Variable(local_to_glob.y_size, name="f_by")
 
-    for y in y_vars:
-        start, end = local_to_glob.var_to_glob[y.id]
-        R_bar[:, start:end] = var_to_mat_mapping[y.id]
+    R_bar_shape = (p_bar.shape[0], local_to_glob.y_size)
+    R_bar = create_sparse_matrix_from_columns(
+        R_bar_shape, y_vars, local_to_glob, var_to_mat_mapping
+    )
 
     cone_constraints, u = add_cone_constraints(u, cone_dims, dual=True)
 
@@ -445,25 +441,26 @@ def affine_to_canon(
     ) = get_cone_repr([aux == expr], [*vars, aux])
 
     # get the equality constraints
-    rows = cone_dims.zero
-    assert rows == expr.size
+    rows_needed = cone_dims.zero
+    assert rows_needed == expr.size
 
     cols = local_to_glob.y_size if not switched else local_to_glob.x_size
-    B = sp.lil_matrix((rows, cols), dtype=float)
-    for v in vars:
-        start, end = local_to_glob.var_to_glob[v.id]
-        B[:, start:end] = var_to_mat_mapping[v.id][:rows]
 
-    aux_columns = var_to_mat_mapping[aux.id][:rows]
+    rows_present = len(c)
+    B_shape = (rows_present, cols)
+    B = create_sparse_matrix_from_columns(B_shape, vars, local_to_glob, var_to_mat_mapping)
+    B = B[:rows_needed]
+
+    aux_columns = var_to_mat_mapping[aux.id][:rows_needed]
     assert (np.abs(aux_columns) - sp.eye(aux.size)).nnz == 0
-    assert (np.sign(aux_columns.diagonal()) == np.ones(rows)).all() or (
-        np.sign(aux_columns.diagonal()) == -np.ones(rows)
+    assert (np.sign(aux_columns.diagonal()) == np.ones(rows_needed)).all() or (
+        np.sign(aux_columns.diagonal()) == -np.ones(rows_needed)
     ).all()
 
     sgn = -np.sign(aux_columns.diagonal())[0]
     B = B * sgn
 
-    c = c[:rows]
+    c = c[:rows_needed]
 
     return B, c
 
@@ -486,6 +483,36 @@ def split_K_repr_affine(
         D += -var_to_mat_mapping.get(v.id, 0) @ cp.vec(v)
 
     return C, D, cp.Constant(b)
+
+
+def create_sparse_matrix_from_columns(
+    shape: tuple[int, int],
+    variables: list[cp.Variable],
+    local_to_glob: LocalToGlob,
+    var_to_mat_mapping: dict[int, sp.csc_matrix],
+) -> sp.csc_matrix:
+
+    cols = []
+    for v in variables:
+        start, end = local_to_glob.var_to_glob[v.id]
+        cols.append((start, end, v.id))
+
+    cols = sorted(cols, key=lambda x: x[0])
+
+    mats_to_stack = []
+    current_col = 0
+    for start, end, v_id in cols:
+        if start == current_col:
+            mats_to_stack.append(var_to_mat_mapping[v_id])
+            current_col = end
+        else:
+            mats_to_stack.append(sp.csc_matrix((shape[0], start - current_col), dtype=float))
+            mats_to_stack.append(var_to_mat_mapping[v_id])
+            current_col = end
+    if current_col < shape[1]:
+        mats_to_stack.append(sp.csc_matrix((shape[0], shape[1] - current_col)))
+
+    return sp.hstack(mats_to_stack, format="csc")
 
 
 def switch_convex_concave(
@@ -511,10 +538,8 @@ def switch_convex_concave(
     p = var_to_mat_mapping[t.id].toarray().flatten()
     Q = var_to_mat_mapping["eta"]
 
-    R = sp.lil_matrix((len(s), local_to_glob.y_size), dtype=float)
-    for v in x_vars:
-        start, end = local_to_glob.var_to_glob[v.id]
-        R[:, start:end] = var_to_mat_mapping[v.id]
+    R_shape = (len(s), local_to_glob.y_size)
+    R = create_sparse_matrix_from_columns(R_shape, x_vars, local_to_glob, var_to_mat_mapping)
 
     f_bar = cp.Variable(local_to_glob.y_size, name="f_bar")
     t_bar = cp.Variable(name="t_bar")
