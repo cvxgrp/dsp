@@ -536,7 +536,6 @@ def test_mixed_curvature_affine():
     x = cp.Variable(name="x")
     y = cp.Variable(name="y")
 
-    # TODO: parse @
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + np.array([1, 2]) @ cp.vstack([x, y]))
 
     constraints = [x == 0, y == 1]

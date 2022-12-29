@@ -1,9 +1,11 @@
 import cvxpy as cp
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
 import dsp
 from dsp import LocalVariable, saddle_inner, saddle_min
+from dsp.atoms import saddle_quad_form
 
 
 def test_robust_bond():
@@ -45,9 +47,111 @@ def test_robust_bond():
 
     # Creating and solving the problem
     problem = cp.Problem(cp.Minimize(phi), [cp.sum(w) == 1, V_wc >= V_limit])
-    problem.solve()
+    problem.solve()  # 0.185
 
     assert problem.status == cp.OPTIMAL
+
+
+def test_robust_markowitz():
+
+    returns = np.loadtxt("tests/example_data/robust_portfolio_selection/ff_data.csv", delimiter=",")
+
+    mu = np.mean(returns, axis=0)
+    Sigma = np.cov(returns, rowvar=False)
+
+    # Constants and parameters
+    n = len(mu)
+    rho, eta, gamma = 0.2, 0.2, 1
+
+    # Creating variables
+    w = cp.Variable(n, nonneg=True)
+
+    delta_loc = LocalVariable(n)
+    Sigma_perturbed = LocalVariable((n, n), PSD=True)
+    Delta_loc = LocalVariable((n, n))
+
+    # Creating saddle min function
+    f = w @ mu + saddle_inner(delta_loc, w) - gamma * saddle_quad_form(w, Sigma_perturbed)
+
+    Sigma_diag = Sigma.diagonal()
+    local_constraints = [
+        cp.abs(delta_loc) <= rho,
+        Sigma_perturbed == Sigma + Delta_loc,
+        cp.abs(Delta_loc) <= eta * np.sqrt(np.outer(Sigma_diag, Sigma_diag)),
+    ]
+
+    G = saddle_min(f, local_constraints)
+
+    # Creating and solving the problem
+    problem = cp.Problem(cp.Maximize(G), [cp.sum(w) == 1])
+    problem.solve()  # 0.076
+
+    assert problem.status == cp.OPTIMAL
+
+
+def test_create_markowitz_plot():
+
+    returns = np.loadtxt("tests/example_data/robust_portfolio_selection/ff_data.csv", delimiter=",")
+
+    mu = np.mean(returns, axis=0)
+    Sigma = np.cov(returns, rowvar=False)
+
+    # Constants and parameters
+    n = len(mu)
+    rho, eta = 0.2, 0.2
+
+    # Creating variables
+    w = cp.Variable(n, nonneg=True)
+
+    plot_data = []
+    for gamma in np.linspace(0, 10, 20):
+        delta_loc = LocalVariable(n)
+        Sigma_perturbed = LocalVariable((n, n), PSD=True)
+        Delta_loc = LocalVariable((n, n))
+
+        # Creating saddle min function
+        f = w @ mu + saddle_inner(delta_loc, w) - gamma * saddle_quad_form(w, Sigma_perturbed)
+
+        Sigma_diag = Sigma.diagonal()
+        local_constraints = [
+            cp.abs(delta_loc) <= rho,
+            Sigma_perturbed == Sigma + Delta_loc,
+            cp.abs(Delta_loc) <= eta * np.sqrt(np.outer(Sigma_diag, Sigma_diag)),
+        ]
+
+        G = saddle_min(f, local_constraints)
+
+        # Creating and solving the problem
+        problem = cp.Problem(cp.Maximize(G), [cp.sum(w) == 1])
+        problem.solve()  # 0.076
+        assert problem.status == cp.OPTIMAL
+
+        robust_utility = problem.value
+
+        # Creating and solving the problem without robustness
+        problem = cp.Problem(cp.Maximize(w @ mu - gamma * cp.quad_form(w, Sigma)), [cp.sum(w) == 1])
+        problem.solve()
+        assert problem.status == cp.OPTIMAL
+
+        utility = G.value
+
+        plot_data.append((gamma, utility, robust_utility))
+
+    plot_data = np.array(plot_data)
+    assert (plot_data[:, 2] - plot_data[:, 1] >= -1e-6).all()
+    assert (plot_data[:, 2] - plot_data[:, 1]).max() >= 0.1
+
+    plot = False
+    if plot:
+        plt.figure(figsize=(6, 3))
+        plt.plot(plot_data[:, 0], plot_data[:, 2], label="Robust utility")
+        plt.plot(plot_data[:, 0], plot_data[:, 1], label="Non-robust utility")
+        plt.xlabel(r"$\gamma$")
+        plt.ylabel("Utility")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig("tests/example_data/robust_portfolio_selection/robust_markowitz_plot.pdf")
+        plt.show()
 
 
 def test_arbitrage():
