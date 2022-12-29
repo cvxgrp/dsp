@@ -1,10 +1,9 @@
 import cvxpy as cp
-import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
 import dsp
-from dsp import LocalVariable, saddle_inner, saddle_min
+from dsp import LocalVariable, SaddlePointProblem, saddle_inner, saddle_min
 from dsp.atoms import saddle_quad_form
 
 
@@ -143,6 +142,8 @@ def test_create_markowitz_plot():
 
     plot = False
     if plot:
+        import matplotlib.pyplot as plt
+
         plt.figure(figsize=(6, 3))
         plt.plot(plot_data[:, 0], plot_data[:, 2], label="Robust utility")
         plt.plot(plot_data[:, 0], plot_data[:, 1], label="Non-robust utility")
@@ -191,3 +192,39 @@ def test_arbitrage():
     saddle_problem.solve()
     assert saddle_problem.status == cp.OPTIMAL
     assert np.isclose(saddle_problem.value, 0)
+
+
+def test_robust_model_fitting():
+    import pandas as pd
+
+    df = pd.read_stata("tests/example_data/robust_model_fitting/analysis_data_AEJ_pub.dta")
+    df = df[df.survey == "Endline"]
+
+    Y_ik = df.cluster
+    T_ik = df.Treatment
+
+    # Constants
+    n = len(Y_ik)
+
+    # Create variables
+    beta_0 = cp.Variable()
+    beta = cp.Variable()
+
+    # OLS problem
+    objective = cp.Minimize(cp.sum_squares(beta_0 + beta * T_ik - Y_ik))
+    problem = cp.Problem(objective)
+    problem.solve()
+    assert problem.status == cp.OPTIMAL
+
+    # Robust model fitting
+    beta_promoted = cp.Variable(n)  # TODO: bugfix to handle promoted variables correctly
+    loss = cp.square(beta_0 + cp.multiply(beta_promoted, T_ik) - Y_ik)
+    weights = cp.Variable(n, nonneg=True)
+
+    objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
+
+    problem = SaddlePointProblem(
+        objective, [cp.sum(weights) == n - 1, beta_promoted == beta, 0 * beta_0 == 0]
+    )  # TODO: remove requirement for dummy constraint
+    problem.solve(verbose=True)
+    assert problem.status == cp.OPTIMAL
