@@ -218,6 +218,19 @@ class Parser:
         assert isinstance(K_repr, KRepresentation)
         return K_repr
 
+    def known_curvature_unkown_vars_check(self, expr: cp.Expression, repr_parse: bool) -> bool:
+        # handles the case there is a known curvature expression with unknown
+        # variables, and allows for MulExpression like a @ x, where a is a
+        # constant x is an expression involving variables
+        value = not repr_parse and expr.is_dcp()
+        value = value and not isinstance(expr, (AddExpression, NegExpression, multiply))
+        if isinstance(expr, MulExpression):
+            value = value and (
+                isinstance(expr.args[0], cp.Constant) or isinstance(expr.args[1], cp.Constant)
+            )
+
+        return value
+
     def _parse_expr(
         self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
@@ -237,7 +250,13 @@ class Parser:
             or (set(expr.variables()) <= self.concave_vars)
         ):
             return self.parse_known_curvature_repr(expr * (1 if not switched else -1), **kwargs)
-        elif (not repr_parse) and expr.is_dcp() and len(expr.variables()) <= 1:
+
+        # elif ((not repr_parse) and (expr.is_convex() or expr.is_concave())) and not isinstance(
+        #     expr, (AddExpression, NegExpression, MulExpression, multiply)
+        # ):
+        # elif (not repr_parse) and expr.is_dcp() and len(expr.variables()) <=
+        # 1:
+        elif self.known_curvature_unkown_vars_check(expr, repr_parse):
             return self.parse_known_curvature_vars(expr, switched)
 
         # convex and concave variables

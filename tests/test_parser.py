@@ -61,3 +61,29 @@ def test_curvature_lumping():
     prob = SaddlePointProblem(obj_ccv, [y == 1, x == 1], minimization_vars=[x])
     prob.solve()
     assert np.isclose(prob.x_prob.value, 1)
+
+
+def test_just_affine():
+    a = np.array([1, 2, 3])
+    x = cp.Variable(3, name="x")
+    y = cp.Variable(name="y")
+
+    f = a @ x + cp.log(y) + cp.exp(x[0])
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [x >= 0, y >= 0])
+    assert prob.is_dsp()
+
+    f = np.ones(4) @ cp.hstack((x, y)) + cp.log(y) + cp.exp(x[0])
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [x >= 0, y >= 0])
+    assert prob.is_dsp()  # Appears we can lump the variables despite different curvatures.
+
+    f = cp.log(y) + cp.exp(x[0]) + np.ones(4) @ cp.hstack((x, y))
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [x >= 0, y >= 0])
+    assert prob.is_dsp()  # Works independent of order.
+
+    f = np.ones(4) @ cp.hstack((x, y))
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [x >= 0, y >= 0])
+    assert not prob.is_dsp()  # Should fail if no implied curvatures.
