@@ -89,7 +89,25 @@ def test_robust_markowitz():
     problem = cp.Problem(cp.Maximize(G), [cp.sum(w) == 1])
     problem.solve()  # 0.076
 
+    nominal_objective = cp.Maximize(w @ mu - gamma * cp.quad_form(w, Sigma))
+
+    robust_wc_utility = G.value
+    robust_non_wc_utility = nominal_objective.value
+
     assert problem.status == cp.OPTIMAL
+
+    # Creating and solving the problem without robustness
+    problem = cp.Problem(nominal_objective, [cp.sum(w) == 1])
+    problem.solve()
+    assert problem.status == cp.OPTIMAL
+
+    nominal_wc_utility = G.value
+    nominal_non_wc_utility = nominal_objective.value
+
+    print(f"Robust non-WC utility: {robust_non_wc_utility:.3f}")
+    print(f"Robust WC utility: {robust_wc_utility:.3f}")
+    print(f"Nominal non-WC utility: {nominal_non_wc_utility:.3f}")
+    print(f"Nominal WC utility: {nominal_wc_utility:.3f}")
 
 
 def test_create_markowitz_plot():
