@@ -446,14 +446,14 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
 def affine_to_canon(
     expr: cp.Expression, local_to_glob: LocalToGlob, switched: bool
 ) -> tuple[np.ndarray, np.ndarray]:
-    vars = expr.variables()
+    variables = expr.variables()
     aux = cp.Variable(expr.shape)
 
     (
         var_to_mat_mapping,
         c,
         cone_dims,
-    ) = get_cone_repr([aux == expr], [*vars, aux])
+    ) = get_cone_repr([aux == expr], [*variables, aux])
 
     # get the equality constraints
     rows_needed = cone_dims.zero
