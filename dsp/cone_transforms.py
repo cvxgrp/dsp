@@ -142,7 +142,9 @@ def scale_psd_dual(cone_dims: ConeDims, lamb: cp.Variable) -> cp.Variable:
     return lamb
 
 
-def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) -> KRepresentation:
+def K_repr_x_Gy(
+    G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob, switched: bool = False
+) -> KRepresentation:
     assert G.is_concave()
     assert G.shape == x.shape
 
@@ -163,9 +165,10 @@ def K_repr_x_Gy(G: cp.Expression, x: cp.Variable, local_to_glob: LocalToGlob) ->
     lamb_constr, lamb = add_cone_constraints(lamb, cone_dims, dual=True)
 
     t = cp.Variable(name="t_bilin_x_Gy")
-    f = cp.Variable(local_to_glob.y_size, name="f_xGy")
+    f_size = local_to_glob.y_size if not switched else local_to_glob.x_size
+    f = cp.Variable(f_size, name="f_xGy")
 
-    R_bar_shape = (S_bar.shape[0], local_to_glob.y_size)
+    R_bar_shape = (S_bar.shape[0], f_size)
     R_bar = create_sparse_matrix_from_columns(
         R_bar_shape, y_vars, local_to_glob, var_to_mat_mapping_dual
     )
@@ -282,13 +285,10 @@ def K_repr_FxGy(
     switched: bool = False,
 ) -> KRepresentation:
 
-    # dummy_Fx = cp.Variable(Fx.size, name='dummy_Fx')
-    # Fx = dummy_Fx if switched else Fx
-
     z = cp.Variable(Fx.shape)
     constraints = [z >= Fx]
 
-    K_repr_zGy = K_repr_x_Gy(Gy, z, local_to_glob)
+    K_repr_zGy = K_repr_x_Gy(Gy, z, local_to_glob, switched=switched)
 
     K_unswitched = KRepresentation(
         f=K_repr_zGy.f, t=K_repr_zGy.t, constraints=constraints + K_repr_zGy.constraints

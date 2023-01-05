@@ -229,8 +229,8 @@ def test_robust_model_fitting():
     n = len(Y_ik)
 
     # Create variables
-    beta_0 = cp.Variable()
-    beta = cp.Variable()
+    beta_0 = cp.Variable(name="beta_0")
+    beta = cp.Variable(name="beta")
 
     # OLS problem
     objective = cp.Minimize(cp.sum_squares(beta_0 + beta * T_ik - Y_ik))
@@ -240,7 +240,8 @@ def test_robust_model_fitting():
 
     # Robust model fitting
     loss = cp.square(beta_0 + beta * T_ik - Y_ik)
-    weights = cp.Variable(n, nonneg=True)
+
+    weights = cp.Variable(n, nonneg=True, name="weights")
 
     objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
 
