@@ -247,7 +247,6 @@ class weighted_log_sum_exp(SaddleAtom):
         return cp.log_sum_exp(arg)
 
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
-        z = cp.Variable(self.weights.size, name="z_wlse") if self.concave_composition else None
         f_local = cp.Variable(self.weights.size, name="f_wlse")
         t = cp.Variable(name="t_wlse")
         u = cp.Variable(name="u_wlse")
@@ -280,7 +279,9 @@ class weighted_log_sum_exp(SaddleAtom):
         )
 
         switching_variables = self.exponents.variables()  # if not self.concave_composition else [z]
-        precomp = z if self.concave_composition else None
+        precomp = (
+            cp.Variable(self.weights.size, name="z_wlse") if self.concave_composition else None
+        )
         K_out = (
             switch_convex_concave(
                 constraints,
@@ -303,9 +304,9 @@ class weighted_log_sum_exp(SaddleAtom):
                     K_out.t,
                     x_vars_1,
                     local_to_glob,
-                    precomp=z,
+                    precomp=precomp,
                 )
-                K_switch_1.constraints += [self.weights >= z]
+                K_switch_1.constraints += [self.weights >= precomp]
 
                 # dualize the outer concave exp variables if switched
                 x_vars_2 = self.concave_variables() if not switched else self.convex_variables()
@@ -318,7 +319,7 @@ class weighted_log_sum_exp(SaddleAtom):
                 )
 
             else:
-                K_out.constraints += [z <= self.weights]
+                K_out.constraints += [precomp <= self.weights]
 
         if not self.weights.is_nonneg():
             if switched:
@@ -778,7 +779,6 @@ class weighted_norm2(SaddleAtom):
         return x_cvx and y_ccv
 
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool) -> KRepresentation:
-        z = cp.Variable(self.y.size, name="z_wnorm2") if self.concave_composition else None
         f_local = cp.Variable(self.y.size, name="f_wnorm2")
         t = cp.Variable(name="t_wnorm2")
 
@@ -810,7 +810,8 @@ class weighted_norm2(SaddleAtom):
         )
 
         switching_variables = self.x.variables()
-        precomp = z if self.concave_composition else None
+
+        precomp = cp.Variable(self.y.size, name="z_wnorm2") if self.concave_composition else None
         K_out = (
             switch_convex_concave(
                 constraints,
@@ -833,9 +834,9 @@ class weighted_norm2(SaddleAtom):
                     K_out.t,
                     x_vars_1,
                     local_to_glob,
-                    precomp=z,
+                    precomp=precomp,
                 )
-                K_switch_1.constraints += [self.y >= z]
+                K_switch_1.constraints += [self.y >= precomp]
 
                 # dualize the outer concave x variables if switched
                 x_vars_2 = self.concave_variables() if not switched else self.convex_variables()
@@ -848,7 +849,7 @@ class weighted_norm2(SaddleAtom):
                 )
 
             else:
-                K_out.constraints += [z <= self.y]
+                K_out.constraints += [precomp <= self.y]
 
         if not self.y.is_nonneg():
             if switched:

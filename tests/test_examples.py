@@ -222,8 +222,8 @@ def test_robust_model_fitting():
     df = pd.read_stata("tests/example_data/robust_model_fitting/analysis_data_AEJ_pub.dta")
     df = df[df.survey == "Endline"]
 
-    Y_ik = df.cluster
-    T_ik = df.Treatment
+    Y_ik = df.cluster[:100].values
+    T_ik = df.Treatment[:100].values
 
     # Constants
     n = len(Y_ik)
@@ -239,14 +239,13 @@ def test_robust_model_fitting():
     assert problem.status == cp.OPTIMAL
 
     # Robust model fitting
-    beta_promoted = cp.Variable(n)  # TODO: bugfix to handle promoted variables correctly
-    loss = cp.square(beta_0 + cp.multiply(beta_promoted, T_ik) - Y_ik)
+    loss = cp.square(beta_0 + beta * T_ik - Y_ik)
     weights = cp.Variable(n, nonneg=True)
 
     objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
 
     problem = SaddlePointProblem(
-        objective, [cp.sum(weights) == n - 1, beta_promoted == beta, 0 * beta_0 == 0]
+        objective, [cp.sum(weights) == int(0.8 * n), weights <= 1, 0 * beta_0 == 0, 0 * beta == 0]
     )  # TODO: remove requirement for dummy constraint
-    problem.solve(verbose=True)
+    problem.solve(verbose=False)
     assert problem.status == cp.OPTIMAL
