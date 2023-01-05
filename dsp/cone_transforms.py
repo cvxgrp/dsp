@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 import cvxpy as cp
@@ -379,6 +380,9 @@ def get_cone_repr(
 
 
 def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> list[Constraint]:
+    assert len(s.shape) == 1 or s.shape[1] == 1, "s must be a vector"
+    s = cp.reshape(s, (s.shape[0],))
+
     s_const = []
 
     offset = 0
@@ -390,24 +394,16 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
         s_const.append(s[offset : offset + cone_dims.nonneg] >= 0)
         offset += cone_dims.nonneg
     if len(cone_dims.soc) > 0:
-        # TODO: Clean up
-        if len(set(cone_dims.soc)) == 1:
-            # short cut
-            t = []
-            X = []
-            for soc_dim in cone_dims.soc:
-                t.append(s[offset])
-                if len(s.shape) == 1:
-                    X.append(s[offset + 1 : offset + soc_dim])
-                else:
-                    X.append(s[offset + 1 : offset + soc_dim, 0])
+        t = defaultdict(list)
+        X = defaultdict(list)
+        for soc_dim in cone_dims.soc:
+            t[soc_dim].append(s[offset])
+            X[soc_dim].append(s[offset + 1 : offset + soc_dim])
+            offset += soc_dim
 
-                offset += soc_dim
-            s_const.append(SOC(t=cp.hstack(t), X=cp.vstack(X), axis=1))
-        else:
-            for soc_dim in cone_dims.soc:
-                s_const.append(SOC(t=s[offset], X=s[offset + 1 : offset + soc_dim]))
-                offset += soc_dim
+        for soc_dim, t_exprs in t.items():
+            s_const.append(SOC(t=cp.hstack(t_exprs), X=cp.vstack(X[soc_dim]), axis=1))
+
     if len(cone_dims.psd) > 0:
         for psd_dim in cone_dims.psd:
             m = psd_dim * (psd_dim + 1) // 2
