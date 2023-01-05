@@ -231,6 +231,20 @@ class Parser:
 
         return value
 
+    @staticmethod
+    def contains_curvature_lumping(expr: cp.Expression) -> bool:
+        """
+        Recursively check if expression contains curvature lumping, i.e. assigning
+        a non-affine curvature to an expression that contains a sum where some terms are affine.
+        E.g., exp(x) + y is a convex expression, but we want to parse the affine part as affine.
+        """
+        if isinstance(expr, AddExpression):
+            affine_term = any(expr_arg.is_affine() for expr_arg in expr.args)
+            non_affine_term = any(not expr_arg.is_affine() for expr_arg in expr.args)
+            return affine_term and non_affine_term
+        else:
+            return any(Parser.contains_curvature_lumping(expr_arg) for expr_arg in expr.args)
+
     def _parse_expr(
         self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
@@ -254,9 +268,8 @@ class Parser:
         # elif ((not repr_parse) and (expr.is_convex() or expr.is_concave())) and not isinstance(
         #     expr, (AddExpression, NegExpression, MulExpression, multiply)
         # ):
-        # elif (not repr_parse) and expr.is_dcp() and len(expr.variables()) <=
-        # 1:
-        elif self.known_curvature_unkown_vars_check(expr, repr_parse):
+        elif (not repr_parse) and expr.is_dcp() and not self.contains_curvature_lumping(expr):
+            # elif self.known_curvature_unkown_vars_check(expr, repr_parse):
             return self.parse_known_curvature_vars(expr, switched)
 
         # convex and concave variables
