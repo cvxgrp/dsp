@@ -222,8 +222,8 @@ def test_robust_model_fitting():
     df = pd.read_stata("tests/example_data/robust_model_fitting/analysis_data_AEJ_pub.dta")
     df = df[df.survey == "Endline"]
 
-    Y_ik = df.cluster[:100].values
-    T_ik = df.Treatment[:100].values
+    Y_ik = df.cluster.values
+    T_ik = df.Treatment.values
 
     # Constants
     n = len(Y_ik)
@@ -248,5 +248,5 @@ def test_robust_model_fitting():
     problem = SaddlePointProblem(
         objective, [cp.sum(weights) == int(0.8 * n), weights <= 1, 0 * beta_0 == 0, 0 * beta == 0]
     )  # TODO: remove requirement for dummy constraint
-    problem.solve(verbose=False)
+    problem.solve(verbose=True)
     assert problem.status == cp.OPTIMAL

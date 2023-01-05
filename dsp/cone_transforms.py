@@ -394,15 +394,17 @@ def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> l
         s_const.append(s[offset : offset + cone_dims.nonneg] >= 0)
         offset += cone_dims.nonneg
     if len(cone_dims.soc) > 0:
-        t = defaultdict(list)
-        X = defaultdict(list)
+        t_inds_dict = defaultdict(list)
+        X_inds_dict = defaultdict(list)
         for soc_dim in cone_dims.soc:
-            t[soc_dim].append(s[offset])
-            X[soc_dim].append(s[offset + 1 : offset + soc_dim])
+            t_inds_dict[soc_dim].append(offset)
+            X_inds_dict[soc_dim].extend(range(offset + 1, offset + soc_dim))
             offset += soc_dim
 
-        for soc_dim, t_exprs in t.items():
-            s_const.append(SOC(t=cp.hstack(t_exprs), X=cp.vstack(X[soc_dim]), axis=1))
+        for soc_dim, t_inds in t_inds_dict.items():
+            X_slice = s[X_inds_dict[soc_dim]]
+            X = cp.reshape(X_slice, (soc_dim - 1, len(t_inds)), order="F")
+            s_const.append(SOC(t=s[t_inds], X=X, axis=0))
 
     if len(cone_dims.psd) > 0:
         for psd_dim in cone_dims.psd:
