@@ -463,7 +463,7 @@ def affine_to_canon(
 
     rows_present = len(c)
     B_shape = (rows_present, cols)
-    B = create_sparse_matrix_from_columns(B_shape, vars, local_to_glob, var_to_mat_mapping)
+    B = create_sparse_matrix_from_columns(B_shape, variables, local_to_glob, var_to_mat_mapping)
     B = B[:rows_needed]
 
     aux_columns = var_to_mat_mapping[aux.id][:rows_needed]
