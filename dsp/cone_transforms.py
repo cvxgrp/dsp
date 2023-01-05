@@ -523,7 +523,9 @@ def create_sparse_matrix_from_columns(
     if current_col < shape[1]:
         mats_to_stack.append(sp.csc_matrix((shape[0], shape[1] - current_col)))
 
-    return sp.hstack(mats_to_stack, format="csc")
+    stacked_mat = sp.hstack(mats_to_stack, format="csc")
+    assert stacked_mat.shape == shape
+    return stacked_mat
 
 
 def switch_convex_concave(
