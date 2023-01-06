@@ -245,8 +245,6 @@ def test_robust_model_fitting():
 
     objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
 
-    problem = SaddlePointProblem(
-        objective, [cp.sum(weights) == int(0.8 * n), weights <= 1, 0 * beta_0 == 0, 0 * beta == 0]
-    )  # TODO: remove requirement for dummy constraint
+    problem = SaddlePointProblem(objective, [cp.sum(weights) == int(0.8 * n), weights <= 1])
     problem.solve(verbose=True)
     assert problem.status == cp.OPTIMAL

@@ -868,8 +868,7 @@ def test_unconstrained():
     f = cp.square(x) - cp.square(y)
     obj = MinimizeMaximize(f)
 
-    # TODO: Can we leverage using redundant constraints to try solving unconstrained problems?
-    saddle_problem = SaddlePointProblem(obj, [0 * y == 0, 0 * x == 0])
+    saddle_problem = SaddlePointProblem(obj)
     saddle_problem.is_dsp()
 
     saddle_problem.solve()

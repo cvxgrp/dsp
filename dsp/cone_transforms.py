@@ -97,23 +97,27 @@ def minimax_to_min(
     # Concave part
     # this case is only skipped if K.y is zero, i.e., if it's a purely convex problem
     if len(y_vars) > 0:
-        var_id_to_mat, e, cone_dims = get_cone_repr(Y_constraints + K.y_constraints, y_vars)
+        all_Y_constraints = Y_constraints + K.y_constraints
+        if len(all_Y_constraints) > 0:
+            var_id_to_mat, e, cone_dims = get_cone_repr(all_Y_constraints, y_vars)
 
-        n = len(e)
-        lamb = cp.Variable(n, name="lamb")
-        lamb_const, lamb = add_cone_constraints(lamb, cone_dims, dual=True)
+            n = len(e)
+            lamb = cp.Variable(n, name="lamb")
+            lamb_const, lamb = add_cone_constraints(lamb, cone_dims, dual=True)
 
-        D = var_id_to_mat["eta"]
+            D = var_id_to_mat["eta"]
 
-        C_shape = (len(e), local_to_glob.y_size)
-        C = create_sparse_matrix_from_columns(C_shape, y_vars, local_to_glob, var_id_to_mat)
+            C_shape = (len(e), local_to_glob.y_size)
+            C = create_sparse_matrix_from_columns(C_shape, y_vars, local_to_glob, var_id_to_mat)
 
-        if D.shape[1] > 0:
-            constraints.append(D.T @ lamb == 0)
+            if D.shape[1] > 0:
+                constraints.append(D.T @ lamb == 0)
 
-        constraints += [C.T @ lamb == K.f, *lamb_const]
+            constraints += [C.T @ lamb == K.f, *lamb_const]
 
-        obj += lamb @ e
+            obj += lamb @ e
+        else:
+            constraints.append(K.f == 0)
 
     return cp.Minimize(obj), constraints
 
@@ -331,12 +335,10 @@ def get_cone_repr(
         if len(const) == 0:
             raise NoYConstraintError(
                 "No y constraints in problem. Variables are "
-                + str([v.id for e in exprs for v in e.variables()])
+                + str([v.name() for e in exprs for v in e.variables()])
             )
         else:
             raise ValueError("Not all variables in exprs are constrained by const")
-
-    assert {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}
 
     # TODO: CVXPY does not have a stable API for getting the cone representation that is
     #  solver independent. We use SCS in line with the CVXPY documentation.
