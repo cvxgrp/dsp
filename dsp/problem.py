@@ -116,8 +116,8 @@ class SaddlePointProblem(cp.Problem):
         assert self.y_prob.status == cp.OPTIMAL  # or self.y_prob.status == cp.OPTIMAL_INACCURATE
 
         diff = self.x_prob.value + self.y_prob.value  # y_prob.value is negated
-        assert np.isclose(
-            diff, 0, atol=eps
+        assert np.isclose(self.x_prob.value, -self.y_prob.value, atol=eps) and np.isclose(
+            -self.y_prob.value, self.x_prob.value, atol=eps
         ), f"Difference between x and y problem is {diff}, (should be 0)."
         # TODO: Does this guarantee that we found a saddle point?
 
