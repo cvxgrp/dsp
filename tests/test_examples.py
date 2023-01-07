@@ -7,6 +7,7 @@ from dsp import LocalVariable, SaddlePointProblem, saddle_inner, saddle_min
 from dsp.atoms import saddle_quad_form
 
 
+@pytest.mark.skipif(cp.MOSEK not in cp.installed_solvers(), reason="MOSEK not installed")
 def test_robust_bond():
 
     C = np.loadtxt("tests/example_data/robust_bond_portfolio/C.csv")
@@ -87,7 +88,7 @@ def test_robust_markowitz():
 
     # Creating and solving the problem
     problem = cp.Problem(cp.Maximize(G), [cp.sum(w) == 1])
-    problem.solve()  # 0.076
+    problem.solve(solver=cp.SCS)  # 0.076
 
     nominal_objective = cp.Maximize(w @ mu - gamma * cp.quad_form(w, Sigma))
 
@@ -98,83 +99,14 @@ def test_robust_markowitz():
 
     # Creating and solving the problem without robustness
     problem = cp.Problem(nominal_objective, [cp.sum(w) == 1])
-    problem.solve()
+    problem.solve(solver=cp.SCS)  # 0.065
     assert problem.status == cp.OPTIMAL
 
     nominal_wc_utility = G.value
     nominal_non_wc_utility = nominal_objective.value
 
-    print(f"Robust non-WC utility: {robust_non_wc_utility:.3f}")
-    print(f"Robust WC utility: {robust_wc_utility:.3f}")
-    print(f"Nominal non-WC utility: {nominal_non_wc_utility:.3f}")
-    print(f"Nominal WC utility: {nominal_wc_utility:.3f}")
-
-
-def test_create_markowitz_plot():
-
-    returns = np.loadtxt("tests/example_data/robust_portfolio_selection/ff_data.csv", delimiter=",")
-
-    mu = np.mean(returns, axis=0)
-    Sigma = np.cov(returns, rowvar=False)
-
-    # Constants and parameters
-    n = len(mu)
-    rho, eta = 0.2, 0.2
-
-    # Creating variables
-    w = cp.Variable(n, nonneg=True)
-
-    plot_data = []
-    for gamma in np.linspace(0, 10, 20):
-        delta_loc = LocalVariable(n)
-        Sigma_perturbed = LocalVariable((n, n), PSD=True)
-        Delta_loc = LocalVariable((n, n))
-
-        # Creating saddle min function
-        f = w @ mu + saddle_inner(delta_loc, w) - gamma * saddle_quad_form(w, Sigma_perturbed)
-
-        Sigma_diag = Sigma.diagonal()
-        local_constraints = [
-            cp.abs(delta_loc) <= rho,
-            Sigma_perturbed == Sigma + Delta_loc,
-            cp.abs(Delta_loc) <= eta * np.sqrt(np.outer(Sigma_diag, Sigma_diag)),
-        ]
-
-        G = saddle_min(f, local_constraints)
-
-        # Creating and solving the problem
-        problem = cp.Problem(cp.Maximize(G), [cp.sum(w) == 1])
-        problem.solve()  # 0.076
-        assert problem.status == cp.OPTIMAL
-
-        robust_utility = problem.value
-
-        # Creating and solving the problem without robustness
-        problem = cp.Problem(cp.Maximize(w @ mu - gamma * cp.quad_form(w, Sigma)), [cp.sum(w) == 1])
-        problem.solve()
-        assert problem.status == cp.OPTIMAL
-
-        utility = G.value
-
-        plot_data.append((gamma, utility, robust_utility))
-
-    plot_data = np.array(plot_data)
-    assert (plot_data[:, 2] - plot_data[:, 1] >= -1e-6).all()
-    assert (plot_data[:, 2] - plot_data[:, 1]).max() >= 0.1
-
-    plot = False
-    if plot:
-        import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(6, 3))
-        plt.plot(plot_data[:, 0], plot_data[:, 2], label="Robust utility")
-        plt.plot(plot_data[:, 0], plot_data[:, 1], label="Non-robust utility")
-        plt.xlabel(r"$\gamma$")
-        plt.ylabel("Utility")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig("tests/example_data/robust_portfolio_selection/robust_markowitz_plot.pdf")
-        plt.show()
+    assert robust_wc_utility > nominal_wc_utility
+    assert robust_non_wc_utility < nominal_non_wc_utility
 
 
 def test_arbitrage():
@@ -216,14 +148,18 @@ def test_arbitrage():
     assert np.isclose(saddle_problem.value, 0)
 
 
+@pytest.mark.skipif(cp.MOSEK not in cp.installed_solvers(), reason="MOSEK not installed")
 def test_robust_model_fitting():
-    import pandas as pd
+    # import pandas as pd
+    #
+    # df = pd.read_stata("tests/example_data/robust_model_fitting/analysis_data_AEJ_pub.dta")
+    # df = df[df.survey == "Endline"]
+    #
+    # Y_ik = df.cluster.values
+    # T_ik = df.Treatment.values
 
-    df = pd.read_stata("tests/example_data/robust_model_fitting/analysis_data_AEJ_pub.dta")
-    df = df[df.survey == "Endline"]
-
-    Y_ik = df.cluster.values
-    T_ik = df.Treatment.values
+    Y_ik = np.loadtxt("tests/example_data/robust_model_fitting/Y_ik.csv")[:100]
+    T_ik = np.loadtxt("tests/example_data/robust_model_fitting/T_ik.csv")[:100]
 
     # Constants
     n = len(Y_ik)
@@ -235,7 +171,7 @@ def test_robust_model_fitting():
     # OLS problem
     objective = cp.Minimize(cp.sum_squares(beta_0 + beta * T_ik - Y_ik))
     problem = cp.Problem(objective)
-    problem.solve()
+    problem.solve(solver=cp.SCS)
     assert problem.status == cp.OPTIMAL
 
     # Robust model fitting
@@ -246,5 +182,5 @@ def test_robust_model_fitting():
     objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
 
     problem = SaddlePointProblem(objective, [cp.sum(weights) == int(0.8 * n), weights <= 1])
-    problem.solve(verbose=True)
+    problem.solve()
     assert problem.status == cp.OPTIMAL

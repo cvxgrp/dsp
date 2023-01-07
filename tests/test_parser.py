@@ -5,8 +5,6 @@ import pytest
 import dsp
 from dsp import MinimizeMaximize, SaddlePointProblem
 from dsp.atoms import weighted_log_sum_exp
-
-# from dsp.problem import Parser
 from dsp.parser import DSPError, Parser
 
 
