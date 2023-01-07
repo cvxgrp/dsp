@@ -2,6 +2,7 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
+import dsp
 from dsp import MinimizeMaximize, SaddlePointProblem
 from dsp.atoms import weighted_log_sum_exp
 
@@ -46,8 +47,10 @@ def test_vars():
     x = cp.Variable(name="x")
     y = cp.Variable(name="y", nonneg=True)
     z = cp.Variable(name="z")
-    obj = weighted_log_sum_exp(x, y) + cp.exp(z)
-    print()
+    obj = dsp.MinimizeMaximize(weighted_log_sum_exp(x, y) + cp.exp(z))
+    prob = SaddlePointProblem(obj, [y == 1, x == 1, z == 1])
+    assert set(prob.convex_variables()) == {x, z}
+    assert set(prob.concave_variables()) == {y}
 
 
 def test_curvature_lumping():

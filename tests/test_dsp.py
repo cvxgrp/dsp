@@ -45,9 +45,6 @@ def test_matrix_game_x_Gy():
     prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints, [y, yy], ltg))
     prob.solve(solver=cp.SCS)
     assert np.isclose(prob.value, 0, atol=1e-4)
-    print(prob.status, prob.value)
-    for v in prob.variables():
-        print(v, v.name(), v.value)
 
 
 @pytest.mark.parametrize("a,expected", [(cp.exp, np.exp(2)), (cp.square, 4)])
@@ -195,8 +192,6 @@ def test_saddle_composition(obj):
 
     constraints = [-1 <= x, x <= 1, -1.2 <= y, y <= -0.8]
     prob = SaddlePointProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
-
-    print(prob.y_prob)
 
     prob.solve(solver=cp.SCS)
     assert prob.status == cp.OPTIMAL
@@ -541,14 +536,14 @@ def test_mixed_curvature_affine():
     constraints = [x == 0, y == 1]
     problem = SaddlePointProblem(obj, constraints)
 
-    # with pytest.raises(DSPError, match="Use inner"):
-    # problem.solve(solver=cp.SCS)
+    problem.solve()
+    assert np.isclose(problem.value, 3.0)
 
     obj = MinimizeMaximize(cp.exp(x) + cp.log(y) + x + 2 * y)
     problem = SaddlePointProblem(obj, constraints)
     problem.solve()
 
-    assert np.isclose(problem.value, 1 + 2)
+    assert np.isclose(problem.value, 3)
 
 
 def test_indeterminate_problem():
@@ -720,9 +715,6 @@ def test_quad_form_equality(x_val, P_val):
     x_val = np.array(x_val)
     P_val = np.array(P_val)
 
-    P.value == P_val
-    assert P.is_psd()
-
     f = saddle_quad_form(x, P)
 
     obj = MinimizeMaximize(f)
@@ -732,20 +724,15 @@ def test_quad_form_equality(x_val, P_val):
     assert np.isclose(prob.value, x_val.T @ P_val @ x_val)
 
 
-@pytest.mark.parametrize("x_val,P_val", [([1, 0], [[1, 0], [0, 1]])])
-def test_quad_form_inequality(x_val, P_val):
-    x = cp.Variable(2, name="x")
-    P = cp.Variable((2, 2), name="P", PSD=True)
-
-    x_val = np.array(x_val)
-    P_val = np.array(P_val)
-
-    P.value == P_val
-    assert P.is_psd()
+def test_quad_form_inequality():
+    n = 2
+    x = cp.Variable(n, name="x")
+    P = cp.Variable((n, n), name="P", PSD=True)
 
     f = saddle_quad_form(x, P)
 
     obj = MinimizeMaximize(f)
+    P_val = np.eye(n)
     prob = SaddlePointProblem(obj, [P << P_val, cp.sum(x) == 1, x >= 0])
     prob.solve()
 

@@ -41,12 +41,12 @@ def test_is_dsp():
         saddle_problem.solve()
 
 
-def test_concave_sadle_max():
+def test_concave_saddle_max():
     y_dummy = LocalVariable(2, name="y_dummy", nonneg=True)
     x = cp.Variable(name="x", nonneg=True)
     f = -cp.sqrt(cp.sum(y_dummy)) + cp.exp(x)
     F = saddle_max(f, [cp.sum(y_dummy) == 1])
-    # currently this fails on construction rather than via a "is_dsp" check
+    assert not F.is_dsp()
 
 
 def test_saddle_double_dummy():
@@ -62,11 +62,11 @@ def test_saddle_double_dummy():
     F_1 = saddle_max(f, [cp.sum(y_local) == 1])
 
     with pytest.raises(LocalVariableError):
-        F_2 = saddle_max(f, [cp.sum(y_local) == 1])
+        saddle_max(f, [cp.sum(y_local) == 1])
 
     G_1 = saddle_min(g, [cp.sum(x_local) == 1])
     with pytest.raises(LocalVariableError):
-        G_2 = saddle_min(g, [cp.sum(x_local) == 1])
+        saddle_min(g, [cp.sum(x_local) == 1])
 
     F_1.is_dsp()
     G_1.is_dsp()
