@@ -88,3 +88,15 @@ def test_just_affine():
     obj = MinimizeMaximize(f)
     prob = SaddlePointProblem(obj, [x >= 0, y >= 0])
     assert not prob.is_dsp()  # Should fail if no implied curvatures.
+
+
+def test_divide():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y", nonneg=True)
+    f = weighted_log_sum_exp(x, y) / 2
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [y == 1, x == 1])
+    assert prob.is_dsp()
+
+    prob.solve()
+    assert np.isclose(prob.value, 1 / 2)

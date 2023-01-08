@@ -6,7 +6,7 @@ from typing import Iterable
 import cvxpy as cp
 from cvxpy import multiply
 from cvxpy.atoms.affine.add_expr import AddExpression
-from cvxpy.atoms.affine.binary_operators import MulExpression
+from cvxpy.atoms.affine.binary_operators import DivExpression, MulExpression
 from cvxpy.atoms.affine.unary_operators import NegExpression
 from cvxpy.constraints.constraint import Constraint
 
@@ -150,6 +150,25 @@ class Parser:
             assert return_val is not None
             return return_val.scalar_multiply(abs(s.value))
 
+    def parse_div(
+        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
+    ) -> KRepresentation | None:
+        assert expr.args[1].is_constant()
+        const_ind = 1
+        var_ind = 0
+
+        s = expr.args[const_ind]
+        var_expr = expr.args[var_ind]
+
+        if s.is_nonneg():
+            return_val = self._parse_expr(var_expr, switched, repr_parse, **kwargs)
+        else:
+            return_val = self._parse_expr(var_expr, not switched, repr_parse, **kwargs)
+
+        if repr_parse:
+            assert return_val is not None
+            return return_val.scalar_multiply(1 / abs(s.value))
+
     def parse_known_curvature_repr(
         self, expr: cp.Expression, local_to_glob: LocalToGlob
     ) -> KRepresentation:
@@ -218,19 +237,6 @@ class Parser:
         assert isinstance(K_repr, KRepresentation)
         return K_repr
 
-    def known_curvature_unkown_vars_check(self, expr: cp.Expression, repr_parse: bool) -> bool:
-        # handles the case there is a known curvature expression with unknown
-        # variables, and allows for MulExpression like a @ x, where a is a
-        # constant x is an expression involving variables
-        value = not repr_parse and expr.is_dcp()
-        value = value and not isinstance(expr, (AddExpression, NegExpression, multiply))
-        if isinstance(expr, MulExpression):
-            value = value and (
-                isinstance(expr.args[0], cp.Constant) or isinstance(expr.args[1], cp.Constant)
-            )
-
-        return value
-
     @staticmethod
     def contains_curvature_lumping(expr: cp.Expression) -> bool:
         """
@@ -265,11 +271,7 @@ class Parser:
         ):
             return self.parse_known_curvature_repr(expr * (1 if not switched else -1), **kwargs)
 
-        # elif ((not repr_parse) and (expr.is_convex() or expr.is_concave())) and not isinstance(
-        #     expr, (AddExpression, NegExpression, MulExpression, multiply)
-        # ):
         elif (not repr_parse) and expr.is_dcp() and not self.contains_curvature_lumping(expr):
-            # elif self.known_curvature_unkown_vars_check(expr, repr_parse):
             return self.parse_known_curvature_vars(expr, switched)
 
         # convex and concave variables
@@ -291,6 +293,8 @@ class Parser:
                 return KRepresentation.sum_of_K_reprs(K_reprs)
             else:
                 return self.parse_bilin(expr, switched, repr_parse, **kwargs)
+        elif isinstance(expr, DivExpression):
+            return self.parse_div(expr, switched, repr_parse, **kwargs)
         elif isinstance(expr, dsp.atoms.SaddleExtremum) and not expr.is_dsp():
             raise DSPError("Saddle min or max using non-DSP argument.")
         else:

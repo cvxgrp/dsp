@@ -160,7 +160,7 @@ def test_robust_model_fitting():
     X = data[:, 1:]
     X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
     X = np.hstack((np.ones((len(Y), 1)), X))
-    
+
     # Constants
     n = len(Y)
 
