@@ -150,32 +150,30 @@ def test_arbitrage():
 
 @pytest.mark.skipif(cp.MOSEK not in cp.installed_solvers(), reason="MOSEK not installed")
 def test_robust_model_fitting():
-    # import pandas as pd
-    #
-    # df = pd.read_stata("tests/example_data/robust_model_fitting/analysis_data_AEJ_pub.dta")
-    # df = df[df.survey == "Endline"]
-    #
-    # Y_ik = df.cluster.values
-    # T_ik = df.Treatment.values
 
-    Y_ik = np.loadtxt("tests/example_data/robust_model_fitting/Y_ik.csv")[:100]
-    T_ik = np.loadtxt("tests/example_data/robust_model_fitting/T_ik.csv")[:100]
+    # Load data
+    data = np.loadtxt("tests/example_data/robust_model_fitting/data.csv", delimiter=",", skiprows=1)
+
+    Y = data[:, 0]
+    X = data[:, 1:]
+    X = np.hstack((np.ones((len(Y), 1)), X))
 
     # Constants
-    n = len(Y_ik)
+    n = len(Y)
 
     # Create variables
-    beta_0 = cp.Variable(name="beta_0")
-    beta = cp.Variable(name="beta")
+    beta = cp.Variable(X.shape[1], name="beta")
 
     # OLS problem
-    objective = cp.Minimize(cp.sum_squares(beta_0 + beta * T_ik - Y_ik))
+    objective = cp.Minimize(cp.sum_squares(X @ beta - Y))
     problem = cp.Problem(objective)
-    problem.solve(solver=cp.SCS)
+    problem.solve()
     assert problem.status == cp.OPTIMAL
+    print("OLS beta: ", beta.value)
+    print("---")
 
     # Robust model fitting
-    loss = cp.square(beta_0 + beta * T_ik - Y_ik)
+    loss = cp.square(X @ beta - Y)
 
     weights = cp.Variable(n, nonneg=True, name="weights")
 
