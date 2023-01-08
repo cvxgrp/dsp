@@ -782,11 +782,16 @@ class weighted_norm2(SaddleAtom):
         f_local = cp.Variable(self.y.size, name="f_wnorm2")
         t = cp.Variable(name="t_wnorm2")
 
-        lhs = cp.hstack([cp.geo_mean(cp.hstack([t, f_local[i]])) for i in range(self.y.size)])
+        # TODO: not working with non-affine precomposition
+        # See https://www2.isye.gatech.edu/~nemirovs/LMCOLN2022Fall.pdf 2.3.5
+        sum_half = (f_local + t) / 2
+        diff_half = (f_local - t) / 2
+        stack = cp.vstack([0.5 * self.x, diff_half])
+
         constraints = [
             t >= 0,
             f_local >= 0,
-            lhs >= 0.5 * cp.abs(self.x),
+            cp.norm2(stack, axis=0) <= sum_half,
         ]
 
         t_global = cp.Variable(name="t_global")
