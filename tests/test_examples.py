@@ -155,9 +155,12 @@ def test_robust_model_fitting():
     data = np.loadtxt("tests/example_data/robust_model_fitting/data.csv", delimiter=",", skiprows=1)
 
     Y = data[:, 0]
-    X = data[:, 1:]
-    X = np.hstack((np.ones((len(Y), 1)), X))
+    Y = (Y - np.mean(Y)) / np.std(Y)
 
+    X = data[:, 1:]
+    X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
+    X = np.hstack((np.ones((len(Y), 1)), X))
+    
     # Constants
     n = len(Y)
 
@@ -180,5 +183,5 @@ def test_robust_model_fitting():
     objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
 
     problem = SaddlePointProblem(objective, [cp.sum(weights) == int(0.8 * n), weights <= 1])
-    problem.solve()
+    problem.solve(verbose=True, solver=cp.MOSEK)
     assert problem.status == cp.OPTIMAL
