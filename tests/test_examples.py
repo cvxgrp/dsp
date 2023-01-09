@@ -179,11 +179,23 @@ def test_robust_model_fitting():
     problem.solve()  # 700.97
     assert problem.status == cp.OPTIMAL
 
+    robust_coefficients = theta.value
+
     # OLS problem
     objective = cp.Minimize(cp.sum_squares(A @ theta - p))
     problem = cp.Problem(objective)
     problem.solve()  # 701.01
     assert problem.status == cp.OPTIMAL
+
+    ols_coefficients = theta.value
+
+    ols_obj_ols_weights = np.sum(np.square(A @ ols_coefficients - p))
+    ols_obj_robust_weights = np.sum(np.square(A @ robust_coefficients - p))
+    robust_obj_ols_weights = np.sum(np.square(A @ ols_coefficients - p) * weights.value)
+    robust_obj_robust_weights = np.sum(np.square(A @ robust_coefficients - p) * weights.value)
+
+    assert ols_obj_ols_weights < ols_obj_robust_weights
+    assert robust_obj_robust_weights < robust_obj_ols_weights
 
     # Using sum_largest
     objective = cp.Minimize(cp.sum_largest(cp.square(A @ theta - p), K))
