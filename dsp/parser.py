@@ -151,7 +151,7 @@ class Parser:
             return return_val.scalar_multiply(abs(s.value))
 
     def parse_div(
-        self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
+        self, expr: DivExpression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
         assert expr.args[1].is_constant()
         const_ind = 1

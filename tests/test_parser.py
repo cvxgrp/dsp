@@ -90,13 +90,14 @@ def test_just_affine():
     assert not prob.is_dsp()  # Should fail if no implied curvatures.
 
 
-def test_divide():
+@pytest.mark.parametrize("divisor", [-2, 2])
+def test_divide(divisor):
     x = cp.Variable(name="x")
     y = cp.Variable(name="y", nonneg=True)
-    f = weighted_log_sum_exp(x, y) / 2
+    f = weighted_log_sum_exp(x, y) / divisor
     obj = MinimizeMaximize(f)
     prob = SaddlePointProblem(obj, [y == 1, x == 1])
     assert prob.is_dsp()
 
     prob.solve()
-    assert np.isclose(prob.value, 1 / 2)
+    assert np.isclose(prob.value, 1 / divisor)
