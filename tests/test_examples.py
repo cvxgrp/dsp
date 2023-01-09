@@ -191,7 +191,7 @@ def test_robust_model_fitting():
 
     ols_obj_ols_weights = np.sum(np.square(A @ ols_coefficients - p))
     ols_obj_robust_weights = np.sum(np.square(A @ robust_coefficients - p))
-    robust_obj_ols_weights = np.sum(np.square(A @ ols_coefficients - p) * weights.value)
+    robust_obj_ols_weights = np.sum(np.sort(np.square(A @ ols_coefficients - p))[-int(K) :])
     robust_obj_robust_weights = np.sum(np.square(A @ robust_coefficients - p) * weights.value)
 
     assert ols_obj_ols_weights < ols_obj_robust_weights
