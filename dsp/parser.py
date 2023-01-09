@@ -154,20 +154,8 @@ class Parser:
         self, expr: DivExpression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
         assert expr.args[1].is_constant()
-        const_ind = 1
-        var_ind = 0
-
-        s = expr.args[const_ind]
-        var_expr = expr.args[var_ind]
-
-        if s.is_nonneg():
-            return_val = self._parse_expr(var_expr, switched, repr_parse, **kwargs)
-        else:
-            return_val = self._parse_expr(var_expr, not switched, repr_parse, **kwargs)
-
-        if repr_parse:
-            assert return_val is not None
-            return return_val.scalar_multiply(1 / abs(s.value))
+        divisor = expr.args[1]
+        return self.parse_scalar_mul(expr.args[0] * (1 / divisor), switched, repr_parse, **kwargs)
 
     def parse_known_curvature_repr(
         self, expr: cp.Expression, local_to_glob: LocalToGlob
