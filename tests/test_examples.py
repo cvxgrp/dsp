@@ -154,34 +154,39 @@ def test_robust_model_fitting():
     # Load data
     data = np.loadtxt("tests/example_data/robust_model_fitting/data.csv", delimiter=",", skiprows=1)
 
-    Y = data[:, 0]
-    Y = (Y - np.mean(Y)) / np.std(Y)
+    p = data[:, 0]
+    p = (p - np.mean(p)) / np.std(p)
 
-    X = data[:, 1:]
-    X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
-    X = np.hstack((np.ones((len(Y), 1)), X))
+    A = data[:, 1:]
+    A = (A - np.mean(A, axis=0)) / np.std(A, axis=0)
+    A = np.hstack((np.ones((len(p), 1)), A))
 
     # Constants
-    n = len(Y)
+    m, n = A.shape
+    K = 0.8 * m
 
-    # Create variables
-    beta = cp.Variable(X.shape[1], name="beta")
+    # Creating variables
+    theta = cp.Variable(n)
+    weights = cp.Variable(m, nonneg=True)
+
+    # Defining the loss function and the weight constraints
+    loss = cp.square(A @ theta - p)
+    objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
+    constraints = [cp.sum(weights) == K, weights <= 1]
+
+    # Creating and solving the problem
+    problem = SaddlePointProblem(objective, constraints)
+    problem.solve()  # 700.97
+    assert problem.status == cp.OPTIMAL
 
     # OLS problem
-    objective = cp.Minimize(cp.sum_squares(X @ beta - Y))
+    objective = cp.Minimize(cp.sum_squares(A @ theta - p))
     problem = cp.Problem(objective)
-    problem.solve()
+    problem.solve()  # 701.01
     assert problem.status == cp.OPTIMAL
-    print("OLS beta: ", beta.value)
-    print("---")
 
-    # Robust model fitting
-    loss = cp.square(X @ beta - Y)
-
-    weights = cp.Variable(n, nonneg=True, name="weights")
-
-    objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
-
-    problem = SaddlePointProblem(objective, [cp.sum(weights) == int(0.8 * n), weights <= 1])
-    problem.solve(verbose=True, solver=cp.MOSEK)
+    # Using sum_largest
+    objective = cp.Minimize(cp.sum_largest(cp.square(A @ theta - p), K))
+    problem = cp.Problem(objective)
+    problem.solve()  # 700.97
     assert problem.status == cp.OPTIMAL
