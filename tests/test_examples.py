@@ -3,8 +3,14 @@ import numpy as np
 import pytest
 
 import dsp
-from dsp import LocalVariable, SaddlePointProblem, saddle_inner, saddle_min
-from dsp.atoms import saddle_quad_form
+from dsp import (
+    LocalVariable,
+    MinimizeMaximize,
+    SaddlePointProblem,
+    saddle_inner,
+    saddle_min,
+    saddle_quad_form,
+)
 
 
 @pytest.mark.skipif(cp.MOSEK not in cp.installed_solvers(), reason="MOSEK not installed")
@@ -163,7 +169,8 @@ def test_robust_model_fitting():
 
     # Constants
     m, n = A.shape
-    K = 0.8 * m
+    k = 0.05 * m
+    eta = 0.1
 
     # Creating variables
     theta = cp.Variable(n)
@@ -171,34 +178,37 @@ def test_robust_model_fitting():
 
     # Defining the loss function and the weight constraints
     loss = cp.square(A @ theta - p)
-    objective = dsp.MinimizeMaximize(saddle_inner(loss, weights))
-    constraints = [cp.sum(weights) == K, weights <= 1]
+    regularizer = eta * cp.norm1(theta)
+    objective = MinimizeMaximize(saddle_inner(loss, weights) + regularizer)
+    constraints = [cp.sum(weights) == k, weights <= 1]
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
-    problem.solve()  # 700.97
+    problem.solve()  # 692.13
     assert problem.status == cp.OPTIMAL
 
-    robust_coefficients = theta.value
+    robust_obj_robust_weights = problem.value
 
     # OLS problem
-    objective = cp.Minimize(cp.sum_squares(A @ theta - p))
-    problem = cp.Problem(objective)
-    problem.solve()  # 701.01
+    ols_objective = cp.Minimize(cp.sum_squares(A @ theta - p) + regularizer)
+
+    ols_obj_robust_weights = ols_objective.value
+
+    problem = cp.Problem(ols_objective)
+    problem.solve()
     assert problem.status == cp.OPTIMAL
 
-    ols_coefficients = theta.value
-
-    ols_obj_ols_weights = np.sum(np.square(A @ ols_coefficients - p))
-    ols_obj_robust_weights = np.sum(np.square(A @ robust_coefficients - p))
-    robust_obj_ols_weights = np.sum(np.sort(np.square(A @ ols_coefficients - p))[-int(K) :])
-    robust_obj_robust_weights = np.sum(np.square(A @ robust_coefficients - p) * weights.value)
+    ols_obj_ols_weights = problem.value
+    robust_obj_ols_weights = np.sum(np.sort(np.square(A @ theta.value - p))[-int(k) :])
 
     assert ols_obj_ols_weights < ols_obj_robust_weights
     assert robust_obj_robust_weights < robust_obj_ols_weights
 
     # Using sum_largest
-    objective = cp.Minimize(cp.sum_largest(cp.square(A @ theta - p), K))
+    loss = cp.sum_largest(cp.square(A @ theta - p), k)
+    objective = cp.Minimize(loss + regularizer)
     problem = cp.Problem(objective)
-    problem.solve()  # 700.97
+    problem.solve()
     assert problem.status == cp.OPTIMAL
+
+    assert np.isclose(problem.value, robust_obj_robust_weights)
