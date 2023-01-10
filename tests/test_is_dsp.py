@@ -1,8 +1,7 @@
 import cvxpy as cp
 import pytest
 
-from dsp import is_dsp
-from dsp.atoms import saddle_max, saddle_min, weighted_log_sum_exp
+from dsp import is_dsp, saddle_max, saddle_min, weighted_log_sum_exp
 from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError
 from dsp.problem import MinimizeMaximize, SaddlePointProblem

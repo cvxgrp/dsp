@@ -10,7 +10,6 @@ from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
 from cvxpy.utilities import Canonical
 
-from dsp.atoms import SaddleExtremum
 from dsp.cone_transforms import (
     LocalToGlob,
     add_cone_constraints,
@@ -18,6 +17,7 @@ from dsp.cone_transforms import (
     minimax_to_min,
 )
 from dsp.parser import DSPError, Parser, initialize_parser
+from dsp.saddle_extremum import SaddleExtremum
 
 
 class MinimizeMaximize:
@@ -36,6 +36,10 @@ class MinimizeMaximize:
 
     def is_dsp(self) -> bool:
         return self.expr.is_dsp()
+
+    @property
+    def value(self) -> float:
+        return self.expr.value
 
 
 class SaddlePointProblem(cp.Problem):

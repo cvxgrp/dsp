@@ -2,11 +2,9 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-import dsp
-from dsp.atoms import conjugate, inner, saddle_max, saddle_min, weighted_log_sum_exp
+from dsp import conjugate, inner, saddle_max, saddle_min, weighted_log_sum_exp
 from dsp.cvxpy_integration import extend_cone_canon_methods
 from dsp.local import LocalVariable, LocalVariableError
-from dsp.parser import DSPError
 from dsp.problem import MinimizeMaximize, SaddlePointProblem, is_dsp
 
 extend_cone_canon_methods()

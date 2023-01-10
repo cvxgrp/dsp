@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 import dsp
-from dsp.atoms import weighted_norm2
+from dsp import weighted_norm2
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4, 5])

@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 import dsp
-from dsp.atoms import (
+from dsp import (
     inner,
     saddle_inner,
     saddle_max,
@@ -638,24 +638,21 @@ def test_robust_constraint():
     x = cp.Variable(name="x")
     y = LocalVariable(name="y", nonneg=True)
 
-    obj1 = MinimizeMaximize(cp.square(x))
-    obj2 = MinimizeMaximize(x)
+    obj = MinimizeMaximize(cp.square(x))
 
     constraints = [x >= 1]
 
     constraints += [saddle_max(weighted_log_sum_exp(x, y), [y <= 1]) <= 1]
 
-    # TODO, auto min vars
-
     invalid_saddle_problem = SaddlePointProblem(
-        obj2, constraints, minimization_vars=[x], maximization_vars=[y]
+        obj, constraints, minimization_vars=[x], maximization_vars=[y]
     )
     assert not invalid_saddle_problem.is_dsp()
     assert not dsp.is_dsp(invalid_saddle_problem)
     with pytest.raises(DSPError, match="Likely passed unused variables"):
         invalid_saddle_problem.solve()
 
-    problem = SaddlePointProblem(obj1, constraints)
+    problem = SaddlePointProblem(obj, constraints)
     assert dsp.is_dsp(problem)
     problem.solve(solver=cp.SCS)
     assert np.isclose(problem.value, 1.0, atol=1e-4)

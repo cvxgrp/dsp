@@ -3,8 +3,7 @@ import numpy as np
 import pytest
 
 import dsp
-from dsp import MinimizeMaximize, SaddlePointProblem
-from dsp.atoms import weighted_log_sum_exp
+from dsp import MinimizeMaximize, SaddlePointProblem, weighted_log_sum_exp
 from dsp.parser import DSPError, Parser
 
 

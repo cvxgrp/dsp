@@ -1,8 +1,8 @@
 from cvxpy import Expression, Problem
 from cvxpy.reductions.dcp2cone.atom_canonicalizers import CANON_METHODS
 
-from dsp.atoms import conjugate, saddle_max, saddle_min
 from dsp.problem import is_dsp
+from dsp.saddle_extremum import conjugate, saddle_max, saddle_min
 from dsp.semi_infinite_canon import saddle_max_canon, saddle_min_canon
 
 

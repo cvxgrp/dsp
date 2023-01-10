@@ -5,9 +5,9 @@ from typing import Any
 import cvxpy as cp
 from cvxpy.constraints.constraint import Constraint
 
-from dsp.atoms import saddle_max, saddle_min
 from dsp.parser import DSPError
 from dsp.problem import semi_infinite_epigraph
+from dsp.saddle_extremum import saddle_max, saddle_min
 
 # TODO: handle arbitrary DSP expressions
 

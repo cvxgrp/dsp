@@ -194,10 +194,10 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
     assert a.is_convex()
     assert a.size == 1
 
-    f = cp.Variable(name="f_ax")  # TODO: can we remove this variable?
+    f = cp.Constant(0)
     t = cp.Variable(name="t_ax")
 
-    constraints = [t >= a, f == 0]
+    constraints = [t >= a]
 
     return KRepresentation(f=f, t=t, constraints=constraints, concave_expr=lambda x: a.value)
 
