@@ -40,10 +40,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install .
-          pip install pytest
+          pip install pytest pytest-cov
       - name: Run tests
         run: |
-          pytest
+          pytest --cov=dsp --cov-report xml:coverage.xml
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
