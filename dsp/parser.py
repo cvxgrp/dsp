@@ -62,60 +62,6 @@ class Parser:
             return []
         return self._y_constraints
 
-    def split_up_variables(self, expr: cp.Expression) -> None:
-        if expr.is_affine():
-            self.affine_vars |= set(expr.variables())
-        else:
-            self.convex_vars |= set(expr.variables())
-
-        if isinstance(expr, cp.Constant) or isinstance(expr, (float, int)):
-            return
-        elif isinstance(expr, dsp.saddle_atoms.SaddleAtom):
-            self.add_to_convex_vars(expr.convex_variables())
-            self.add_to_concave_vars(expr.concave_variables())
-        elif isinstance(expr, AddExpression):
-            for arg in expr.args:
-                self.split_up_variables(arg)
-        elif expr.is_affine():
-            self.affine_vars |= set(expr.variables()) - self.convex_vars - self.concave_vars
-        elif expr.is_convex():
-            self.add_to_convex_vars(expr.variables())
-        elif expr.is_concave():
-            self.add_to_concave_vars(expr.variables())
-        elif isinstance(expr, NegExpression):
-            if isinstance(expr.args[0], dsp.saddle_atoms.SaddleAtom):
-                dsp_atom = expr.args[0]
-                assert isinstance(dsp_atom, dsp.saddle_atoms.SaddleAtom)
-                self.add_to_concave_vars(dsp_atom.convex_variables())
-                self.add_to_convex_vars(dsp_atom.concave_variables())
-            elif isinstance(expr.args[0], AddExpression):
-                for arg in expr.args[0].args:
-                    self.split_up_variables(-arg)
-            elif isinstance(expr.args[0], NegExpression):  # double negation
-                dsp_atom = expr.args[0].args[0]
-                assert isinstance(dsp_atom, dsp.saddle_atoms.SaddleAtom)
-                self.split_up_variables(dsp_atom)
-            elif isinstance(expr.args[0], multiply):  # negated multiplication of dsp atom
-                mult = expr.args[0]
-                s = mult.args[0]
-                assert isinstance(s, cp.Constant)
-                self.split_up_variables(-s.value * mult.args[1])
-            else:
-                raise ValueError
-        elif isinstance(expr, multiply):
-            s = expr.args[0]
-            assert isinstance(s, cp.Constant)
-            dsp_atom = expr.args[1]
-            assert isinstance(dsp_atom, dsp.saddle_atoms.SaddleAtom)
-            if s.is_nonneg():
-                self.add_to_convex_vars(dsp_atom.convex_variables())
-                self.add_to_concave_vars(dsp_atom.concave_variables())
-            else:
-                self.add_to_concave_vars(dsp_atom.convex_variables())
-                self.add_to_convex_vars(dsp_atom.concave_variables())
-        else:
-            raise ValueError(f"Cannot parse {expr=} with {expr.curvature=}.")
-
     def add_to_convex_vars(self, variables: Iterable[cp.Variable]) -> None:
         variables = set(variables)
         if variables & self.concave_vars:
