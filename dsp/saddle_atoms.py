@@ -467,7 +467,7 @@ class weighted_norm2(SaddleAtom):
         The weights, y, must be non-negative. If they are non recognized by
         cvxpy as nonnegative, an implicit domain constraint is added and a
         warning is provided.
-        The exponents can be any convex cvxpy expression.
+        The exponents can be any affine, or nonnegative convex cvxpy expression.
 
         The conic representation is:
             (sum_i y_i x_i^2)^(1/2)
