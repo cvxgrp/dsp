@@ -44,7 +44,7 @@ class SaddleExtremum(Atom):
             for v in c.variables():
                 if not isinstance(v, dsp.LocalVariable):
                     raise LocalVariableError(
-                        "All variables in constraints must be instances of" "LocalVariable."
+                        "All variables in constraints must be instances of LocalVariable."
                     )
         assert isinstance(self.f, cp.Expression)
 

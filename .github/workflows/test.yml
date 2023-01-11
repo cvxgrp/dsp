@@ -35,6 +35,8 @@ jobs:
         with:
           python-version: 3.8
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # For sonar
       - name: Install dependencies
         run: |
           pip install .
@@ -42,3 +44,9 @@ jobs:
       - name: Run tests
         run: |
           pytest
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
