@@ -102,3 +102,22 @@ def test_nonaffine_precompositions(x_val, x_expr, n):
         assert np.allclose(y.value, y_expected, atol=1e-5)
     else:
         assert not norm.is_dsp()
+
+
+def test_value():
+    n = 2
+    x = cp.Variable(n)
+    y = cp.Variable(n)
+
+    with pytest.warns(UserWarning, match="Weights are non-positive"):
+        norm2 = weighted_norm2(x, y)
+
+    assert norm2.value is None
+    assert norm2.is_nonneg()
+    assert not norm2.is_incr(0)
+    assert not norm2.is_incr(1)
+
+    x.value = np.arange(n)
+    y.value = np.arange(n)
+
+    assert norm2.value == np.sqrt(y.value @ np.square(x.value))

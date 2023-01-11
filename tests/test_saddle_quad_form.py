@@ -58,6 +58,12 @@ def test_value():
     P = cp.Variable((n, n), PSD=True)
 
     saddle_quad = saddle_quad_form(x, P)
+
+    assert saddle_quad.value is None
+    assert saddle_quad.is_nonneg()
+    assert not saddle_quad.is_incr(0)
+    assert not saddle_quad.is_incr(1)
+
     x.value = np.arange(n)
     P.value = np.eye(n)
 

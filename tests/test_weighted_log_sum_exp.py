@@ -328,7 +328,15 @@ def test_wsle_value():
     x = cp.Variable(n)
     y = cp.Variable(n)
 
-    wlse = weighted_log_sum_exp(x, y)
+    with pytest.warns(UserWarning, match="Weights are non-positive"):
+        wlse = weighted_log_sum_exp(x, y)
+
+    assert wlse.is_incr(0)
+    assert wlse.is_incr(1)
+    assert not wlse.is_nonneg()
+    assert not wlse.is_nonpos()
+
+    assert wlse.value is None
 
     x.value = np.arange(n)
     y.value = np.arange(n)

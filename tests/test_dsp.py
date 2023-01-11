@@ -159,6 +159,7 @@ def test_matrix_game_nemirovski_Fx_Gy():
     prob = SaddlePointProblem(objective, constraints)
     prob.solve(solver=cp.SCS)
     assert np.isclose(prob.value, 0, atol=1e-4)
+    assert np.isclose(prob.value, FxGy.value, atol=1e-4)
 
 
 def test_overload_bilin():
