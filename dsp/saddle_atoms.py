@@ -308,7 +308,7 @@ class weighted_log_sum_exp(SaddleAtom):
 
         if self.concave_composition:
             if not switched:
-                x_vars_1 = self.convex_variables() if not switched else self.concave_variables()
+                x_vars_1 = self.convex_variables()
                 K_switch_1 = switch_convex_concave(
                     K_out.constraints,
                     K_out.f,
@@ -320,7 +320,7 @@ class weighted_log_sum_exp(SaddleAtom):
                 K_switch_1.constraints += [self.weights >= precomp]
 
                 # dualize the outer concave exp variables if switched
-                x_vars_2 = self.concave_variables() if not switched else self.convex_variables()
+                x_vars_2 = self.concave_variables()
                 K_out = switch_convex_concave(
                     K_switch_1.constraints,
                     K_switch_1.f,
@@ -563,7 +563,7 @@ class weighted_norm2(SaddleAtom):
 
         if self.concave_composition:
             if not switched:
-                x_vars_1 = self.convex_variables() if not switched else self.concave_variables()
+                x_vars_1 = self.convex_variables()
                 K_switch_1 = switch_convex_concave(
                     K_out.constraints,
                     K_out.f,
@@ -575,7 +575,7 @@ class weighted_norm2(SaddleAtom):
                 K_switch_1.constraints += [self.y >= precomp]
 
                 # dualize the outer concave x variables if switched
-                x_vars_2 = self.concave_variables() if not switched else self.convex_variables()
+                x_vars_2 = self.concave_variables()
                 K_out = switch_convex_concave(
                     K_switch_1.constraints,
                     K_switch_1.f,
