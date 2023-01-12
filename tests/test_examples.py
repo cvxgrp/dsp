@@ -68,9 +68,6 @@ def test_robust_bond():
     df = pd.DataFrame({"h": h.value, "h_bar": w_bar * B / p})
     df.plot(kind="bar")
 
-    plt.show()
-
-
 def test_robust_markowitz():
 
     returns = np.loadtxt("tests/example_data/robust_portfolio_selection/ff_data.csv", delimiter=",")
