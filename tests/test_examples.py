@@ -65,8 +65,21 @@ def test_robust_bond():
     import pandas as pd
 
     # added tentative plotting, please review
-    df = pd.DataFrame({"h": h.value, "h_bar": w_bar * B / p})
+    inds = (
+        ((C > 0).astype(int) * np.arange(C.shape[1])).argmax(axis=1).argsort()
+    )  # sort by maturity
+    df = pd.DataFrame({"h": h.value[inds], "h_mkt": (w_bar * B / p)[inds]})
     df.plot(kind="bar")
+    plt.xlabel("Bond index (increasing maturity)")
+    plt.ylabel("Holdings")
+    plt.savefig("tests/example_data/robust_bond.pdf")
+
+    df = pd.DataFrame({"y_nom": y_nominal, "y_wc": y.value})
+    df.plot()
+    plt.xlabel(r"$t$")
+    plt.ylabel("yield")
+    plt.savefig("tests/example_data/yield.pdf")
+
 
 def test_robust_markowitz():
 
