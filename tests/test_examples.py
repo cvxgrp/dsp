@@ -20,16 +20,16 @@ def test_robust_bond():
     p = np.loadtxt("tests/example_data/robust_bond_portfolio/p.csv")
     w_bar = np.loadtxt("tests/example_data/robust_bond_portfolio/target_weights.csv")
     y_nominal = np.loadtxt("tests/example_data/robust_bond_portfolio/y_nominal.csv")
+    h_mkt = (w_bar * 100) / p
 
     # Constants and parameters
     n, T = C.shape
-    delta_max, kappa, omega = 0.05, 0.5, 0.1
+    delta_max, kappa, omega = 0.02, 0.5, 1e-6
     B = 100
-    V_limit = 80
+    V_limit = 98
 
     # Creating variables
     h = cp.Variable(n, nonneg=True)
-    w = cp.multiply(h, p) / B
 
     delta = LocalVariable(T)
     y = y_nominal + delta
@@ -39,7 +39,7 @@ def test_robust_bond():
     # breaks
 
     # Objective
-    phi = 0.5 * cp.norm1(w - w_bar)
+    phi = 0.5 * cp.norm1(cp.multiply(h, p) - cp.multiply(h_mkt, p))
 
     # Creating saddle min function
     V = 0
@@ -56,7 +56,7 @@ def test_robust_bond():
     V_wc = saddle_min(V, Y)
 
     # Creating and solving the problem
-    problem = cp.Problem(cp.Minimize(phi), [cp.sum(w) == 1, V_wc >= V_limit])
+    problem = cp.Problem(cp.Minimize(phi), [h @ p == B, V_wc >= V_limit])
     problem.solve()  # 0.185
 
     assert problem.status == cp.OPTIMAL
@@ -72,12 +72,14 @@ def test_robust_bond():
     df.plot(kind="bar")
     plt.xlabel("Bond index (increasing maturity)")
     plt.ylabel("Holdings")
+    plt.show()
     plt.savefig("tests/example_data/robust_bond.pdf")
 
     df = pd.DataFrame({"y_nom": y_nominal, "y_wc": y.value})
     df.plot()
     plt.xlabel(r"$t$")
     plt.ylabel("yield")
+    plt.show()
     plt.savefig("tests/example_data/yield.pdf")
 
 

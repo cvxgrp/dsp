@@ -381,7 +381,9 @@ def get_cone_repr(
     return var_to_mat_mapping, const_vec, cone_dims
 
 
-def add_cone_constraints(s: cp.Expression, cone_dims: ConeDims, dual: bool) -> list[Constraint]:
+def add_cone_constraints(
+    s: cp.Expression, cone_dims: ConeDims, dual: bool
+) -> tuple[list[Constraint], cp.Variable]:
     assert len(s.shape) == 1 or s.shape[1] == 1, "s must be a vector"
     s = cp.reshape(s, (s.shape[0],))
 

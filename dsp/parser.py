@@ -297,6 +297,6 @@ def initialize_parser(
     )
     prob_vars = x_constraint_vars | y_constraint_vars | set(expr.variables())
 
-    if not parser.convex_vars | parser.concave_vars == prob_vars:
+    if prob_vars != (parser.convex_vars | parser.concave_vars):
         raise DSPError("Likely passed unused variables")
     return parser
