@@ -50,7 +50,7 @@ def test_robust_bond():
     Y = [
         cp.norm_inf(delta) <= delta_max,
         cp.norm1(delta) <= kappa,
-        cp.norm2(delta[1:] - delta[:-1]) <= omega,
+        cp.sum_squares(delta[1:] - delta[:-1]) <= omega,
     ]
 
     V_wc = saddle_min(V, Y)
