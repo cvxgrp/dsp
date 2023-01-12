@@ -61,6 +61,15 @@ def test_robust_bond():
 
     assert problem.status == cp.OPTIMAL
 
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    # added tentative plotting, please review
+    df = pd.DataFrame({"h": h.value, "h_bar": w_bar * B / p})
+    df.plot(kind="bar")
+
+    plt.show()
+
 
 def test_robust_markowitz():
 
@@ -169,7 +178,7 @@ def test_robust_model_fitting():
 
     # Constants
     m, n = A.shape
-    k = 0.05 * m
+    k = 0.1 * m
     eta = 0.1
 
     # Creating variables
