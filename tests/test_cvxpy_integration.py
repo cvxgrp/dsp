@@ -264,12 +264,13 @@ def test_dsp_canon_error():
     with pytest.raises(cp.error.DCPError):
         prob.solve()
 
+
 def test_saddle_no_constraint():
     x = cp.Variable(2, name="x", nonneg=True)
     y = LocalVariable(2, name="y", nonneg=True)
 
     # f = weighted_log_sum_exp(x, y)
-    f = inner(x,y)
+    f = inner(x, y)
 
     sup_y_f = saddle_max(f, [])
 
@@ -279,8 +280,6 @@ def test_saddle_no_constraint():
     prob = cp.Problem(cp.Minimize(sup_y_f), [x >= -1e2])
     assert prob.is_dcp()
     prob.solve()
-
-
 
 
 def test_conj():

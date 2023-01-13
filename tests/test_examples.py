@@ -24,9 +24,9 @@ def test_robust_bond():
 
     # Constants and parameters
     n, T = C.shape
-    delta_max, kappa, omega = 0.02, 0.5, 1e-6
+    delta_max, kappa, omega = 0.02, 0.9, 1e-6
     B = 100
-    V_limit = 99
+    V_limit = 90
 
     # Creating variables
     h = cp.Variable(n, nonneg=True)
@@ -68,17 +68,19 @@ def test_robust_bond():
     inds = (
         ((C > 0).astype(int) * np.arange(C.shape[1])).argmax(axis=1).argsort()
     )  # sort by maturity
-    df = pd.DataFrame({"h": h.value[inds], "h_mkt": (w_bar * B / p)[inds]})
+    df = pd.DataFrame({"h": h.value[inds], "h_mkt": (h_mkt)[inds]})
     df.plot(kind="bar")
     plt.xlabel("Bond index (increasing maturity)")
     plt.ylabel("Holdings")
     plt.savefig("tests/example_data/robust_bond.pdf")
+    plt.show()
 
     df = pd.DataFrame({"y_nom": y_nominal, "y_wc": y.value})
     df.plot()
     plt.xlabel(r"$t$")
     plt.ylabel("yield")
     plt.savefig("tests/example_data/yield.pdf")
+    plt.show()
 
 
 def test_robust_markowitz():
