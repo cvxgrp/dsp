@@ -26,7 +26,7 @@ def test_robust_bond():
     n, T = C.shape
     delta_max, kappa, omega = 0.02, 0.5, 1e-6
     B = 100
-    V_limit = 98
+    V_limit = 99
 
     # Creating variables
     h = cp.Variable(n, nonneg=True)
@@ -72,14 +72,12 @@ def test_robust_bond():
     df.plot(kind="bar")
     plt.xlabel("Bond index (increasing maturity)")
     plt.ylabel("Holdings")
-    plt.show()
     plt.savefig("tests/example_data/robust_bond.pdf")
 
     df = pd.DataFrame({"y_nom": y_nominal, "y_wc": y.value})
     df.plot()
     plt.xlabel(r"$t$")
     plt.ylabel("yield")
-    plt.show()
     plt.savefig("tests/example_data/yield.pdf")
 
 
