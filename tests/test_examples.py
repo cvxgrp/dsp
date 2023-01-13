@@ -73,14 +73,14 @@ def test_robust_bond():
     plt.xlabel("Bond index (increasing maturity)")
     plt.ylabel("Holdings")
     plt.savefig("tests/example_data/robust_bond.pdf")
-    plt.show()
+    # plt.show()
 
     df = pd.DataFrame({"y_nom": y_nominal, "y_wc": y.value})
     df.plot()
     plt.xlabel(r"$t$")
     plt.ylabel("yield")
     plt.savefig("tests/example_data/yield.pdf")
-    plt.show()
+    # plt.show()
 
 
 def test_robust_markowitz():
