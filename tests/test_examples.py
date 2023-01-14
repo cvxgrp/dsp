@@ -26,7 +26,7 @@ def test_robust_bond():
     n, T = C.shape
     delta_max, kappa, omega = 0.02, 0.9, 1e-6
     B = 100
-    V_limit = 90
+    V_lim = 90
 
     # Creating variables
     h = cp.Variable(n, nonneg=True)
@@ -56,31 +56,34 @@ def test_robust_bond():
     V_wc = saddle_min(V, Y)
 
     # Creating and solving the problem
-    problem = cp.Problem(cp.Minimize(phi), [h @ p == B, V_wc >= V_limit])
-    problem.solve()  # 0.185
+    problem = cp.Problem(cp.Minimize(phi), [h @ p == B, V_wc >= V_lim])
+    problem.solve()  # 15.31
 
     assert problem.status == cp.OPTIMAL
 
-    import matplotlib.pyplot as plt
-    import pandas as pd
+    plotting = False
 
-    # added tentative plotting, please review
-    inds = (
-        ((C > 0).astype(int) * np.arange(C.shape[1])).argmax(axis=1).argsort()
-    )  # sort by maturity
-    df = pd.DataFrame({"h": h.value[inds], "h_mkt": (h_mkt)[inds]})
-    df.plot(kind="bar")
-    plt.xlabel("Bond index (increasing maturity)")
-    plt.ylabel("Holdings")
-    plt.savefig("tests/example_data/robust_bond.pdf")
-    # plt.show()
+    if plotting:
+        import matplotlib.pyplot as plt
+        import pandas as pd
 
-    df = pd.DataFrame({"y_nom": y_nominal, "y_wc": y.value})
-    df.plot()
-    plt.xlabel(r"$t$")
-    plt.ylabel("yield")
-    plt.savefig("tests/example_data/yield.pdf")
-    # plt.show()
+        # added tentative plotting, please review
+        inds = (
+            ((C > 0).astype(int) * np.arange(C.shape[1])).argmax(axis=1).argsort()
+        )  # sort by maturity
+        df = pd.DataFrame({"h": h.value[inds], "h_mkt": (h_mkt)[inds]})
+        df.plot(kind="bar")
+        plt.xlabel("Bond index (increasing maturity)")
+        plt.ylabel("Holdings")
+        plt.savefig("tests/example_data/robust_bond.pdf")
+        # plt.show()
+
+        df = pd.DataFrame({"y_nom": y_nominal, "y_wc": y.value})
+        df.plot()
+        plt.xlabel(r"$t$")
+        plt.ylabel("yield")
+        plt.savefig("tests/example_data/yield.pdf")
+        # plt.show()
 
 
 def test_robust_markowitz():
