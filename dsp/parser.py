@@ -65,7 +65,7 @@ class Parser:
     def add_to_convex_vars(self, variables: Iterable[cp.Variable]) -> None:
         variables = set(variables)
         if variables & self.concave_vars:
-            raise DSPError("Cannot add variables to both " "convex and concave set.")
+            raise DSPError("Cannot add variables to both convex and concave set.")
         self.affine_vars -= variables
         self.convex_vars |= variables
 

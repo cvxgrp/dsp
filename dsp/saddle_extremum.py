@@ -82,7 +82,7 @@ class saddle_max(SaddleExtremum):
 
     @property
     def convex_vars(self) -> list[cp.Variable]:
-        return self.parser.convex_vars
+        return sorted(self.parser.convex_vars, key=lambda x: x.id)
 
     @property
     def parser(self) -> Parser:
@@ -196,7 +196,7 @@ class saddle_min(SaddleExtremum):
 
     @property
     def concave_vars(self) -> list[cp.Variable]:
-        return self.parser.concave_vars
+        return sorted(self.parser.concave_vars, key=lambda x: x.id)
 
     @property
     def parser(self) -> Parser:

@@ -94,3 +94,54 @@ def test_creating_a_saddle_max_and_solve_problem():
     assert prob.is_dsp()
     assert np.isclose(prob.value, 1.6666666666666667)
     assert np.allclose(x.value, [0.66666667, 0.33333333])
+
+
+def test_is_dsp_f1():
+    import cvxpy as cp
+
+    x = cp.Variable(name="x")
+    z = cp.Variable(name="z")
+    y_loc = LocalVariable(name="y_loc")
+
+    f_1 = saddle_max(inner(x, y_loc) + z, [y_loc <= 1])
+    assert f_1.is_dsp()
+
+    assert set(f_1.convex_vars) == {x, z}
+    assert set(f_1.concave_vars) == {y_loc}
+
+
+def test_is_dsp_f2():
+    import cvxpy as cp
+
+    x = cp.Variable(name="x")
+    y_loc = LocalVariable(name="y_loc")
+    z_loc = LocalVariable(name="z_loc")
+
+    f_2 = saddle_min(inner(x, y_loc) + z_loc, [y_loc <= 1])
+    assert f_2.is_dsp()
+
+    assert set(f_2.convex_vars) == {x}
+    assert set(f_2.concave_vars) == {y_loc, z_loc}
+
+
+def test_is_dsp_f3():
+    import cvxpy as cp
+
+    x = cp.Variable(name="x")
+    y_loc = LocalVariable(name="y_loc")
+    z = cp.Variable(name="z")
+
+    f_3 = saddle_max(inner(x, y_loc) + z, [y_loc <= 1, z <= 1])
+    assert not f_3.is_dsp()
+
+
+def test_is_dsp_f4():
+    import cvxpy as cp
+
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y")
+    y_loc = LocalVariable(name="y_loc")
+    z_loc = LocalVariable(name="z_loc")
+
+    f_4 = saddle_min(inner(x, y) + z_loc, [y_loc <= 1, z_loc <= 1])
+    assert not f_4.is_dsp()

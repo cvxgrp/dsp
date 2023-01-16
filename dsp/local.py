@@ -34,7 +34,7 @@ class LocalVariable(cp.Variable):
         assert isinstance(new_value, (dsp.saddle_min, dsp.saddle_max))
         if self._saddle_expr is not None:
             if self._saddle_expr is not new_value:
-                raise LocalVariableError("Cannot assign a Dummy to multiple SEs.")
+                raise LocalVariableError("Cannot assign a local variable to multiple SEs.")
             else:
                 return
         self._saddle_expr = new_value
@@ -53,4 +53,4 @@ class LocalVariable(cp.Variable):
         self._value = new_value
 
     def __repr__(self) -> str:
-        return f"Dummy{super().__repr__()}"
+        return f"Local{super().__repr__()}"
