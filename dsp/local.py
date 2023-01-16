@@ -45,7 +45,7 @@ class LocalVariable(cp.Variable):
         if self._value is None:
             expr.numeric(
                 None
-            )  # TODO: allow numeric to take an arbirary value rather than requiring a solve.
+            )  # TODO: allow numeric to take an arbitrary value rather than requiring a solve.
         return self._value  # can be none if numeric had no variable value
 
     @value.setter
