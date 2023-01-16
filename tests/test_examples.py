@@ -15,7 +15,6 @@ from dsp import (
 
 @pytest.mark.skipif(cp.MOSEK not in cp.installed_solvers(), reason="MOSEK not installed")
 def test_robust_bond():
-
     C = np.loadtxt("tests/example_data/robust_bond_portfolio/C.csv")
     p = np.loadtxt("tests/example_data/robust_bond_portfolio/p.csv")
     w_bar = np.loadtxt("tests/example_data/robust_bond_portfolio/target_weights.csv")
@@ -87,7 +86,6 @@ def test_robust_bond():
 
 
 def test_robust_markowitz():
-
     returns = np.loadtxt("tests/example_data/robust_portfolio_selection/ff_data.csv", delimiter=",")
 
     mu = np.mean(returns, axis=0)
@@ -140,7 +138,6 @@ def test_robust_markowitz():
 
 
 def test_arbitrage():
-
     p = np.ones(2)
 
     V = np.array([[1.5, 0.5], [0.5, 1.5]])
@@ -180,7 +177,6 @@ def test_arbitrage():
 
 @pytest.mark.skipif(cp.MOSEK not in cp.installed_solvers(), reason="MOSEK not installed")
 def test_robust_model_fitting():
-
     # Load data
     data = np.loadtxt("tests/example_data/robust_model_fitting/data.csv", delimiter=",", skiprows=1)
 
@@ -236,3 +232,66 @@ def test_robust_model_fitting():
     assert problem.status == cp.OPTIMAL
 
     assert np.isclose(problem.value, robust_obj_robust_weights)
+
+
+def test_logistic():
+    import pandas as pd
+
+    df = pd.read_csv("http://bit.ly/bio304-titanic-data")
+
+    def sigmoid(z):
+        return 1 / (1 + np.exp(-z))
+
+    df["sex"] = df["sex"] == "male"
+
+    features = ["pclass", "sex", "age"]
+
+    df = df.dropna(subset=features)
+
+    df_short = df[df.embarked == "Q"]
+
+    y_short = df_short["survived"].values
+    A_short = df_short[features].values
+
+    m, n = A_short.shape
+    k = int(0.5 * n)
+
+    # Creating variables
+    theta = cp.Variable(n)
+    weights = cp.Variable(m, nonneg=True)
+
+    # Defining the loss function and the weight constraints
+    log_likelihood_samples = cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta)
+    objective = MinimizeMaximize(saddle_inner(weights, log_likelihood_samples))
+    constraints = [cp.sum(weights) == k, weights <= 1]
+
+    # Creating and solving the problem
+    problem = SaddlePointProblem(objective, constraints)
+    problem.solve()
+    assert problem.status == cp.OPTIMAL
+    robust_theta = theta.value
+
+    # Logistic problem
+    log_likelihood = cp.sum(cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta))
+
+    problem = cp.Problem(cp.Maximize(log_likelihood))
+    problem.solve()
+    assert problem.status == cp.OPTIMAL
+
+    ols_theta = theta.value
+
+    # Full sample
+
+    y = df["survived"].values
+    A = df[features].values
+
+    print(error(A_short @ ols_theta, y_short))
+    print(error(A_short @ robust_theta, y_short))
+    print(error(A @ ols_theta, y))
+    print(error(A @ robust_theta, y))
+
+
+def error(scores, labels):
+    scores[scores > 0] = 1
+    scores[scores <= 0] = 0
+    return np.sum(np.abs(scores - labels)) / float(np.size(labels))
