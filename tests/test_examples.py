@@ -239,9 +239,6 @@ def test_logistic():
 
     df = pd.read_csv("http://bit.ly/bio304-titanic-data")
 
-    def sigmoid(z):
-        return 1 / (1 + np.exp(-z))
-
     df["sex"] = df["sex"] == "male"
 
     features = ["pclass", "sex", "age"]
@@ -250,19 +247,21 @@ def test_logistic():
 
     df_short = df[df.embarked == "Q"]
 
-    y_short = df_short["survived"].values
-    A_short = df_short[features].values
+    y_short = df_short["survived"].values.astype(float)
+    A_short = df_short[features].values.astype(float)
 
     m, n = A_short.shape
-    k = int(0.5 * n)
+    k = int(0.8 * m)
 
     # Creating variables
     theta = cp.Variable(n)
     weights = cp.Variable(m, nonneg=True)
 
     # Defining the loss function and the weight constraints
-    log_likelihood_samples = cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta)
-    objective = MinimizeMaximize(saddle_inner(weights, log_likelihood_samples))
+    neg_log_likelihood_samples = -(
+        cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta)
+    )
+    objective = MinimizeMaximize(saddle_inner(neg_log_likelihood_samples, weights))
     constraints = [cp.sum(weights) == k, weights <= 1]
 
     # Creating and solving the problem
@@ -270,6 +269,7 @@ def test_logistic():
     problem.solve()
     assert problem.status == cp.OPTIMAL
     robust_theta = theta.value
+    robust_obj_robust_weights = problem.value
 
     # Logistic problem
     log_likelihood = cp.sum(cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta))
@@ -280,18 +280,36 @@ def test_logistic():
 
     ols_theta = theta.value
 
-    # Full sample
+    # Using sum_largest
+    objective = cp.Minimize(cp.sum_largest(neg_log_likelihood_samples, k))
+    problem = cp.Problem(objective)
+    problem.solve()
+    assert problem.status == cp.OPTIMAL
 
-    y = df["survived"].values
-    A = df[features].values
+    assert np.isclose(problem.value, robust_obj_robust_weights)
+
+    # Full sample
+    y = df["survived"].values.astype(float)
+    A = df[features].values.astype(float)
 
     print(error(A_short @ ols_theta, y_short))
     print(error(A_short @ robust_theta, y_short))
     print(error(A @ ols_theta, y))
     print(error(A @ robust_theta, y))
 
+    print("-" * 80)
+
+    print(log_likelihood_numpy(A_short @ ols_theta, y_short))
+    print(log_likelihood_numpy(A_short @ robust_theta, y_short))
+    print(log_likelihood_numpy(A @ ols_theta, y))
+    print(log_likelihood_numpy(A @ robust_theta, y))
+
 
 def error(scores, labels):
     scores[scores > 0] = 1
     scores[scores <= 0] = 0
     return np.sum(np.abs(scores - labels)) / float(np.size(labels))
+
+
+def log_likelihood_numpy(y_hat, y):
+    return np.sum(y * y_hat - np.log(1 + np.exp(y_hat)))
