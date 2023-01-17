@@ -23,7 +23,8 @@ from dsp.utils import np_vec
 class SaddleAtom(Atom, ABC):
     def get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         if not self.is_dsp():
-            raise DSPError("This atom is not a DSP expression.")
+            raise DSPError(str(self) + " is not a DSP expression.")
+            # TODO: descriptive DSP error messages
         return self._get_K_repr(local_to_glob, switched)
 
     @abstractmethod
@@ -99,9 +100,9 @@ class saddle_inner(SaddleAtom):
         super().__init__(Fx, Gy)
 
     def is_dsp(self) -> bool:
-        x_cvx = self.Fx.is_convex(), "Fx must be convex"
-        x_nonneg = self.Fx.is_nonneg(), "Fx must be non-negative"
-        y_ccv = self.Gy.is_concave(), "Gy must be concave"
+        x_cvx = self.Fx.is_convex() # "Fx must be convex"
+        x_nonneg = self.Fx.is_nonneg() # "Fx must be non-negative"
+        y_ccv = self.Gy.is_concave() # "Gy must be concave"
         return all([x_cvx, x_nonneg, y_ccv])
 
     def get_concave_expression(self) -> cp.Expression:

@@ -258,11 +258,13 @@ def test_logistic():
     weights = cp.Variable(m, nonneg=True)
 
     # Defining the loss function and the weight constraints
-    neg_log_likelihood_samples = -(
-        cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta)
+    neg_log_likelihood_samples = cp.pos(-(
+        cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta))
     )
     objective = MinimizeMaximize(saddle_inner(neg_log_likelihood_samples, weights))
     constraints = [cp.sum(weights) == k, weights <= 1]
+
+    assert objective.is_dsp()
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
@@ -289,8 +291,13 @@ def test_logistic():
     assert np.isclose(problem.value, robust_obj_robust_weights)
 
     # Full sample
-    y = df["survived"].values.astype(float)
-    A = df[features].values.astype(float)
+
+    # without Queenstown
+    y = df[df.embarked != "Q"]["survived"].values.astype(float)
+    A = df[df.embarked != "Q"][features].values.astype(float)
+
+    # y = df["survived"].values.astype(float)
+    # A = df[features].values.astype(float)
 
     print(error(A_short @ ols_theta, y_short))
     print(error(A_short @ robust_theta, y_short))
@@ -299,10 +306,10 @@ def test_logistic():
 
     print("-" * 80)
 
-    print(log_likelihood_numpy(A_short @ ols_theta, y_short))
-    print(log_likelihood_numpy(A_short @ robust_theta, y_short))
-    print(log_likelihood_numpy(A @ ols_theta, y))
-    print(log_likelihood_numpy(A @ robust_theta, y))
+    print(avg_log_likelihood_numpy(A_short @ ols_theta, y_short))
+    print(avg_log_likelihood_numpy(A_short @ robust_theta, y_short))
+    print(avg_log_likelihood_numpy(A @ ols_theta, y))
+    print(avg_log_likelihood_numpy(A @ robust_theta, y))
 
 
 def error(scores, labels):
@@ -311,5 +318,5 @@ def error(scores, labels):
     return np.sum(np.abs(scores - labels)) / float(np.size(labels))
 
 
-def log_likelihood_numpy(y_hat, y):
-    return np.sum(y * y_hat - np.log(1 + np.exp(y_hat)))
+def avg_log_likelihood_numpy(y_hat, y):
+    return np.mean(y * y_hat - np.log(1 + np.exp(y_hat)))
