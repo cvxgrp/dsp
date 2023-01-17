@@ -496,3 +496,18 @@ def test_unconstrained():
 
     saddle_problem.solve()
     assert np.isclose(saddle_problem.value, 0)
+
+
+def test_saddle_inner_neg():
+    x = cp.Variable(1, name="x")
+    y = cp.Variable(1, name="y")
+    f = saddle_inner(cp.square(x) - 1, y)
+    obj = MinimizeMaximize(f)
+
+    assert not obj.is_dsp()
+
+    saddle_problem = SaddlePointProblem(obj)
+    assert not saddle_problem.is_dsp()
+
+    with pytest.raises(DSPError):
+        saddle_problem.solve()

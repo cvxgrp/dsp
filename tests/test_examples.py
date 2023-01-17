@@ -258,8 +258,8 @@ def test_logistic():
     weights = cp.Variable(m, nonneg=True)
 
     # Defining the loss function and the weight constraints
-    neg_log_likelihood_samples = cp.pos(-(
-        cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta))
+    neg_log_likelihood_samples = cp.pos(
+        -(cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta))
     )
     objective = MinimizeMaximize(saddle_inner(neg_log_likelihood_samples, weights))
     constraints = [cp.sum(weights) == k, weights <= 1]
