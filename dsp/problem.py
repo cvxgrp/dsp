@@ -114,10 +114,10 @@ class SaddlePointProblem(cp.Problem):
 
     def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> None:  # noqa
         self.x_prob.solve(*args, **kwargs)
-        assert self.x_prob.status == cp.OPTIMAL  # or self.x_prob.status == cp.OPTIMAL_INACCURATE
+        assert self.x_prob.status in {cp.OPTIMAL, cp.OPTIMAL_INACCURATE}
 
         self.y_prob.solve(*args, **kwargs)
-        assert self.y_prob.status == cp.OPTIMAL  # or self.y_prob.status == cp.OPTIMAL_INACCURATE
+        assert self.y_prob.status in {cp.OPTIMAL, cp.OPTIMAL_INACCURATE}
 
         diff = self.x_prob.value + self.y_prob.value  # y_prob.value is negated
         assert np.isclose(self.x_prob.value, -self.y_prob.value, atol=eps) and np.isclose(
@@ -125,7 +125,11 @@ class SaddlePointProblem(cp.Problem):
         ), f"Difference between x and y problem is {diff}, (should be 0)."
         # TODO: Does this guarantee that we found a saddle point?
 
-        self._status = cp.OPTIMAL
+        self._status = (
+            cp.OPTIMAL_INACCURATE
+            if cp.OPTIMAL_INACCURATE in {self.x_prob.status, self.y_prob.status}
+            else cp.OPTIMAL
+        )
         self._value = self.x_prob.value
 
     @property
