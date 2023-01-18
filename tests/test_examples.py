@@ -236,11 +236,12 @@ def test_robust_model_fitting():
 
 def test_logistic():
     import pandas as pd
-    
-    one_hot = False # Use one-hot encoding for pclass and 5 age bins
-    intercept = True # Include intercept in model
-    train_port = "Q" # C, Q, S: the port to use for training
-    without_train = False # Dont include training data in eval
+
+    one_hot = True  # Use one-hot encoding for pclass and 5 age bins
+    bins = 4  # Number of age bins
+    intercept = True  # Include intercept in model
+    train_port = "Q"  # C, Q, S: the port to use for training
+    without_train = False  # Dont include training data in eval
 
     df = pd.read_csv("http://bit.ly/bio304-titanic-data")
 
@@ -248,13 +249,13 @@ def test_logistic():
 
     df["intercept"] = 1
 
-    features = ["pclass", "sex", "age"]  + (["intercept"] if intercept else [])
+    features = ["pclass", "sex", "age"] + (["intercept"] if intercept else [])
 
     df = df.dropna(subset=features)
 
     class_hot = pd.get_dummies(df["pclass"], prefix="pclass")
 
-    age_bins = pd.get_dummies(pd.cut(df["age"], 5), prefix="age")
+    age_bins = pd.get_dummies(pd.cut(df["age"], bins), prefix="age")
 
     df = pd.concat([df, class_hot, age_bins], axis=1)
 
@@ -323,10 +324,10 @@ def test_logistic():
 
     print("-" * 80)
 
-    print(avg_log_likelihood_numpy(A_short @ ols_theta, y_short))
-    print(avg_log_likelihood_numpy(A_short @ robust_theta, y_short))
-    print(avg_log_likelihood_numpy(A @ ols_theta, y))
-    print(avg_log_likelihood_numpy(A @ robust_theta, y))
+    print("Train nom.: ", avg_log_likelihood_numpy(A_short @ ols_theta, y_short))
+    print("Train rob.: ", avg_log_likelihood_numpy(A_short @ robust_theta, y_short))
+    print("Test nom.: ", avg_log_likelihood_numpy(A @ ols_theta, y))
+    print("Test rob.: ", avg_log_likelihood_numpy(A @ robust_theta, y))
 
     print("-" * 80)
 
