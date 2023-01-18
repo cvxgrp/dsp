@@ -101,9 +101,9 @@ class saddle_inner(SaddleAtom):
 
     def is_dsp(self) -> bool:
         x_cvx = self.Fx.is_convex()  # "Fx must be convex"
-        x_nonneg = self.Fx.is_nonneg()  # "Fx must be non-negative"
+        x_nonneg = self.Fx.is_nonneg() or self.bilinear  # "Fx must be non-negative"
         y_ccv = self.Gy.is_concave()  # "Gy must be concave"
-        return all([x_cvx, x_nonneg, y_ccv])
+        return all([x_cvx, x_nonneg, y_ccv]) or self.bilinear
 
     def get_concave_expression(self) -> cp.Expression:
         Fx = self.Fx
