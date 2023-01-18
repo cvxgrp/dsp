@@ -236,16 +236,32 @@ def test_robust_model_fitting():
 
 def test_logistic():
     import pandas as pd
+    
+    one_hot = False # Use one-hot encoding for pclass and 5 age bins
+    intercept = True # Include intercept in model
+    train_port = "Q" # C, Q, S: the port to use for training
+    without_train = False # Dont include training data in eval
 
     df = pd.read_csv("http://bit.ly/bio304-titanic-data")
 
     df["sex"] = df["sex"] == "male"
 
-    features = ["pclass", "sex", "age"]
+    df["intercept"] = 1
+
+    features = ["pclass", "sex", "age"]  + (["intercept"] if intercept else [])
 
     df = df.dropna(subset=features)
 
-    df_short = df[df.embarked == "Q"]
+    class_hot = pd.get_dummies(df["pclass"], prefix="pclass")
+
+    age_bins = pd.get_dummies(pd.cut(df["age"], 5), prefix="age")
+
+    df = pd.concat([df, class_hot, age_bins], axis=1)
+
+    if one_hot:
+        features = ["sex"] + class_hot.columns.tolist() + age_bins.columns.tolist()
+
+    df_short = df[df.embarked == train_port]
 
     y_short = df_short["survived"].values.astype(float)
     A_short = df_short[features].values.astype(float)
@@ -292,12 +308,13 @@ def test_logistic():
 
     # Full sample
 
-    # without Queenstown
-    y = df[df.embarked != "Q"]["survived"].values.astype(float)
-    A = df[df.embarked != "Q"][features].values.astype(float)
-
-    # y = df["survived"].values.astype(float)
-    # A = df[features].values.astype(float)
+    # without train_port
+    if without_train:
+        y = df[df.embarked != train_port]["survived"].values.astype(float)
+        A = df[df.embarked != train_port][features].values.astype(float)
+    else:
+        y = df["survived"].values.astype(float)
+        A = df[features].values.astype(float)
 
     print(error(A_short @ ols_theta, y_short))
     print(error(A_short @ robust_theta, y_short))
@@ -310,6 +327,8 @@ def test_logistic():
     print(avg_log_likelihood_numpy(A_short @ robust_theta, y_short))
     print(avg_log_likelihood_numpy(A @ ols_theta, y))
     print(avg_log_likelihood_numpy(A @ robust_theta, y))
+
+    print("-" * 80)
 
 
 def error(scores, labels):
