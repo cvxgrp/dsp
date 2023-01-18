@@ -278,7 +278,7 @@ def test_svm():
 
     # Defining the loss function and the weight constraints
     y_hat = A_short @ theta
-    loss = cp.pos(cp.multiply(2 * y_short, y_hat) - y_hat + 1 - y_short)
+    loss = cp.pos(cp.multiply(1 - y_short, y_hat) + cp.multiply(y_short, 1 - y_hat))
     objective = MinimizeMaximize(saddle_inner(loss, weights) + lamb * cp.norm1(theta))
     constraints = [cp.sum(weights) == k, weights <= 1]
 
