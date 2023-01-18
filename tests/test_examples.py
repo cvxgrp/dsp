@@ -234,16 +234,16 @@ def test_robust_model_fitting():
     assert np.isclose(problem.value, robust_obj_robust_weights)
 
 
-def test_logistic():
+def test_svm():
     import pandas as pd
 
     one_hot = True  # Use one-hot encoding for pclass and 5 age bins
     bins = 4  # Number of age bins
     intercept = True  # Include intercept in model
-    train_port = "Q"  # C, Q, S: the port to use for training
+    train_port = "C"  # C, Q, S: the port to use for training
     without_train = False  # Dont include training data in eval
 
-    df = pd.read_csv("http://bit.ly/bio304-titanic-data")
+    df = pd.read_csv("https://bit.ly/bio304-titanic-data")
 
     df["sex"] = df["sex"] == "male"
 
@@ -274,14 +274,13 @@ def test_logistic():
     theta = cp.Variable(n)
     weights = cp.Variable(m, nonneg=True)
 
-    # Defining the loss function and the weight constraints
-    neg_log_likelihood_samples = cp.pos(
-        -(cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta))
-    )
-    objective = MinimizeMaximize(saddle_inner(neg_log_likelihood_samples, weights))
-    constraints = [cp.sum(weights) == k, weights <= 1]
+    lamb = cp.Parameter(nonneg=True, value=0)
 
-    assert objective.is_dsp()
+    # Defining the loss function and the weight constraints
+    y_hat = A_short @ theta
+    loss = cp.pos(cp.multiply(2 * y_short, y_hat) - y_hat + 1 - y_short)
+    objective = MinimizeMaximize(saddle_inner(loss, weights) + lamb * cp.norm1(theta))
+    constraints = [cp.sum(weights) == k, weights <= 1]
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
@@ -290,17 +289,15 @@ def test_logistic():
     robust_theta = theta.value
     robust_obj_robust_weights = problem.value
 
-    # Logistic problem
-    log_likelihood = cp.sum(cp.multiply(y_short, A_short @ theta) - cp.logistic(A_short @ theta))
-
-    problem = cp.Problem(cp.Maximize(log_likelihood))
+    # SVM problem
+    problem = cp.Problem(cp.Minimize(cp.sum(loss) + lamb * cp.norm1(theta)))
     problem.solve()
     assert problem.status == cp.OPTIMAL
 
     ols_theta = theta.value
 
     # Using sum_largest
-    objective = cp.Minimize(cp.sum_largest(neg_log_likelihood_samples, k))
+    objective = cp.Minimize(cp.sum_largest(loss, k) + lamb * cp.norm1(theta))
     problem = cp.Problem(objective)
     problem.solve()
     assert problem.status == cp.OPTIMAL
