@@ -116,7 +116,7 @@ def test_robust_markowitz():
 
     # Creating and solving the problem
     problem = cp.Problem(cp.Maximize(G), [cp.sum(w) == 1])
-    problem.solve(solver=cp.SCS)  # 0.076
+    problem.solve(solver=cp.SCS, verbose=True)  # 0.076
 
     nominal_objective = cp.Maximize(w @ mu - gamma * cp.quad_form(w, Sigma))
 
@@ -238,9 +238,9 @@ def test_svm():
     import pandas as pd
 
     one_hot = True  # Use one-hot encoding for pclass and 5 age bins
-    bins = 4  # Number of age bins
-    intercept = True  # Include intercept in model
-    train_port = "C"  # C, Q, S: the port to use for training
+    bins = 5  # Number of age bins
+    intercept = False  # Include intercept in model
+    train_port = "Q"  # C, Q, S: the port to use for training
     without_train = False  # Dont include training data in eval
 
     df = pd.read_csv("https://bit.ly/bio304-titanic-data")
@@ -259,6 +259,8 @@ def test_svm():
 
     df = pd.concat([df, class_hot, age_bins], axis=1)
 
+    df["survived"] = 2 * df["survived"] - 1
+
     if one_hot:
         features = ["sex"] + class_hot.columns.tolist() + age_bins.columns.tolist()
 
@@ -268,7 +270,7 @@ def test_svm():
     A_short = df_short[features].values.astype(float)
 
     m, n = A_short.shape
-    k = int(0.8 * m)
+    k = int(0.4 * m)
 
     # Creating variables
     theta = cp.Variable(n)
@@ -278,7 +280,7 @@ def test_svm():
 
     # Defining the loss function and the weight constraints
     y_hat = A_short @ theta
-    loss = cp.pos(cp.multiply(1 - y_short, y_hat) + cp.multiply(y_short, 1 - y_hat))
+    loss = cp.pos(1 - cp.multiply(y_short, y_hat))
     objective = MinimizeMaximize(saddle_inner(loss, weights) + lamb * cp.norm1(theta))
     constraints = [cp.sum(weights) == k, weights <= 1]
 
@@ -321,19 +323,24 @@ def test_svm():
 
     print("-" * 80)
 
-    print("Train nom.: ", avg_log_likelihood_numpy(A_short @ ols_theta, y_short))
-    print("Train rob.: ", avg_log_likelihood_numpy(A_short @ robust_theta, y_short))
-    print("Test nom.: ", avg_log_likelihood_numpy(A @ ols_theta, y))
-    print("Test rob.: ", avg_log_likelihood_numpy(A @ robust_theta, y))
+    print("Train nom.: ", avg_svm_loss_numpy(A_short @ ols_theta, y_short))
+    print("Train rob.: ", avg_svm_loss_numpy(A_short @ robust_theta, y_short))
+    print("Test nom.: ", avg_svm_loss_numpy(A @ ols_theta, y))
+    print("Test rob.: ", avg_svm_loss_numpy(A @ robust_theta, y))
 
     print("-" * 80)
 
 
 def error(scores, labels):
     scores[scores > 0] = 1
-    scores[scores <= 0] = 0
-    return np.sum(np.abs(scores - labels)) / float(np.size(labels))
+    scores[scores <= 0] = -1
+    return np.mean(scores == labels)
 
 
 def avg_log_likelihood_numpy(y_hat, y):
     return np.mean(y * y_hat - np.log(1 + np.exp(y_hat)))
+
+
+def avg_svm_loss_numpy(y_hat, y):
+    losses = np.maximum(0, 1 - y * y_hat)
+    return np.mean(losses)
