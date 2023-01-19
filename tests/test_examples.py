@@ -189,7 +189,7 @@ def test_robust_model_fitting():
 
     # Constants
     m, n = A.shape
-    k = 0.1 * m
+    k = 0.2 * m
     eta = 0.1
 
     # Creating variables
@@ -204,7 +204,7 @@ def test_robust_model_fitting():
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
-    problem.solve()  # 692.13
+    problem.solve() # XXX
     assert problem.status == cp.OPTIMAL
 
     robust_obj_robust_weights = problem.value
@@ -238,7 +238,7 @@ def test_svm():
     import pandas as pd
 
     one_hot = True  # Use one-hot encoding for pclass and 5 age bins
-    bins = 5  # Number of age bins
+    bins = 3  # Number of age bins
     intercept = False  # Include intercept in model
     train_port = "Q"  # C, Q, S: the port to use for training
     without_train = False  # Dont include training data in eval
@@ -270,13 +270,13 @@ def test_svm():
     A_short = df_short[features].values.astype(float)
 
     m, n = A_short.shape
-    k = int(0.4 * m)
+    k = int(0.7 * m)
 
     # Creating variables
     theta = cp.Variable(n)
     weights = cp.Variable(m, nonneg=True)
 
-    lamb = cp.Parameter(nonneg=True, value=0)
+    lamb = cp.Parameter(nonneg=True, value=.05)
 
     # Defining the loss function and the weight constraints
     y_hat = A_short @ theta
@@ -332,8 +332,8 @@ def test_svm():
 
 
 def error(scores, labels):
-    scores[scores > 0] = 1
-    scores[scores <= 0] = -1
+    scores[scores >= 1] = 1
+    scores[scores <= -1] = -1
     return np.mean(scores == labels)
 
 
