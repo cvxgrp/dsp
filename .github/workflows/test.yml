@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install .
-          pip install pytest pytest-cov
+          pip install pytest pytest-cov pandas
       - name: Run tests
         run: |
           pytest --cov=dsp --cov-report xml:coverage.xml

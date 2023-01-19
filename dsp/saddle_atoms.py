@@ -167,9 +167,9 @@ class inner(saddle_inner):
         assert isinstance(Fx, cp.Expression)
         assert isinstance(Gy, cp.Expression)
 
-        assert Fx.is_affine() and Gy.is_affine(), (
-            "inner must be affine. Use convex-concave-inner for non-affine" " bilinear terms."
-        )
+        assert (
+            Fx.is_affine() and Gy.is_affine()
+        ), "inner must be affine. Use convex-concave-inner for non-affine bilinear terms."
 
         super().__init__(Fx, Gy)
 

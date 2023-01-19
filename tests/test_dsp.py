@@ -152,7 +152,7 @@ def test_matrix_game_nemirovski_Fx_Gy():
     F_x = x + 0.5
     G_y = y + 0.5
 
-    FxGy = saddle_inner(F_x, G_y)
+    FxGy = inner(F_x, G_y)
 
     objective = MinimizeMaximize(FxGy)
     constraints = [-1 <= x, x <= 1, -1 <= y, y <= 1]

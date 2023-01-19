@@ -204,7 +204,7 @@ def test_robust_model_fitting():
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
-    problem.solve() # XXX
+    problem.solve()  # XXX
     assert problem.status == cp.OPTIMAL
 
     robust_obj_robust_weights = problem.value
@@ -237,9 +237,9 @@ def test_robust_model_fitting():
 def test_svm():
     import pandas as pd
 
-    one_hot = True  # Use one-hot encoding for pclass and 5 age bins
+    one_hot = False  # Use one-hot encoding for pclass and 5 age bins
     bins = 3  # Number of age bins
-    intercept = False  # Include intercept in model
+    intercept = True  # Include intercept in model
     train_port = "Q"  # C, Q, S: the port to use for training
     without_train = False  # Dont include training data in eval
 
@@ -276,7 +276,7 @@ def test_svm():
     theta = cp.Variable(n)
     weights = cp.Variable(m, nonneg=True)
 
-    lamb = cp.Parameter(nonneg=True, value=.05)
+    lamb = cp.Parameter(nonneg=True, value=0.05)
 
     # Defining the loss function and the weight constraints
     y_hat = A_short @ theta
