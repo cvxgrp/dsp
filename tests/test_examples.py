@@ -270,13 +270,13 @@ def test_svm():
     A_short = df_short[features].values.astype(float)
 
     m, n = A_short.shape
-    k = int(0.7 * m)
+    k = int(0.4 * m)
 
     # Creating variables
     theta = cp.Variable(n)
     weights = cp.Variable(m, nonneg=True)
 
-    lamb = cp.Parameter(nonneg=True, value=0.05)
+    lamb = cp.Parameter(nonneg=True, value=0.0)
 
     # Defining the loss function and the weight constraints
     y_hat = A_short @ theta
@@ -332,8 +332,8 @@ def test_svm():
 
 
 def error(scores, labels):
-    scores[scores >= 1] = 1
-    scores[scores <= -1] = -1
+    scores[scores >= 0] = 1
+    scores[scores <= 0] = -1
     return np.mean(scores == labels)
 
 
