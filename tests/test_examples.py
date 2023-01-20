@@ -237,9 +237,9 @@ def test_robust_model_fitting():
 def test_svm():
     import pandas as pd
 
-    one_hot = False  # Use one-hot encoding for pclass and 5 age bins
+    one_hot = True  # Use one-hot encoding for pclass and 5 age bins
     bins = 5  # Number of age bins
-    intercept = True  # Include intercept in model
+    intercept = True and one_hot  # Include intercept in model
     train_port = "Q"  # C, Q, S: the port to use for training
     without_train = False  # Dont include training data in eval
 
@@ -253,17 +253,18 @@ def test_svm():
 
     df = df.dropna(subset=features)
 
-    class_hot = pd.get_dummies(df["pclass"], prefix="pclass")
+    # class_hot = pd.get_dummies(df["pclass"], prefix="pclass")
 
     age_bins = pd.get_dummies(pd.cut(df["age"], bins), prefix="age")
 
-    df = pd.concat([df, class_hot, age_bins], axis=1)
+    # df = pd.concat([df, class_hot, age_bins], axis=1)
+    df = pd.concat([df, age_bins], axis=1)
 
     df["survived_bool"] = df["survived"].copy()
     df["survived"] = 2 * df["survived"] - 1
 
     if one_hot:
-        features = ["sex"] + class_hot.columns.tolist() + age_bins.columns.tolist()
+        features = ["sex"] + age_bins.columns.tolist() #+ class_hot.columns.tolist() 
 
     df_short = df[df.embarked == train_port]
 
@@ -276,12 +277,13 @@ def test_svm():
     theta = cp.Variable(n)
     weights = cp.Variable(m, nonneg=True)
 
-    lamb = cp.Parameter(nonneg=True, value=0.0)
+    lamb = cp.Parameter(nonneg=True, value=0.1)
 
     # Defining the loss function and the weight constraints
     y_hat = A_short @ theta
     loss = cp.pos(1 - cp.multiply(y_short, y_hat))
     objective = MinimizeMaximize(saddle_inner(loss, weights) + lamb * cp.norm1(theta))
+
 
     mu = df["survived_bool"].mean()
     survs = df_short["survived_bool"].values.astype(float)
@@ -292,11 +294,37 @@ def test_svm():
     weights_adjusted[survs == 0] = 1 / ratio
     weights_adjusted = weights_adjusted / weights_adjusted.mean()
 
-    constraints = [
-        weights_adjusted * 0.9 <= weights,
-        weights <= weights_adjusted * 1.1,
-        cp.sum(weights) == m,
-    ]
+    # constraints = [
+    #     weights_adjusted * 0.7 <= weights,
+    #     weights <= weights_adjusted * 1.3,
+    #     cp.sum(weights) == m,
+    # ]
+
+    constraints = [ cp.sum(weights) == 1]
+    margin = .1
+    if one_hot:
+        for feature in age_bins.columns.tolist():
+            mu_feature = df[feature].mean()
+            inds_0 = df_short[feature] == 0
+            inds_1 = df_short[feature] == 1
+            feat_var_0 = cp.Variable()
+            feat_var_1 = cp.Variable()
+            constraints += [
+                mu_feature - margin <= weights @ df_short[feature],
+                weights @ df_short[feature] <= mu_feature + margin,
+                weights[inds_0] == feat_var_0,
+                weights[inds_1] == feat_var_1,
+            ]
+
+
+    # surv_0_weight = cp.Variable()
+    # surv_1_weight = cp.Variable()
+    # constraints = [
+    #     mu - .1 <= weights @ survs,
+    #     weights @ survs <= mu + .1,
+    #     weights[survs == 1] == surv_0_weight,
+    #     weights[survs == 0] == surv_1_weight,
+    # ]
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
@@ -306,7 +334,8 @@ def test_svm():
     robust_obj_robust_weights = problem.value
 
     # SVM problem
-    problem = cp.Problem(cp.Minimize(cp.sum(loss) + lamb * cp.norm1(theta)))
+    const_weights = np.ones(m)
+    problem = cp.Problem(cp.Minimize(cp.sum(cp.multiply(loss, const_weights)) + lamb * cp.norm1(theta)))
     problem.solve()
     assert problem.status == cp.OPTIMAL
 
@@ -338,8 +367,8 @@ def test_svm():
 
 
 def accuracy(scores, labels):
-    scores[scores >= 0] = 1
-    scores[scores <= 0] = -1
+    scores[scores > 0] = 1
+    scores[scores <= -0] = -1
     return np.mean(scores == labels)
 
 
