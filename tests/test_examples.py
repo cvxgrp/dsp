@@ -259,6 +259,7 @@ def test_svm():
 
     df = pd.concat([df, class_hot, age_bins], axis=1)
 
+    df["survived_bool"] = df["survived"].copy()
     df["survived"] = 2 * df["survived"] - 1
 
     if one_hot:
@@ -282,16 +283,20 @@ def test_svm():
     loss = cp.pos(1 - cp.multiply(y_short, y_hat))
     objective = MinimizeMaximize(saddle_inner(loss, weights) + lamb * cp.norm1(theta))
 
-    mu = df.sex.mean()
-    sexs = df_short["sex"].values.astype(float)
+    mu = df["survived_bool"].mean()
+    survs = df_short["survived_bool"].values.astype(float)
 
-    ratio = mu / sexs.mean()
+    ratio = mu / survs.mean()
     weights_adjusted = np.ones(m)
-    weights_adjusted[sexs == 1] = ratio
-    weights_adjusted[sexs == 0] = 1 / ratio
+    weights_adjusted[survs == 1] = ratio
+    weights_adjusted[survs == 0] = 1 / ratio
     weights_adjusted = weights_adjusted / weights_adjusted.mean()
 
-    constraints = [weights_adjusted * 0.9 <= weights, weights <= weights_adjusted * 1.1]
+    constraints = [
+        weights_adjusted * 0.9 <= weights,
+        weights <= weights_adjusted * 1.1,
+        cp.sum(weights) == m,
+    ]
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
