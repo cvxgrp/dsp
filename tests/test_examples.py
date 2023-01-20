@@ -291,7 +291,7 @@ def test_svm():
     weights_adjusted[sexs == 0] = 1 / ratio
     weights_adjusted = weights_adjusted / weights_adjusted.mean()
 
-    constraints = [weights == weights_adjusted]
+    constraints = [weights_adjusted * 0.9 <= weights, weights <= weights_adjusted * 1.1]
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
@@ -317,22 +317,22 @@ def test_svm():
         y = df["survived"].values.astype(float)
         A = df[features].values.astype(float)
 
-    print(error(A_short @ ols_theta, y_short))
-    print(error(A_short @ robust_theta, y_short))
-    print(error(A @ ols_theta, y))
-    print(error(A @ robust_theta, y))
+    print("Train accuracy nom.: ", accuracy(A_short @ ols_theta, y_short))
+    print("Train accuracy rob.: ", accuracy(A_short @ robust_theta, y_short))
+    print("Test accuracy nom.: ", accuracy(A @ ols_theta, y))
+    print("Test accuracy rob.: ", accuracy(A @ robust_theta, y))
 
     print("-" * 80)
 
-    print("Train nom.: ", avg_svm_loss_numpy(A_short @ ols_theta, y_short))
-    print("Train rob.: ", avg_svm_loss_numpy(A_short @ robust_theta, y_short))
-    print("Test nom.: ", avg_svm_loss_numpy(A @ ols_theta, y))
-    print("Test rob.: ", avg_svm_loss_numpy(A @ robust_theta, y))
+    print("Train loss nom.: ", avg_svm_loss_numpy(A_short @ ols_theta, y_short))
+    print("Train loss rob.: ", avg_svm_loss_numpy(A_short @ robust_theta, y_short))
+    print("Test loss nom.: ", avg_svm_loss_numpy(A @ ols_theta, y))
+    print("Test loss rob.: ", avg_svm_loss_numpy(A @ robust_theta, y))
 
     print("-" * 80)
 
 
-def error(scores, labels):
+def accuracy(scores, labels):
     scores[scores >= 0] = 1
     scores[scores <= 0] = -1
     return np.mean(scores == labels)
