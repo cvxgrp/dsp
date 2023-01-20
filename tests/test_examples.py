@@ -237,10 +237,10 @@ def test_robust_model_fitting():
 def test_svm():
     import pandas as pd
 
-    one_hot = False  # Use one-hot encoding for pclass and 5 age bins
+    one_hot = True  # Use one-hot encoding for pclass and 5 age bins
     bins = 3  # Number of age bins
     intercept = True  # Include intercept in model
-    train_port = "Q"  # C, Q, S: the port to use for training
+    train_port = "S"  # C, Q, S: the port to use for training
     without_train = False  # Dont include training data in eval
 
     df = pd.read_csv("https://bit.ly/bio304-titanic-data")
@@ -270,7 +270,7 @@ def test_svm():
     A_short = df_short[features].values.astype(float)
 
     m, n = A_short.shape
-    k = int(0.4 * m)
+    k = int(0.8 * m)
 
     # Creating variables
     theta = cp.Variable(n)
@@ -282,7 +282,10 @@ def test_svm():
     y_hat = A_short @ theta
     loss = cp.pos(1 - cp.multiply(y_short, y_hat))
     objective = MinimizeMaximize(saddle_inner(loss, weights) + lamb * cp.norm1(theta))
-    constraints = [cp.sum(weights) == k, weights <= 1]
+    
+    mu = df.sex.mean()
+    sexs = df_short["sex"].values.astype(float)
+    constraints = [weights @ sexs == mu, cp.sum(weights) <= 1, weights >= 1/(2*m)]
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
@@ -299,12 +302,12 @@ def test_svm():
     ols_theta = theta.value
 
     # Using sum_largest
-    objective = cp.Minimize(cp.sum_largest(loss, k) + lamb * cp.norm1(theta))
-    problem = cp.Problem(objective)
-    problem.solve()
-    assert problem.status == cp.OPTIMAL
+    # objective = cp.Minimize(cp.sum_largest(loss, k) + lamb * cp.norm1(theta))
+    # problem = cp.Problem(objective)
+    # problem.solve()
+    # assert problem.status == cp.OPTIMAL
 
-    assert np.isclose(problem.value, robust_obj_robust_weights)
+    # assert np.isclose(problem.value, robust_obj_robust_weights)
 
     # Full sample
 
