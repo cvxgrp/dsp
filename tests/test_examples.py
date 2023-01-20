@@ -238,9 +238,9 @@ def test_svm():
     import pandas as pd
 
     one_hot = True  # Use one-hot encoding for pclass and 5 age bins
-    intercept = True and one_hot  # Include intercept in model
-    bins = 6  # Number of age bins
-    train_port = "Q"  # C, Q, S: the port to use for training
+    intercept = False and one_hot  # Include intercept in model
+    bins = 3  # Number of age bins
+    train_port = ["Q"]  # C, Q, S: the port to use for training
     without_train = False  # Dont include training data in eval
 
     df = pd.read_csv("https://bit.ly/bio304-titanic-data")
@@ -253,20 +253,20 @@ def test_svm():
 
     df = df.dropna(subset=features)
 
-    # class_hot = pd.get_dummies(df["pclass"], prefix="pclass")
+    class_hot = pd.get_dummies(df["pclass"], prefix="pclass")
 
     age_bins = pd.get_dummies(pd.cut(df["age"], bins), prefix="age")
 
-    # df = pd.concat([df, class_hot, age_bins], axis=1)
-    df = pd.concat([df, age_bins], axis=1)
+    df = pd.concat([df, class_hot, age_bins], axis=1)
+    # df = pd.concat([df, age_bins], axis=1)
 
     df["survived_bool"] = df["survived"].copy()
     df["survived"] = 2 * df["survived"] - 1
 
     if one_hot:
-        features = ["sex"] + age_bins.columns.tolist() #+ class_hot.columns.tolist() 
+        features = ["sex"] + age_bins.columns.tolist() + class_hot.columns.tolist() 
 
-    df_short = df[df.embarked == train_port]
+    df_short = df[df.embarked.isin(train_port)]
 
     y_short = df_short["survived"].values.astype(float)
     A_short = df_short[features].values.astype(float)
@@ -301,9 +301,14 @@ def test_svm():
     # ]
 
     constraints = [ cp.sum(weights) == 1]
-    margin = .15
+    margin = .05
+    demos = []
+    # demos += age_bins.columns.tolist()
+    demos += ["survived_bool"]
+    # demos += ["sex"]
+
     if one_hot:
-        for feature in age_bins.columns.tolist():
+        for feature in demos:
             mu_feature = df[feature].mean()
             inds_0 = df_short[feature] == 0
             inds_1 = df_short[feature] == 1
@@ -335,7 +340,7 @@ def test_svm():
 
     # SVM problem
     const_weights = np.ones(m)
-    problem = cp.Problem(cp.Minimize(cp.sum(cp.multiply(loss, const_weights)) + lamb * cp.norm1(theta)))
+    problem = cp.Problem(cp.Minimize(cp.sum(cp.multiply(loss, weights_adjusted)) + lamb * cp.norm1(theta)))
     problem.solve()
     assert problem.status == cp.OPTIMAL
 
@@ -345,8 +350,8 @@ def test_svm():
 
     # without train_port
     if without_train:
-        y = df[df.embarked != train_port]["survived"].values.astype(float)
-        A = df[df.embarked != train_port][features].values.astype(float)
+        y = df[~df.embarked.isin(train_port)]["survived"].values.astype(float)
+        A = df[~df.embarked.isin(train_port)][features].values.astype(float)
     else:
         y = df["survived"].values.astype(float)
         A = df[features].values.astype(float)
@@ -366,7 +371,10 @@ def test_svm():
     print("-" * 80)
 
 
-    print("\n".join([f"{name:20s}: {val:>10.4f}" for name, val in zip(df_short[features].columns, robust_theta)]))
+    print("\n".join(["robust theta"]+[f"{name:20s}: {val:>10.4f}" for name, val in zip(df_short[features].columns, robust_theta)]))
+    print()
+    print("\n".join(["nom theta"]+[f"{name:20s}: {val:>10.4f}" for name, val in zip(df_short[features].columns, ols_theta)]))
+    
 
 def accuracy(scores, labels):
     scores[scores > 0] = 1
