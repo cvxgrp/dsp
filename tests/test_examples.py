@@ -238,8 +238,8 @@ def test_svm():
     import pandas as pd
 
     one_hot = True  # Use one-hot encoding for pclass and 5 age bins
-    bins = 5  # Number of age bins
     intercept = True and one_hot  # Include intercept in model
+    bins = 6  # Number of age bins
     train_port = "Q"  # C, Q, S: the port to use for training
     without_train = False  # Dont include training data in eval
 
@@ -301,7 +301,7 @@ def test_svm():
     # ]
 
     constraints = [ cp.sum(weights) == 1]
-    margin = .1
+    margin = .15
     if one_hot:
         for feature in age_bins.columns.tolist():
             mu_feature = df[feature].mean()
@@ -365,6 +365,8 @@ def test_svm():
 
     print("-" * 80)
 
+
+    print("\n".join([f"{name:20s}: {val:>10.4f}" for name, val in zip(df_short[features].columns, robust_theta)]))
 
 def accuracy(scores, labels):
     scores[scores > 0] = 1
