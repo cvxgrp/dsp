@@ -264,7 +264,7 @@ def test_svm():
     df["survived"] = 2 * df["survived"] - 1
 
     if one_hot:
-        features = ["sex"] + age_bins.columns.tolist() + class_hot.columns.tolist() 
+        features = ["sex"] + age_bins.columns.tolist() + class_hot.columns.tolist()
 
     df_short = df[df.embarked.isin(train_port)]
 
@@ -276,7 +276,7 @@ def test_svm():
 
     # Constants
     m, n = A_train.shape
-    eta = .1
+    eta = 0.1
 
     # Creating variables
     theta = cp.Variable(n)
@@ -287,14 +287,15 @@ def test_svm():
     # Defining the loss function and the weight constraints
     y_hat = A_train @ theta
     loss = cp.pos(1 - cp.multiply(y_train, y_hat))
-    objective = MinimizeMaximize(saddle_inner(loss, weights) + eta * cp.sum_squares(theta))
-    
-    constraints = [ cp.sum(weights) == 1]
+    objective = MinimizeMaximize(saddle_inner(loss, weights) 
+        + eta * cp.sum_squares(theta))
+
+    constraints = [cp.sum(weights) == 1]
     inds_0 = surv == 0
     inds_1 = surv == 1
     constraints += [
-        mu - .05 <= weights @ surv,
-        weights @ surv <= mu + .05,
+        mu - 0.05 <= weights @ surv,
+        weights @ surv <= mu + 0.05,
         weights[inds_0] == surv_weight_0,
         weights[inds_1] == surv_weight_1,
     ]
@@ -309,7 +310,9 @@ def test_svm():
 
     # SVM problem
     const_weights = np.ones(m)
-    problem = cp.Problem(cp.Minimize(cp.sum(cp.multiply(loss, const_weights)) + eta * cp.sum_squares(theta)))
+    problem = cp.Problem(
+        cp.Minimize(cp.sum(cp.multiply(loss, const_weights)) + eta * cp.sum_squares(theta))
+    )
     problem.solve()
     assert problem.status == cp.OPTIMAL
 
@@ -339,11 +342,26 @@ def test_svm():
 
     print("-" * 80)
 
-
-    print("\n".join(["robust theta"]+[f"{name:20s}: {val:>10.4f}" for name, val in zip(df_short[features].columns, robust_theta)]))
+    print(
+        "\n".join(
+            ["robust theta"]
+            + [
+                f"{name:20s}: {val:>10.4f}"
+                for name, val in zip(df_short[features].columns, robust_theta)
+            ]
+        )
+    )
     print()
-    print("\n".join(["nom theta"]+[f"{name:20s}: {val:>10.4f}" for name, val in zip(df_short[features].columns, ols_theta)]))
-    
+    print(
+        "\n".join(
+            ["nom theta"]
+            + [
+                f"{name:20s}: {val:>10.4f}"
+                for name, val in zip(df_short[features].columns, ols_theta)
+            ]
+        )
+    )
+
 
 def accuracy(scores, labels):
     scores[scores > 0] = 1
