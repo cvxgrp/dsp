@@ -241,7 +241,7 @@ def test_svm():
     intercept = False and one_hot  # Include intercept in model
     bins = 3  # Number of age bins
     train_port = ["Q"]  # C, Q, S: the port to use for training
-    without_train = False  # Dont include training data in eval
+    without_train = True  # Dont include training data in eval
 
     df = pd.read_csv("https://bit.ly/bio304-titanic-data")
 
@@ -268,79 +268,48 @@ def test_svm():
 
     df_short = df[df.embarked.isin(train_port)]
 
-    y_short = df_short["survived"].values.astype(float)
-    A_short = df_short[features].values.astype(float)
+    y_train = df_short["survived"].values.astype(float)
+    A_train = df_short[features].values.astype(float)
 
-    m, n = A_short.shape
+    mu = df["survived_bool"].mean()
+    surv = df_short["survived_bool"].values.astype(float)
+
+    # Constants
+    m, n = A_train.shape
+    eta = .1
 
     # Creating variables
     theta = cp.Variable(n)
     weights = cp.Variable(m, nonneg=True)
-
-    lamb = cp.Parameter(nonneg=True, value=0.1)
+    surv_weight_0 = cp.Variable()
+    surv_weight_1 = cp.Variable()
 
     # Defining the loss function and the weight constraints
-    y_hat = A_short @ theta
-    loss = cp.pos(1 - cp.multiply(y_short, y_hat))
-    objective = MinimizeMaximize(saddle_inner(loss, weights) + lamb * cp.norm1(theta))
-
-
-    mu = df["survived_bool"].mean()
-    survs = df_short["survived_bool"].values.astype(float)
-
-    ratio = mu / survs.mean()
-    weights_adjusted = np.ones(m)
-    weights_adjusted[survs == 1] = ratio
-    weights_adjusted[survs == 0] = 1 / ratio
-    weights_adjusted = weights_adjusted / weights_adjusted.mean()
-
-    # constraints = [
-    #     weights_adjusted * 0.7 <= weights,
-    #     weights <= weights_adjusted * 1.3,
-    #     cp.sum(weights) == m,
-    # ]
-
+    y_hat = A_train @ theta
+    loss = cp.pos(1 - cp.multiply(y_train, y_hat))
+    objective = MinimizeMaximize(saddle_inner(loss, weights) + eta * cp.sum_squares(theta))
+    
     constraints = [ cp.sum(weights) == 1]
-    margin = .05
-    demos = []
-    # demos += age_bins.columns.tolist()
-    demos += ["survived_bool"]
-    # demos += ["sex"]
-
-    if one_hot:
-        for feature in demos:
-            mu_feature = df[feature].mean()
-            inds_0 = df_short[feature] == 0
-            inds_1 = df_short[feature] == 1
-            feat_var_0 = cp.Variable()
-            feat_var_1 = cp.Variable()
-            constraints += [
-                mu_feature - margin <= weights @ df_short[feature],
-                weights @ df_short[feature] <= mu_feature + margin,
-                weights[inds_0] == feat_var_0,
-                weights[inds_1] == feat_var_1,
-            ]
-
-
-    # surv_0_weight = cp.Variable()
-    # surv_1_weight = cp.Variable()
-    # constraints = [
-    #     mu - .1 <= weights @ survs,
-    #     weights @ survs <= mu + .1,
-    #     weights[survs == 1] == surv_0_weight,
-    #     weights[survs == 0] == surv_1_weight,
-    # ]
+    inds_0 = surv == 0
+    inds_1 = surv == 1
+    constraints += [
+        mu - .05 <= weights @ surv,
+        weights @ surv <= mu + .05,
+        weights[inds_0] == surv_weight_0,
+        weights[inds_1] == surv_weight_1,
+    ]
 
     # Creating and solving the problem
     problem = SaddlePointProblem(objective, constraints)
     problem.solve()
+
     assert problem.status == cp.OPTIMAL
     robust_theta = theta.value
     robust_obj_robust_weights = problem.value
 
     # SVM problem
     const_weights = np.ones(m)
-    problem = cp.Problem(cp.Minimize(cp.sum(cp.multiply(loss, weights_adjusted)) + lamb * cp.norm1(theta)))
+    problem = cp.Problem(cp.Minimize(cp.sum(cp.multiply(loss, const_weights)) + eta * cp.sum_squares(theta)))
     problem.solve()
     assert problem.status == cp.OPTIMAL
 
@@ -356,15 +325,15 @@ def test_svm():
         y = df["survived"].values.astype(float)
         A = df[features].values.astype(float)
 
-    print("Train accuracy nom.: ", accuracy(A_short @ ols_theta, y_short))
-    print("Train accuracy rob.: ", accuracy(A_short @ robust_theta, y_short))
+    print("Train accuracy nom.: ", accuracy(A_train @ ols_theta, y_train))
+    print("Train accuracy rob.: ", accuracy(A_train @ robust_theta, y_train))
     print("Test accuracy nom.: ", accuracy(A @ ols_theta, y))
     print("Test accuracy rob.: ", accuracy(A @ robust_theta, y))
 
     print("-" * 80)
 
-    print("Train loss nom.: ", avg_svm_loss_numpy(A_short @ ols_theta, y_short))
-    print("Train loss rob.: ", avg_svm_loss_numpy(A_short @ robust_theta, y_short))
+    print("Train loss nom.: ", avg_svm_loss_numpy(A_train @ ols_theta, y_train))
+    print("Train loss rob.: ", avg_svm_loss_numpy(A_train @ robust_theta, y_train))
     print("Test loss nom.: ", avg_svm_loss_numpy(A @ ols_theta, y))
     print("Test loss rob.: ", avg_svm_loss_numpy(A @ robust_theta, y))
 
