@@ -584,6 +584,6 @@ def switch_convex_concave(
                 inds = np.triu_indices(n, k=0)  # includes diagonal
                 v = v[inds]
 
-            constraints += [(P.T @ u_bar)[start:end] + v == 0]
+            constraints += [(P.T @ u_bar)[start:end] + cp.vec(v) == 0]
 
     return KRepresentation(f=f_bar, t=t_bar, constraints=constraints)
