@@ -18,7 +18,7 @@ def test_robust_bond():
     C = np.loadtxt("tests/example_data/robust_bond_portfolio/C.csv")
     p = np.loadtxt("tests/example_data/robust_bond_portfolio/p.csv")
     w_bar = np.loadtxt("tests/example_data/robust_bond_portfolio/target_weights.csv")
-    y_nominal = np.loadtxt("tests/example_data/robust_bond_portfolio/y_nominal.csv")
+    y_nom = np.loadtxt("tests/example_data/robust_bond_portfolio/y_nominal.csv")
     h_mkt = (w_bar * 100) / p
 
     # Constants and parameters
@@ -31,11 +31,7 @@ def test_robust_bond():
     h = cp.Variable(n, nonneg=True)
 
     delta = LocalVariable(T)
-    y = y_nominal + delta
-    # TODO: investigate why
-    # y = LocalVariable(T)
-    # delta = y - y_nominal
-    # breaks
+    y = y_nom + delta
 
     # Objective
     phi = 0.5 * cp.norm1(cp.multiply(h, p) - cp.multiply(h_mkt, p))
@@ -56,7 +52,7 @@ def test_robust_bond():
 
     # Creating and solving the problem
     problem = cp.Problem(cp.Minimize(phi), [h @ p == B, V_wc >= V_lim])
-    problem.solve()  # 15.31
+    problem.solve()  # 15.32
 
     assert problem.status == cp.OPTIMAL
 
@@ -77,7 +73,7 @@ def test_robust_bond():
         plt.savefig("tests/example_data/robust_bond.pdf")
         # plt.show()
 
-        df = pd.DataFrame({"y_nom": y_nominal, "y_wc": y.value})
+        df = pd.DataFrame({"y_nom": y_nom, "y_wc": y.value})
         df.plot()
         plt.xlabel(r"$t$")
         plt.ylabel("yield")
@@ -116,7 +112,7 @@ def test_robust_markowitz():
 
     # Creating and solving the problem
     problem = cp.Problem(cp.Maximize(G), [cp.sum(w) == 1])
-    problem.solve(solver=cp.SCS, verbose=True)  # 0.076
+    problem.solve(solver=cp.SCS)  # 0.076
 
     nominal_objective = cp.Maximize(w @ mu - gamma * cp.quad_form(w, Sigma))
 
@@ -271,30 +267,30 @@ def test_svm():
     y_train = df_short["survived"].values.astype(float)
     A_train = df_short[features].values.astype(float)
 
-    mu = df["survived_bool"].mean()
     surv = df_short["survived_bool"].values.astype(float)
 
-    # Constants
+    # Constants and parameters
     m, n = A_train.shape
-    eta = 0.1
+    inds_0 = surv == 0
+    inds_1 = surv == 1
+    eta = 0.05
 
     # Creating variables
     theta = cp.Variable(n)
+    beta_0 = cp.Variable()
     weights = cp.Variable(m, nonneg=True)
     surv_weight_0 = cp.Variable()
     surv_weight_1 = cp.Variable()
 
     # Defining the loss function and the weight constraints
-    y_hat = A_train @ theta
+    y_hat = A_train @ theta + beta_0
     loss = cp.pos(1 - cp.multiply(y_train, y_hat))
     objective = MinimizeMaximize(saddle_inner(loss, weights) + eta * cp.sum_squares(theta))
 
-    constraints = [cp.sum(weights) == 1]
-    inds_0 = surv == 0
-    inds_1 = surv == 1
-    constraints += [
-        mu - 0.05 <= weights @ surv,
-        weights @ surv <= mu + 0.05,
+    constraints = [
+        cp.sum(weights) == 1,
+        0.408 - 0.05 <= weights @ surv,
+        weights @ surv <= 0.408 + 0.05,
         weights[inds_0] == surv_weight_0,
         weights[inds_1] == surv_weight_1,
     ]
@@ -305,21 +301,17 @@ def test_svm():
 
     assert problem.status == cp.OPTIMAL
     robust_theta = theta.value
-    robust_obj_robust_weights = problem.value
 
-    # SVM problem
+    # nominal SVM problem
     const_weights = np.ones(m)
     problem = cp.Problem(
         cp.Minimize(cp.sum(cp.multiply(loss, const_weights)) + eta * cp.sum_squares(theta))
     )
     problem.solve()
     assert problem.status == cp.OPTIMAL
-
-    ols_theta = theta.value
+    nominal_theta = theta.value
 
     # Full sample
-
-    # without train_port
     if without_train:
         y = df[~df.embarked.isin(train_port)]["survived"].values.astype(float)
         A = df[~df.embarked.isin(train_port)][features].values.astype(float)
@@ -327,39 +319,41 @@ def test_svm():
         y = df["survived"].values.astype(float)
         A = df[features].values.astype(float)
 
-    print("Train accuracy nom.: ", accuracy(A_train @ ols_theta, y_train))
-    print("Train accuracy rob.: ", accuracy(A_train @ robust_theta, y_train))
-    print("Test accuracy nom.: ", accuracy(A @ ols_theta, y))
-    print("Test accuracy rob.: ", accuracy(A @ robust_theta, y))
+    print_results = True
+    if print_results:
+        print("Train accuracy nom.: ", accuracy(A_train @ nominal_theta, y_train))
+        print("Train accuracy rob.: ", accuracy(A_train @ robust_theta, y_train))
+        print("Test accuracy nom.: ", accuracy(A @ nominal_theta, y))
+        print("Test accuracy rob.: ", accuracy(A @ robust_theta, y))
 
-    print("-" * 80)
+        print("-" * 80)
 
-    print("Train loss nom.: ", avg_svm_loss_numpy(A_train @ ols_theta, y_train))
-    print("Train loss rob.: ", avg_svm_loss_numpy(A_train @ robust_theta, y_train))
-    print("Test loss nom.: ", avg_svm_loss_numpy(A @ ols_theta, y))
-    print("Test loss rob.: ", avg_svm_loss_numpy(A @ robust_theta, y))
+        print("Train loss nom.: ", avg_svm_loss_numpy(A_train @ nominal_theta, y_train))
+        print("Train loss rob.: ", avg_svm_loss_numpy(A_train @ robust_theta, y_train))
+        print("Test loss nom.: ", avg_svm_loss_numpy(A @ nominal_theta, y))
+        print("Test loss rob.: ", avg_svm_loss_numpy(A @ robust_theta, y))
 
-    print("-" * 80)
+        print("-" * 80)
 
-    print(
-        "\n".join(
-            ["robust theta"]
-            + [
-                f"{name:20s}: {val:>10.4f}"
-                for name, val in zip(df_short[features].columns, robust_theta)
-            ]
+        print(
+            "\n".join(
+                ["robust theta"]
+                + [
+                    f"{name:20s}: {val:>10.4f}"
+                    for name, val in zip(df_short[features].columns, robust_theta)
+                ]
+            )
         )
-    )
-    print()
-    print(
-        "\n".join(
-            ["nom theta"]
-            + [
-                f"{name:20s}: {val:>10.4f}"
-                for name, val in zip(df_short[features].columns, ols_theta)
-            ]
+        print()
+        print(
+            "\n".join(
+                ["nom theta"]
+                + [
+                    f"{name:20s}: {val:>10.4f}"
+                    for name, val in zip(df_short[features].columns, nominal_theta)
+                ]
+            )
         )
-    )
 
 
 def accuracy(scores, labels):

@@ -500,7 +500,7 @@ def test_unconstrained():
 
 def test_saddle_inner_neg():
     x = cp.Variable(1, name="x")
-    y = cp.Variable(1, name="y")
+    y = cp.Variable(1, name="y", nonneg=True)
     f = saddle_inner(cp.square(x) - 1, y)
     obj = MinimizeMaximize(f)
 
