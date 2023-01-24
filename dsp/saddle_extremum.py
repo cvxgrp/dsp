@@ -201,7 +201,6 @@ class saddle_min(SaddleExtremum):
     @property
     def parser(self) -> Parser:
         if self._parser is None:
-            print(f"{self.other_variables=}")
             parser = init_parser_wrapper(
                 self.f,
                 self.constraints,

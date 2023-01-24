@@ -68,3 +68,20 @@ def test_value():
     P.value = np.eye(n)
 
     assert saddle_quad.value == x.value.T @ P.value @ x.value
+
+
+def test_saddle_quad_form_affine_constraint():
+
+    n = 2
+    sigma1 = np.eye(n)
+
+    x = cp.Variable(n)
+    P = cp.Variable((n, n), PSD=True)
+    Delta = cp.Variable((n, n), name="Delta")
+
+    f = saddle_quad_form(x, P)
+
+    constraints = [P == sigma1 + Delta, Delta == 0, x == 1]
+
+    problem = SaddlePointProblem(MinimizeMaximize(f), constraints)
+    problem.solve()
