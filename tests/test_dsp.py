@@ -378,11 +378,9 @@ def test_robust_constraint_inf():
     x_val = 1.0
     y_val = 2.0
 
-    constraints = [y <= y_val]
+    saddle_min_expr = saddle_min(weighted_log_sum_exp(x, y), [x >= x_val])
 
-    constraints += [
-        saddle_min(weighted_log_sum_exp(x, y), [x >= x_val]) >= np.log(y_val * np.exp(x_val))
-    ]
+    constraints = [y <= y_val, saddle_min_expr >= np.log(y_val * np.exp(x_val))]
 
     obj = cp.Maximize(y)
 
@@ -390,6 +388,9 @@ def test_robust_constraint_inf():
     problem.solve(solver=cp.SCS)
     validate_all_saddle_extrema(problem)
     assert np.isclose(problem.value, y_val, atol=1e-4)
+    assert set(saddle_min_expr.concave_variables()) == {y}
+    assert set(saddle_min_expr.convex_variables()) == {x}
+    assert np.isclose(saddle_min_expr.value, np.log(y_val * np.exp(x_val)), atol=1e-4)
 
 
 @pytest.mark.parametrize("n", [1, 2, 3])
