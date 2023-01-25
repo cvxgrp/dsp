@@ -231,6 +231,25 @@ def get_SE_atoms(expr: Canonical) -> list[SaddleExtremum]:
         return list(chain.from_iterable([get_SE_atoms(arg) for arg in expr.args]))
 
 
+def validate_saddle_extremum(
+    SE_atom: SaddleExtremum, problem_constraints: list[Constraint]
+) -> None:
+    aux_prob = SaddlePointProblem(
+        MinimizeMaximize(SE_atom.f),
+        constraints=problem_constraints + SE_atom.constraints,
+        minimization_vars=SE_atom.convex_variables(),
+        maximization_vars=SE_atom.concave_variables(),
+    )
+    aux_prob.solve()
+    assert aux_prob.status in {cp.OPTIMAL, cp.OPTIMAL_INACCURATE}
+
+
+def validate_all_saddle_extrema(problem: cp.Problem) -> None:
+    SE_atoms = get_problem_SE_atoms(problem)
+    for SE_atom in SE_atoms:
+        validate_saddle_extremum(SE_atom, problem.constraints)
+
+
 def aux_prob_from_expr(obj: cp.Expression, min_vars: list[cp.Variable]) -> bool:
     parser = initialize_parser(obj, min_vars, maximization_vars=[], constraints=[])
     constraints = [y == 1 for y in parser.concave_vars]

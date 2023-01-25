@@ -21,7 +21,11 @@ from dsp.cone_transforms import (
 )
 from dsp.local import LocalVariable, LocalVariableError
 from dsp.parser import DSPError
-from dsp.problem import MinimizeMaximize, SaddlePointProblem
+from dsp.problem import (
+    MinimizeMaximize,
+    SaddlePointProblem,
+    validate_all_saddle_extrema,
+)
 
 
 def test_matrix_game_x_Gy():
@@ -360,6 +364,7 @@ def test_robust_constraint_min():
     obj = cp.Minimize(x)
     problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
+    validate_all_saddle_extrema(problem)
     assert np.isclose(problem.value, 1.0, atol=1e-4)
 
 
@@ -381,9 +386,9 @@ def test_robust_constraint_inf():
 
     obj = cp.Maximize(y)
 
-    # problem = SaddleProblem(obj, constraints)
     problem = cp.Problem(obj, constraints)
     problem.solve(solver=cp.SCS)
+    validate_all_saddle_extrema(problem)
     assert np.isclose(problem.value, y_val, atol=1e-4)
 
 
@@ -482,6 +487,7 @@ def test_SE_variable_in_constraint():
     se = saddle_max(wlse, [y <= z, z <= 1])
     problem = cp.Problem(cp.Minimize(se), [x == 1])
     problem.solve()
+    validate_all_saddle_extrema(problem)
     assert np.isclose(problem.value, 1, atol=1e-4)
 
 

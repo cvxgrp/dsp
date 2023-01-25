@@ -2,7 +2,6 @@ import pytest
 
 from dsp import *  # notational convenience
 from dsp.local import LocalVariableError
-from dsp.parser import DSPError
 
 
 def test_creating_saddle_function_and_solve_matrix_game():
@@ -110,8 +109,8 @@ def test_is_dsp_f1():
     f_1 = saddle_max(inner(x, y_loc) + z, [y_loc <= 1])
     assert f_1.is_dsp()
 
-    assert set(f_1.convex_vars) == {x, z}
-    assert set(f_1.concave_vars) == {y_loc}
+    assert set(f_1.convex_variables()) == {x, z}
+    assert set(f_1.concave_variables()) == {y_loc}
 
 
 def test_is_dsp_f2():
@@ -124,8 +123,8 @@ def test_is_dsp_f2():
     f_2 = saddle_max(inner(x, y_loc) + z_loc, [y_loc <= 1, z_loc <= 1])
     assert f_2.is_dsp()
 
-    assert set(f_2.convex_vars) == {x}
-    assert set(f_2.concave_vars) == {y_loc, z_loc}
+    assert set(f_2.convex_variables()) == {x}
+    assert set(f_2.concave_variables()) == {y_loc, z_loc}
 
 
 def test_is_dsp_f3():

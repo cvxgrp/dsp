@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+from abc import abstractmethod
 from typing import Iterable
 
 import cvxpy as cp
@@ -11,29 +12,6 @@ import dsp
 from dsp.cone_transforms import LocalToGlob
 from dsp.local import LocalVariableError
 from dsp.parser import DSPError, Parser, initialize_parser
-
-
-def init_parser_wrapper(
-    expr: cp.Expression,
-    constraints: list[cp.Constraint],
-    variables: set[cp.Variable],
-    mode: str,
-    other_variables: list[cp.Variable] | None = None,
-) -> Parser:
-    assert mode in ["sup", "inf"]
-
-    expr = expr if mode == "sup" else -expr
-
-    other_variables = other_variables if other_variables is not None else []
-
-    parser = initialize_parser(
-        expr,
-        minimization_vars=other_variables,
-        maximization_vars=variables,
-        constraints=constraints,
-    )
-
-    return parser
 
 
 class SaddleExtremum(Atom):
@@ -65,7 +43,7 @@ class SaddleExtremum(Atom):
 
     def is_dsp(self) -> bool:
         try:
-            self.parser
+            self.parser  # noqa
             return all([c.is_dcp() for c in self.constraints])
         except DSPError:
             return False
@@ -86,6 +64,14 @@ class SaddleExtremum(Atom):
 
         return is_positive, is_negative
 
+    @abstractmethod
+    def convex_variables(self) -> list[cp.Variable]:
+        pass
+
+    @abstractmethod
+    def concave_variables(self) -> list[cp.Variable]:
+        pass
+
 
 class saddle_max(SaddleExtremum):
     r"""sup_{y\in Y}f(x,y)"""
@@ -98,30 +84,31 @@ class saddle_max(SaddleExtremum):
 
         super().__init__(f, constraints)
 
-        self.concave_vars = set(filter(lambda v: isinstance(v, dsp.LocalVariable), f.variables()))
-        self.concave_vars |= set(itertools.chain.from_iterable(c.variables() for c in constraints))
+        self._concave_vars = set(filter(lambda v: isinstance(v, dsp.LocalVariable), f.variables()))
+        self._concave_vars |= set(itertools.chain.from_iterable(c.variables() for c in constraints))
 
-        for v in self.concave_vars:
+        for v in self._concave_vars:
             v.expr = self
 
-    @property
-    def convex_vars(self) -> list[cp.Variable]:
+    def convex_variables(self) -> list[cp.Variable]:
         return sorted(self.parser.convex_vars, key=lambda x: x.id)
+
+    def concave_variables(self) -> list[cp.Variable]:
+        return sorted(self._concave_vars, key=lambda x: x.id)
 
     @property
     def parser(self) -> Parser:
         if self._parser is None:
-            parser = init_parser_wrapper(
+
+            parser = initialize_parser(
                 self.f,
-                self.constraints,
-                set(self.concave_vars),
-                mode="sup",
-                other_variables=self.other_variables,
+                minimization_vars=self.other_variables,
+                maximization_vars=self._concave_vars,
+                constraints=self.constraints,
             )
 
-            # all_concave_vars_specified = set(self.concave_vars) == set(parser.concave_vars)
             all_concave_vars_local = all(
-                [isinstance(v, dsp.LocalVariable) for v in self.concave_vars]
+                [isinstance(v, dsp.LocalVariable) for v in self._concave_vars]
             )
 
             if not all_concave_vars_local:
@@ -129,13 +116,7 @@ class saddle_max(SaddleExtremum):
                     "All concave variables must be instances of" "LocalVariable."
                 )
 
-            # if not all_concave_vars_specified:
-            #     raise DSPError(
-            #         "Must specify all concave variables, which all must be instances of"
-            #         "LocalVariable."
-            #     )
-
-            for v in self.concave_vars:
+            for v in self._concave_vars:
                 v.expr = self
 
             self._parser = parser
@@ -157,7 +138,7 @@ class saddle_max(SaddleExtremum):
         Compute sup_{y\in Y}f(x,y) numerically
         """
 
-        local_to_glob_y = LocalToGlob(self.convex_vars, self.concave_vars)
+        local_to_glob_y = LocalToGlob(self.convex_variables(), self.concave_variables())
 
         K_repr = self.parser.parse_expr_repr(self.f, switched=False, local_to_glob=local_to_glob_y)
 
@@ -189,30 +170,30 @@ class saddle_min(SaddleExtremum):
 
         super().__init__(f, constraints)
 
-        self.convex_vars = set(filter(lambda v: isinstance(v, dsp.LocalVariable), f.variables()))
-        self.convex_vars |= set(itertools.chain.from_iterable(c.variables() for c in constraints))
+        self._convex_vars = set(filter(lambda v: isinstance(v, dsp.LocalVariable), f.variables()))
+        self._convex_vars |= set(itertools.chain.from_iterable(c.variables() for c in constraints))
 
-        for v in self.convex_vars:
+        for v in self._convex_vars:
             v.expr = self
 
-    @property
-    def concave_vars(self) -> list[cp.Variable]:
+    def concave_variables(self) -> list[cp.Variable]:
         return sorted(self.parser.concave_vars, key=lambda x: x.id)
+
+    def convex_variables(self) -> list[cp.Variable]:
+        return sorted(self._convex_vars, key=lambda x: x.id)
 
     @property
     def parser(self) -> Parser:
         if self._parser is None:
-            parser = init_parser_wrapper(
+            parser = initialize_parser(
                 self.f,
-                self.constraints,
-                set(self.convex_vars),
-                mode="inf",
-                other_variables=self.other_variables,
+                minimization_vars=self._convex_vars,
+                maximization_vars=self.other_variables,
+                constraints=self.constraints,
             )
 
-            # all_convex_vars_specified = set(self.convex_vars) == set(parser.concave_vars)
             all_convex_vars_local = all(
-                [isinstance(v, dsp.LocalVariable) for v in self.convex_vars]
+                [isinstance(v, dsp.LocalVariable) for v in self._convex_vars]
             )
 
             if not all_convex_vars_local:
@@ -220,13 +201,7 @@ class saddle_min(SaddleExtremum):
                     "All convex variables must be instances of" "LocalVariable."
                 )
 
-            # if not all_convex_vars_specified:
-            #     raise DSPError(
-            #         "Must specify all convex variables, which all must be instances of"
-            #         "LocalVariable."
-            #     )
-
-            for v in self.convex_vars:
+            for v in self._convex_vars:
                 v.expr = self
 
             self._parser = parser
@@ -247,8 +222,11 @@ class saddle_min(SaddleExtremum):
         r"""
         Compute inf_{x\in X}f(x,y) numerically via -sup_{x\in X}-f(x,y)
         """
-        neg_parser = init_parser_wrapper(
-            -self.f, self.constraints, set(self.convex_vars), mode="sup"
+        neg_parser = initialize_parser(
+            -self.f,
+            minimization_vars=[],
+            maximization_vars=self.convex_variables(),
+            constraints=self.constraints,
         )
         neg_local_to_glob = LocalToGlob(neg_parser.convex_vars, neg_parser.concave_vars)
         neg_K_repr = neg_parser.parse_expr_repr(
