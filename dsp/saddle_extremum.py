@@ -37,6 +37,21 @@ def init_parser_wrapper(
 
 
 class SaddleExtremum(Atom):
+    def __init__(
+        self,
+        f: cp.Expression,
+        constraints: Iterable[cp.Constraint],
+    ) -> None:
+
+        self.f = f
+        self._parser = None
+
+        self._validate_arguments(constraints)
+        self.constraints = list(constraints)
+        self.other_variables = [v for v in f.variables() if not isinstance(v, dsp.LocalVariable)]
+
+        super().__init__(*self.other_variables)
+
     def _validate_arguments(self, constraints: list[cp.Constraint]) -> None:
         assert self.f.size == 1
         assert isinstance(constraints, Iterable)
@@ -55,6 +70,22 @@ class SaddleExtremum(Atom):
         except DSPError:
             return False
 
+    def is_incr(self, idx: int) -> bool:
+        return False
+
+    def is_decr(self, idx: int) -> bool:
+        return False
+
+    def shape_from_args(self) -> tuple[int, ...]:
+        """Returns the (row, col) shape of the expression."""
+        return self.f.shape
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        is_positive = self.f.is_nonneg()
+        is_negative = self.f.is_nonpos()
+
+        return is_positive, is_negative
+
 
 class saddle_max(SaddleExtremum):
     r"""sup_{y\in Y}f(x,y)"""
@@ -64,21 +95,14 @@ class saddle_max(SaddleExtremum):
         f: cp.Expression,
         constraints: Iterable[cp.Constraint],
     ) -> None:
-        self.f = f
 
-        self._validate_arguments(constraints)
-        self.constraints = list(constraints)
+        super().__init__(f, constraints)
 
         self.concave_vars = set(filter(lambda v: isinstance(v, dsp.LocalVariable), f.variables()))
         self.concave_vars |= set(itertools.chain.from_iterable(c.variables() for c in constraints))
 
-        self._parser = None
-        self.other_variables = [v for v in f.variables() if not isinstance(v, dsp.LocalVariable)]
-
         for v in self.concave_vars:
             v.expr = self
-
-        super().__init__(*self.other_variables)
 
     @property
     def convex_vars(self) -> list[cp.Variable]:
@@ -145,12 +169,6 @@ class saddle_max(SaddleExtremum):
             aux_problem.solve()
             return aux_problem.value
 
-    def sign_from_args(self) -> tuple[bool, bool]:
-        is_positive = self.f.is_nonneg()
-        is_negative = self.f.is_nonpos()
-
-        return is_positive, is_negative
-
     def is_atom_convex(self) -> bool:
         """Is the atom convex?"""
         return self.is_dsp()
@@ -158,16 +176,6 @@ class saddle_max(SaddleExtremum):
     def is_atom_concave(self) -> bool:
         """Is the atom concave?"""
         return False
-
-    def is_incr(self, idx: int) -> bool:
-        return False
-
-    def is_decr(self, idx: int) -> bool:
-        return False
-
-    def shape_from_args(self) -> tuple[int, ...]:
-        """Returns the (row, col) shape of the expression."""
-        return self.f.shape
 
 
 class saddle_min(SaddleExtremum):
@@ -178,21 +186,14 @@ class saddle_min(SaddleExtremum):
         f: cp.Expression,
         constraints: Iterable[cp.Constraint],
     ) -> None:
-        self.f = f
 
-        self._validate_arguments(constraints)
-        self.constraints = list(constraints)
+        super().__init__(f, constraints)
 
         self.convex_vars = set(filter(lambda v: isinstance(v, dsp.LocalVariable), f.variables()))
         self.convex_vars |= set(itertools.chain.from_iterable(c.variables() for c in constraints))
 
-        self._parser = None
-        self.other_variables = [v for v in f.variables() if not isinstance(v, dsp.LocalVariable)]
-
         for v in self.convex_vars:
             v.expr = self
-
-        super().__init__(*self.other_variables)
 
     @property
     def concave_vars(self) -> list[cp.Variable]:
@@ -262,12 +263,6 @@ class saddle_min(SaddleExtremum):
             aux_problem.solve()
             return aux_problem.value
 
-    def sign_from_args(self) -> tuple[bool, bool]:
-        is_positive = self.f.is_nonneg()
-        is_negative = self.f.is_nonpos()
-
-        return is_positive, is_negative
-
     def is_atom_convex(self) -> bool:
         """Is the atom convex?"""
         return False
@@ -275,16 +270,6 @@ class saddle_min(SaddleExtremum):
     def is_atom_concave(self) -> bool:
         """Is the atom concave?"""
         return self.is_dsp()
-
-    def is_incr(self, idx: int) -> bool:
-        return False
-
-    def is_decr(self, idx: int) -> bool:
-        return False
-
-    def shape_from_args(self) -> tuple[int, ...]:
-        """Returns the (row, col) shape of the expression."""
-        return self.f.shape
 
 
 class conjugate(saddle_max):
