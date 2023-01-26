@@ -461,6 +461,77 @@ class saddle_quad_form(SaddleAtom):
         return False
 
 
+class quasidef_quad_form(SaddleAtom):
+    def __init__(self, x: cp.Expression, y: cp.Expression, P: cp.Constant, Q: cp.Constant, S: cp.Constant) -> None:
+        assert isinstance(x, cp.Expression)
+        assert isinstance(y, cp.Expression)
+        assert isinstance(P, cp.Constant)
+        assert isinstance(Q, cp.Constant)
+        assert isinstance(S, cp.Constant)
+
+        assert len(x.shape) == 1 and len(y.shape) == 1 
+        assert x.size == P.shape[0] == P.shape[1] == S.shape[0]
+        assert y.size == Q.shape[0] == Q.shape[1] == S.shape[1]
+
+        self.x = x
+        self.y = y
+        
+        
+        self.P = P
+        self.Q = Q
+        self.S = S
+
+        super().__init__(x, y)
+
+    def numeric(self, values: list) -> np.ndarray | None:
+        if any(v is None for v in values):
+            return None
+        x, y = values
+        return x.T @ self.P @ x + y.T @ self.Q @ y + 2 * x.T @ self.S @ y
+
+    def is_dsp(self) -> bool:
+        x_cvx = self.P.is_psd() and self.x.is_affine()
+        y_ccv = self.Q.is_nsd() and self.y.is_affine()
+        return x_cvx and y_ccv
+
+    def get_concave_expression(self) -> cp.Expression:
+        x = self.x
+        assert x.value is not None
+        x = np_vec(x.value, order="F")
+        return x.T @ self.P @ x + cp.quad_form(self.y, self.Q) + 2 * x.T @ self.S @ self.y
+
+    def get_convex_expression(self) -> cp.Expression:
+        y = self.y
+        assert y.value is not None
+        y = np_vec(y.value, order="F")
+        P = self.P
+        return cp.quad_form(self.x, P) + self.y @ self.Q @ self.Q + 2 * self.x.T @ self.S @ y
+
+    def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
+        pass
+
+    def name(self) -> str:
+        return "saddle_quad_form(" + self.x.name() + ", " + self.P.name() + ")"
+
+    def convex_variables(self) -> list[cp.Variable]:
+        return self.x.variables()
+
+    def concave_variables(self) -> list[cp.Variable]:
+        return self.P.variables()
+
+    def shape_from_args(self) -> tuple[int, ...]:
+        return ()
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        return (True, False)
+
+    def is_incr(self, idx: int) -> bool:
+        return False
+
+    def is_decr(self, idx: int) -> bool:
+        return False
+
+
 class weighted_norm2(SaddleAtom):
     def __init__(self, x: cp.Expression, y: cp.Expression) -> None:
         """

@@ -9,13 +9,15 @@ from dsp.problem import SaddlePointProblem
 
 def test_ubounded_domains_exp():
     x = cp.Variable(2, name="x")
-    y = cp.Variable(2, name="y")
+    y = cp.Variable(2, name="y", nonneg=True)
 
     with pytest.warns(UserWarning, match="Gy is non-positive"):
         f = -saddle_inner(cp.exp(x), cp.log(y))
 
     saddle_problem = SaddlePointProblem(
-        MinimizeMaximize(f), [cp.sum(y) >= 4, x <= 1]
+        # MinimizeMaximize(f), [cp.sum(y) >= 4, x <= 1]
+        MinimizeMaximize(f), [] #-> fatal mosek error if y not nonneg
+
     )  # , x >= 1, cp.sum(x) == 2])
 
     saddle_problem.solve()
