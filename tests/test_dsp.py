@@ -391,6 +391,9 @@ def test_robust_constraint_inf():
     assert set(saddle_min_expr.concave_variables()) == {y}
     assert set(saddle_min_expr.convex_variables()) == {x}
     assert np.isclose(saddle_min_expr.value, np.log(y_val * np.exp(x_val)), atol=1e-4)
+    assert (
+        saddle_min_expr.name() == "saddle_min(weighted_log_sum_exp(x_dummy, y), [1.0 <= x_dummy])"
+    )
 
 
 @pytest.mark.parametrize("n", [1, 2, 3])
@@ -446,6 +449,7 @@ def test_worst_case_covariance():
 
     v.value = v_val
     assert np.isclose(wc_ref, worst_case_risk.value, atol=1e-4)
+    assert worst_case_risk.name().startswith("saddle_max(saddle_quad_form(")
 
     # TODO: solver does not find the optimal value without fixing the values to opt
     prob = cp.Problem(cp.Minimize(worst_case_risk), [cp.sum(v) == 1, v >= 0, v == v_val])

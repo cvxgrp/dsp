@@ -75,6 +75,18 @@ class SaddleAtom(Atom, ABC):
     def _grad(self, values: list):  # noqa
         raise NotImplementedError
 
+    def shape_from_args(self) -> tuple[int, ...]:
+        return ()
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        return (False, False)
+
+    def is_incr(self, idx: int) -> bool:
+        return False
+
+    def is_decr(self, idx: int) -> bool:
+        return False
+
 
 class saddle_inner(SaddleAtom):
     def __init__(self, Fx: cp.Expression, Gy: cp.Expression) -> None:
@@ -151,17 +163,11 @@ class saddle_inner(SaddleAtom):
     def concave_variables(self) -> list[cp.Variable]:
         return self.Gy.variables()
 
-    def shape_from_args(self) -> tuple[int, ...]:
-        return ()
-
     def sign_from_args(self) -> tuple[bool, bool]:
         return (True, False)
 
     def is_incr(self, idx: int) -> bool:
-        return False  # increasing in both arguments since y nonneg
-
-    def is_decr(self, idx: int) -> bool:
-        return False
+        return True  # increasing in both arguments since y nonneg
 
 
 class inner(saddle_inner):
@@ -360,12 +366,6 @@ class weighted_log_sum_exp(SaddleAtom):
     def concave_variables(self) -> list[cp.Variable]:
         return self.weights.variables()
 
-    def shape_from_args(self) -> tuple[int, ...]:
-        return ()
-
-    def sign_from_args(self) -> tuple[bool, bool]:
-        return (False, False)
-
     def is_incr(self, idx: int) -> bool:
         return True  # increasing in both arguments since y nonneg
 
@@ -450,17 +450,8 @@ class saddle_quad_form(SaddleAtom):
     def concave_variables(self) -> list[cp.Variable]:
         return self.P.variables()
 
-    def shape_from_args(self) -> tuple[int, ...]:
-        return ()
-
     def sign_from_args(self) -> tuple[bool, bool]:
         return (True, False)
-
-    def is_incr(self, idx: int) -> bool:
-        return False
-
-    def is_decr(self, idx: int) -> bool:
-        return False
 
 
 class quasidef_quad_form(SaddleAtom):
@@ -493,7 +484,7 @@ class quasidef_quad_form(SaddleAtom):
         if any(v is None for v in values):
             return None
         x, y = values
-        return x.T @ self.P @ x + y.T @ self.Q @ y + 2 * x.T @ self.S @ y
+        return x.T @ self.P.value @ x + y.T @ self.Q.value @ y + 2 * x.T @ self.S.value @ y
 
     def is_dsp(self) -> bool:
         x_cvx = self.P.is_psd() and self.x.is_affine()
@@ -532,17 +523,8 @@ class quasidef_quad_form(SaddleAtom):
 
     def name(self) -> str:
         return (
-            "quasidef_quad_form("
-            + self.x.name()
-            + ", "
-            + self.y.name()
-            + ", "
-            + self.P.name()
-            + ", "
-            + self.Q.name()
-            + ", "
-            + self.S.name()
-            + ")"
+            f"quasidef_quad_form({self.x.name()}, {self.y.name()}, {self.P.name()}, "
+            f"{self.Q.name()}, {self.S.name()})"
         )
 
     def convex_variables(self) -> list[cp.Variable]:
@@ -550,18 +532,6 @@ class quasidef_quad_form(SaddleAtom):
 
     def concave_variables(self) -> list[cp.Variable]:
         return self.y.variables()
-
-    def shape_from_args(self) -> tuple[int, ...]:
-        return ()
-
-    def sign_from_args(self) -> tuple[bool, bool]:
-        return (False, False)
-
-    def is_incr(self, idx: int) -> bool:
-        return False
-
-    def is_decr(self, idx: int) -> bool:
-        return False
 
 
 class weighted_norm2(SaddleAtom):
@@ -731,9 +701,6 @@ class weighted_norm2(SaddleAtom):
 
     def concave_variables(self) -> list[cp.Variable]:
         return self.y.variables()
-
-    def shape_from_args(self) -> tuple[int, ...]:
-        return ()
 
     def sign_from_args(self) -> tuple[bool, bool]:
         return (True, False)

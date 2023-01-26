@@ -125,13 +125,7 @@ class saddle_max(SaddleExtremum):
             return self._parser
 
     def name(self) -> str:
-        return (
-            "saddle_max("
-            + self.f.name()
-            + ", ["
-            + "".join([str(c) for c in self.constraints])
-            + "])"
-        )
+        return f"saddle_max({self.f.name()}, [{''.join([str(c) for c in self.constraints])}])"
 
     def numeric(self, values: list) -> np.ndarray | None:
         r"""
@@ -210,13 +204,7 @@ class saddle_min(SaddleExtremum):
             return self._parser
 
     def name(self) -> str:
-        return (
-            "saddle_min("
-            + self.f.name()
-            + ", ["
-            + "".join([str(c) for c in self.constraints])
-            + "])"
-        )
+        return f"saddle_min({self.f.name()}, [{''.join([str(c) for c in self.constraints])}])"
 
     def numeric(self, values: list) -> np.ndarray | None:
         r"""
@@ -253,9 +241,10 @@ class saddle_min(SaddleExtremum):
 class conjugate(saddle_max):
     r"""f^*(y) = sup_{x\in \dom f} (y^Tx - f(x))"""
 
-    def __init__(self, f: cp.Expression, B: float = 1e6) -> None:
+    def __init__(self, f: cp.Expression) -> None:
         assert isinstance(f, cp.Expression)
 
+        self.original_f = f
         x_vars = f.variables()
 
         if not all(isinstance(x, dsp.LocalVariable) for x in x_vars):
@@ -267,6 +256,7 @@ class conjugate(saddle_max):
         for x, y in zip(x_vars, y_vars):
             obj += dsp.inner(cp.vec(y), cp.vec(x))
 
-        constraints = [x <= B for x in x_vars] + [x >= -B for x in x_vars]
+        super().__init__(obj, [])
 
-        super().__init__(obj, constraints)
+    def name(self) -> str:
+        return f"conjugate({self.original_f.name()})"

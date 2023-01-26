@@ -34,3 +34,5 @@ def test_quasidef_quad_form():
     assert np.isclose(saddle_problem.value, ref_value, atol=1e-4)
     assert np.allclose(x.value, ref_x, atol=1e-4)
     assert np.allclose(y.value, ref_y, atol=1e-4)  # unclear why these arent exactly equal
+    assert np.isclose(f.value, ref_value, atol=1e-4)
+    assert f.name().startswith("quasidef_quad_form(x, y")

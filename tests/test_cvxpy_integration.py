@@ -289,6 +289,7 @@ def test_conj():
     f_star = conjugate(f)
 
     assert f_star.is_dcp()
+    assert f_star.name() == "conjugate(0.5 @ power(x_local, 2.0))"
 
     f_star.variables()[0].value = 2
 
