@@ -9,12 +9,14 @@ from cvxpy.atoms.atom import Atom
 from cvxpy.constraints import ExpCone
 
 from dsp.cone_transforms import (
+    K_repr_ax,
+    K_repr_by,
     K_repr_bilin,
     K_repr_FxGy,
     KRepresentation,
     LocalToGlob,
     affine_to_canon,
-    switch_convex_concave,
+    switch_convex_concave
 )
 from dsp.parser import DSPError
 from dsp.utils import np_vec
@@ -465,18 +467,20 @@ class quasidef_quad_form(SaddleAtom):
     def __init__(self, x: cp.Expression, y: cp.Expression, P: cp.Constant, Q: cp.Constant, S: cp.Constant) -> None:
         assert isinstance(x, cp.Expression)
         assert isinstance(y, cp.Expression)
+
+        P, Q, S = map(cp.Expression.cast_to_const, (P, Q, S))
+
         assert isinstance(P, cp.Constant)
         assert isinstance(Q, cp.Constant)
         assert isinstance(S, cp.Constant)
 
-        assert len(x.shape) == 1 and len(y.shape) == 1 
+        assert len(x.shape) == 1 and len(y.shape) == 1
         assert x.size == P.shape[0] == P.shape[1] == S.shape[0]
         assert y.size == Q.shape[0] == Q.shape[1] == S.shape[1]
 
         self.x = x
         self.y = y
-        
-        
+
         self.P = P
         self.Q = Q
         self.S = S
@@ -508,22 +512,33 @@ class quasidef_quad_form(SaddleAtom):
         return cp.quad_form(self.x, P) + self.y @ self.Q @ self.Q + 2 * self.x.T @ self.S @ y
 
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
-        pass
+        cvx_expr = cp.quad_form(self.x, self.P) if not switched else cp.quad_form(self.y, -self.Q)
+        K_cvx = K_repr_ax(cvx_expr)
+
+        ccv_expr = -cp.quad_form(self.y, -self.Q) if not switched else -cp.quad_form(self.x, self.P)
+        K_ccv = K_repr_by(ccv_expr, local_to_glob)
+
+        K_inner = K_repr_bilin(self.x, 2 * self.S @ self.y, local_to_glob) if not switched else K_repr_bilin(
+            self.y, 2 * self.S.T @ self.x, local_to_glob)
+
+        K_repr = KRepresentation.sum_of_K_reprs([K_cvx, K_ccv, K_inner])
+
+        return K_repr
 
     def name(self) -> str:
-        return "saddle_quad_form(" + self.x.name() + ", " + self.P.name() + ")"
+        return "quasidef_quad_form(" + self.x.name() + ", " + self.y.name() + ", " + self.P.name() + ", " + self.Q.name() + ", " + self.S.name() + ")"
 
     def convex_variables(self) -> list[cp.Variable]:
         return self.x.variables()
 
     def concave_variables(self) -> list[cp.Variable]:
-        return self.P.variables()
+        return self.y.variables()
 
     def shape_from_args(self) -> tuple[int, ...]:
         return ()
 
     def sign_from_args(self) -> tuple[bool, bool]:
-        return (True, False)
+        return (False, False)
 
     def is_incr(self, idx: int) -> bool:
         return False
