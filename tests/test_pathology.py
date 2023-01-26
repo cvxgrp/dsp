@@ -16,8 +16,8 @@ def test_ubounded_domains_exp():
 
     saddle_problem = SaddlePointProblem(
         # MinimizeMaximize(f), [cp.sum(y) >= 4, x <= 1]
-        MinimizeMaximize(f), [] #-> fatal mosek error if y not nonneg
-
+        MinimizeMaximize(f),
+        [],  # -> fatal mosek error if y not nonneg
     )  # , x >= 1, cp.sum(x) == 2])
 
     saddle_problem.solve()

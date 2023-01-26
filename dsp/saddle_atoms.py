@@ -10,13 +10,13 @@ from cvxpy.constraints import ExpCone
 
 from dsp.cone_transforms import (
     K_repr_ax,
-    K_repr_by,
     K_repr_bilin,
+    K_repr_by,
     K_repr_FxGy,
     KRepresentation,
     LocalToGlob,
     affine_to_canon,
-    switch_convex_concave
+    switch_convex_concave,
 )
 from dsp.parser import DSPError
 from dsp.utils import np_vec
@@ -464,7 +464,9 @@ class saddle_quad_form(SaddleAtom):
 
 
 class quasidef_quad_form(SaddleAtom):
-    def __init__(self, x: cp.Expression, y: cp.Expression, P: cp.Constant, Q: cp.Constant, S: cp.Constant) -> None:
+    def __init__(
+        self, x: cp.Expression, y: cp.Expression, P: cp.Constant, Q: cp.Constant, S: cp.Constant
+    ) -> None:
         assert isinstance(x, cp.Expression)
         assert isinstance(y, cp.Expression)
 
@@ -518,15 +520,30 @@ class quasidef_quad_form(SaddleAtom):
         ccv_expr = -cp.quad_form(self.y, -self.Q) if not switched else -cp.quad_form(self.x, self.P)
         K_ccv = K_repr_by(ccv_expr, local_to_glob)
 
-        K_inner = K_repr_bilin(self.x, 2 * self.S @ self.y, local_to_glob) if not switched else K_repr_bilin(
-            self.y, 2 * self.S.T @ self.x, local_to_glob)
+        K_inner = (
+            K_repr_bilin(self.x, 2 * self.S @ self.y, local_to_glob)
+            if not switched
+            else K_repr_bilin(self.y, 2 * self.S.T @ self.x, local_to_glob)
+        )
 
         K_repr = KRepresentation.sum_of_K_reprs([K_cvx, K_ccv, K_inner])
 
         return K_repr
 
     def name(self) -> str:
-        return "quasidef_quad_form(" + self.x.name() + ", " + self.y.name() + ", " + self.P.name() + ", " + self.Q.name() + ", " + self.S.name() + ")"
+        return (
+            "quasidef_quad_form("
+            + self.x.name()
+            + ", "
+            + self.y.name()
+            + ", "
+            + self.P.name()
+            + ", "
+            + self.Q.name()
+            + ", "
+            + self.S.name()
+            + ")"
+        )
 
     def convex_variables(self) -> list[cp.Variable]:
         return self.x.variables()
