@@ -12,7 +12,7 @@ from dsp.saddle_extremum import saddle_max, saddle_min
 # TODO: handle arbitrary DSP expressions
 
 
-def saddle_max_canon(expr: saddle_max, args: Any) -> tuple[cp.Expression, list[Constraint]]:
+def saddle_max_canon(expr: saddle_max, _args: Any) -> tuple[cp.Expression, list[Constraint]]:
     if not expr.is_dsp():
         raise DSPError("The objective function must be a DSP expression.")
     mode = "sup"
@@ -22,7 +22,7 @@ def saddle_max_canon(expr: saddle_max, args: Any) -> tuple[cp.Expression, list[C
     return obj, aux_constraints
 
 
-def saddle_min_canon(expr: saddle_min, args: Any) -> tuple[cp.Expression, list[Constraint]]:
+def saddle_min_canon(expr: saddle_min, _args: Any) -> tuple[cp.Expression, list[Constraint]]:
     if not expr.is_dsp():
         raise DSPError("The objective function must be a DSP expression.")
     mode = "inf"

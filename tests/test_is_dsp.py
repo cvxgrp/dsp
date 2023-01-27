@@ -160,6 +160,13 @@ def test_saddle_extremum_affine_is_dsp():
     F = saddle_min(f, [cp.sum(x) == 1])
     assert F.is_dsp()
 
+    assert not F.is_nonpos()
+    assert not F.is_nonneg()
+
+    # Arguments are the variables of the expression, no monotonicities implemented
+    assert not F.is_incr(0)
+    assert not F.is_decr(0)
+
 
 def test_saddle_extremum_local_affine():
     x = cp.Variable(2, name="x", nonneg=True)

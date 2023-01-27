@@ -499,7 +499,7 @@ class quasidef_quad_form(SaddleAtom):
         assert y.value is not None
         y = np_vec(y.value, order="F")
         P = self.P
-        return cp.quad_form(self.x, P) + self.y @ self.Q @ self.Q + 2 * self.x.T @ self.S @ y
+        return cp.quad_form(self.x, P) + y.T @ self.Q @ y + 2 * self.x.T @ self.S @ y
 
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool = False) -> KRepresentation:
         cvx_expr = cp.quad_form(self.x, self.P) if not switched else cp.quad_form(self.y, -self.Q)

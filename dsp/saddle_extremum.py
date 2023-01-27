@@ -70,7 +70,7 @@ class SaddleExtremum(Atom):
 
     @abstractmethod
     def concave_variables(self) -> list[cp.Variable]:
-        pass
+        raise NotImplementedError
 
 
 class saddle_max(SaddleExtremum):
@@ -107,14 +107,8 @@ class saddle_max(SaddleExtremum):
                 constraints=self.constraints,
             )
 
-            all_concave_vars_local = all(
-                [isinstance(v, dsp.LocalVariable) for v in self._concave_vars]
-            )
-
-            if not all_concave_vars_local:
-                raise LocalVariableError(
-                    "All concave variables must be instances of" "LocalVariable."
-                )
+            assert set(self.other_variables) == parser.convex_vars
+            assert set(self._concave_vars) == parser.concave_vars
 
             for v in self._concave_vars:
                 v.expr = self
@@ -186,14 +180,8 @@ class saddle_min(SaddleExtremum):
                 constraints=self.constraints,
             )
 
-            all_convex_vars_local = all(
-                [isinstance(v, dsp.LocalVariable) for v in self._convex_vars]
-            )
-
-            if not all_convex_vars_local:
-                raise LocalVariableError(
-                    "All convex variables must be instances of" "LocalVariable."
-                )
+            assert set(self._convex_vars) == parser.convex_vars
+            assert set(self.other_variables) == parser.concave_vars
 
             for v in self._convex_vars:
                 v.expr = self

@@ -4,6 +4,7 @@ import pytest
 
 import dsp
 from dsp import (
+    conjugate,
     inner,
     saddle_inner,
     saddle_max,
@@ -515,3 +516,11 @@ def test_saddle_inner_neg():
 
     with pytest.raises(DSPError):
         saddle_problem.solve()
+
+
+def test_non_local_variable():
+    x = cp.Variable(1, name="x")
+    y = cp.Variable(1, name="y")
+
+    with pytest.raises(LocalVariableError):
+        conjugate(inner(x, y))
