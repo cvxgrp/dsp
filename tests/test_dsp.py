@@ -306,7 +306,11 @@ def test_Gx_Fy():
     y = cp.Variable(2, name="y")
 
     with pytest.warns(UserWarning, match="is non-positive"):
-        obj = MinimizeMaximize(saddle_inner(cp.exp(x), cp.log(y)))
+        f = saddle_inner(cp.exp(x), cp.log(y))
+    obj = MinimizeMaximize(f)
+    assert f.is_nonneg()
+    assert f.is_incr(0)
+    assert f.is_incr(1)
 
     low = 2
     constraints = [low <= x, x <= 4, 2 <= y, y <= 3]

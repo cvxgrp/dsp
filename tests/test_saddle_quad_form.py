@@ -34,7 +34,8 @@ def test_quad_form_inequality():
 
     obj = MinimizeMaximize(f)
     P_val = np.eye(n)
-    prob = SaddlePointProblem(obj, [P << P_val, cp.sum(x) == 1, x >= 0])
+    constraints = [P << P_val, cp.sum(x) == 1, x >= 0]
+    prob = SaddlePointProblem(obj, constraints)
     prob.solve()
 
     p_val = P.value
@@ -50,6 +51,15 @@ def test_quad_form_inequality():
     x_prob.solve()
 
     assert np.isclose(P_prob.value, x_prob.value)
+
+    x.value = x_val
+    P.value = P_val
+
+    min_val = cp.Problem(cp.Minimize(f.get_convex_expression()), constraints).solve()
+    max_val = cp.Problem(cp.Maximize(f.get_concave_expression()), constraints).solve()
+
+    assert np.isclose(min_val, x_prob.value)
+    assert np.isclose(max_val, x_prob.value)
 
 
 def test_value():

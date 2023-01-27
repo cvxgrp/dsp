@@ -398,8 +398,8 @@ class saddle_quad_form(SaddleAtom):
         return x.T @ P @ x
 
     def get_convex_expression(self) -> cp.Expression:
-        P = self.P
-        assert P.value is not None
+        P = self.P.value
+        assert P is not None
 
         x = self.x
         return cp.quad_form(x, P)
@@ -676,20 +676,18 @@ class weighted_norm2(SaddleAtom):
         return K_out
 
     def get_concave_expression(self) -> cp.Expression:
-        x = self.x
-        assert x.value is not None
-
+        x = self.x.value
+        assert x is not None
         y = self.y
 
         return cp.sqrt(y.T @ np.square(x))
 
     def get_convex_expression(self) -> cp.Expression:
-        y = self.y
-        assert y.value is not None
-
+        y = self.y.value
+        assert y is not None
         x = self.x
 
-        return cp.norm2(x * np.sqrt(y))
+        return cp.norm2(cp.multiply(x, np.sqrt(y)))
 
     def convex_variables(self) -> list[cp.Variable]:
         return self.x.variables()

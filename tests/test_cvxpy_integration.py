@@ -66,7 +66,7 @@ def test_dcp_concave_max_and_dummy():
     inner_expr = inner(x, A @ y)
 
     with pytest.raises(LocalVariableError):
-        f_max = saddle_max(inner_expr, [cp.sum(y) == 1])
+        saddle_max(inner_expr, [cp.sum(y) == 1])
 
     y2 = LocalVariable(2, name="y", nonneg=True)
 
@@ -88,7 +88,7 @@ def test_semi_infinite_expr():
 
     # Trying to create a saddle_max with a variable for y (instead of a dummy)
     with pytest.raises(LocalVariableError):
-        sup_y_f = saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y <= 1])
+        saddle_max(2 * wlse + y[1] + cp.exp(x[1]), [y <= 1])
 
     wlse = weighted_log_sum_exp(x, y_dummy)
 
@@ -99,7 +99,7 @@ def test_semi_infinite_expr():
 
     # trying to use the same dummy variable in a new SE raises an error
     with pytest.raises(LocalVariableError):
-        sup_y_f_reused_local = saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy <= 1])
+        saddle_max(2 * wlse + 2 * cp.sum(y_dummy), [y_dummy <= 1])
 
     # trying to get the value of the saddle_max before x has a value returns None
     assert sup_y_f.numeric(values=np.ones(1)) is None
@@ -187,7 +187,7 @@ def test_nested_saddle():
 
     g = weighted_log_sum_exp(sup_y_f, y_1[1])
     with pytest.raises(LocalVariableError):  # adding a local variable to multiple SEs
-        sup_y_g = saddle_max(g, [y_1 <= 1])
+        saddle_max(g, [y_1 <= 1])
 
     g = weighted_log_sum_exp(sup_y_f, y_2)
     sup_y_g = saddle_max(g, [y_2 <= 1])
@@ -216,7 +216,7 @@ def test_saddle_max():
 
     # trying a mix of dummy and variable
     with pytest.raises(LocalVariableError):
-        inf_x_f = saddle_min(2 * wlse + x + cp.log(y[1]), [x1_local >= 1, x >= 1])
+        saddle_min(2 * wlse + x + cp.log(y[1]), [x1_local >= 1, x >= 1])
 
     x1_local = LocalVariable(name="x1", nonneg=True)
     x2_local = LocalVariable(name="x2", nonneg=True)
@@ -303,8 +303,8 @@ def test_conj():
 
 
 def test_canon_non_dsp():
-    x = cp.Variable(2, name="x")
-    y = LocalVariable(2, name="y")
+    x = cp.Variable(name="x")
+    y = LocalVariable(name="y")
     f = cp.exp(x) * cp.log(y)
 
     with pytest.raises(DSPError):

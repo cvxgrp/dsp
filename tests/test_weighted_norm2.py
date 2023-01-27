@@ -12,19 +12,32 @@ def test_weighted_norm2(n):
     y = cp.Variable(n, name="y", nonneg=True)
 
     norm = weighted_norm2(x, y)
+    assert norm.value is None
+    assert not norm.is_decr(0)
     assert norm.is_dsp()
 
     obj = dsp.MinimizeMaximize(norm)
-    prob = dsp.SaddlePointProblem(obj, [y <= 2, x >= 1])
+    constraints = [y <= 2, x >= 1]
+    prob = dsp.SaddlePointProblem(obj, constraints)
     prob.solve()
 
     y_expected = np.ones(n) * 2
     x_expected = np.ones(n) * 1
+    expected_prob_val = np.sqrt(y_expected @ x_expected**2)
 
     assert prob.status == "optimal"
-    assert np.isclose(prob.value, np.sqrt(y_expected @ x_expected**2))
+    assert np.isclose(prob.value, expected_prob_val)
     assert np.allclose(x.value, x_expected)
     assert np.allclose(y.value, y_expected)
+
+    y.value = y_expected
+    min_val = cp.Problem(cp.Minimize(norm.get_convex_expression()), constraints).solve()
+
+    x.value = x_expected
+    max_val = cp.Problem(cp.Maximize(norm.get_concave_expression()), constraints).solve()
+
+    assert np.isclose(min_val, expected_prob_val)
+    assert np.isclose(max_val, expected_prob_val)
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4, 5])
@@ -102,6 +115,28 @@ def test_nonaffine_precompositions(x_val, x_expr, n):
         assert np.allclose(y.value, y_expected, atol=1e-5)
     else:
         assert not norm.is_dsp()
+
+
+def test_concave_composition():
+    n = 2
+    x = cp.Variable(n, name="x")
+    y = cp.Variable(n, name="y", nonneg=True)
+
+    Gy = cp.log1p(y)
+    norm = weighted_norm2(x, Gy)
+
+    obj = dsp.MinimizeMaximize(norm)
+
+    prob = dsp.SaddlePointProblem(obj, [y <= 2, x == 1])
+    prob.solve()
+
+    y_expected = np.ones(n) * 2
+    x_expected = np.ones(n)
+
+    assert prob.status == "optimal"
+    assert np.isclose(prob.value, np.sqrt(np.log(1 + y_expected) @ (x_expected**2)))
+    assert np.allclose(x.value, x_expected)
+    assert np.allclose(y.value, y_expected, atol=1e-5)
 
 
 def test_value():
