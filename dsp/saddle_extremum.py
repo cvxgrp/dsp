@@ -66,7 +66,7 @@ class SaddleExtremum(Atom):
 
     @abstractmethod
     def convex_variables(self) -> list[cp.Variable]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def concave_variables(self) -> list[cp.Variable]:

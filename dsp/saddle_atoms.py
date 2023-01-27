@@ -31,15 +31,15 @@ class SaddleAtom(Atom, ABC):
 
     @abstractmethod
     def _get_K_repr(self, local_to_glob: LocalToGlob, switched: bool) -> KRepresentation:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def convex_variables(self) -> list[cp.Variable]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def concave_variables(self) -> list[cp.Variable]:
-        pass
+        raise NotImplementedError
 
     def affine_variables(self) -> list[cp.Variable]:
         known_curvature_vars = set(self.convex_variables() + self.concave_variables())
@@ -47,19 +47,24 @@ class SaddleAtom(Atom, ABC):
 
     @abstractmethod
     def get_convex_expression(self) -> cp.Expression:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_concave_expression(self) -> cp.Expression:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def is_dsp(self) -> bool:
-        pass
+        raise NotImplementedError
+
+    def numeric(self, values: list[np.ndarray | None]) -> np.ndarray | None:
+        if any([v is None for v in values]):
+            return None
+        return self._numeric(values)
 
     @abstractmethod
-    def numeric(self, values: list) -> np.ndarray | None:
-        pass
+    def _numeric(self, values: list[np.ndarray]) -> np.ndarray:
+        raise NotImplementedError
 
     def is_atom_convex(self) -> bool:
         return False
@@ -152,9 +157,7 @@ class saddle_inner(SaddleAtom):
             K_out.concave_expr = lambda x: -self.get_convex_expression()
         return K_out
 
-    def numeric(self, values: list) -> np.ndarray | None:
-        if any([v is None for v in values]):
-            return None
+    def _numeric(self, values: list[np.ndarray]) -> np.ndarray:
         return values[0] @ values[1]
 
     def convex_variables(self) -> list[cp.Variable]:
@@ -233,9 +236,7 @@ class weighted_log_sum_exp(SaddleAtom):
 
         super().__init__(exponents, weights)
 
-    def numeric(self, values: list) -> np.ndarray | None:
-        if any([v is None for v in values]):
-            return None
+    def _numeric(self, values: list[np.ndarray]) -> np.ndarray:
         x, y = values
         return np.log(np.sum(y * np.exp(x)))
 
@@ -382,9 +383,7 @@ class saddle_quad_form(SaddleAtom):
 
         super().__init__(x, P)
 
-    def numeric(self, values: list) -> np.ndarray | None:
-        if any(v is None for v in values):
-            return None
+    def _numeric(self, values: list[np.ndarray]) -> np.ndarray:
         x, P = values
         return x.T @ P @ x
 
@@ -480,9 +479,7 @@ class quasidef_quad_form(SaddleAtom):
 
         super().__init__(x, y)
 
-    def numeric(self, values: list) -> np.ndarray | None:
-        if any(v is None for v in values):
-            return None
+    def _numeric(self, values: list[np.ndarray]) -> np.ndarray:
         x, y = values
         return x.T @ self.P.value @ x + y.T @ self.Q.value @ y + 2 * x.T @ self.S.value @ y
 
@@ -571,9 +568,7 @@ class weighted_norm2(SaddleAtom):
 
         super().__init__(x, y)
 
-    def numeric(self, values: list) -> np.ndarray | None:
-        if any(v is None for v in values):
-            return None
+    def _numeric(self, values: list[np.ndarray]) -> np.ndarray:
         x, y = values
         return np.sqrt(np.sum(y * x**2))
 

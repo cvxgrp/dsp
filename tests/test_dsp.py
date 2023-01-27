@@ -186,14 +186,7 @@ def test_saddle_composition(obj):
     x = cp.Variable(name="x")
     y = cp.Variable(name="y")
 
-    # objective = MinimizeMaximize(x + x * y)
-    # objective = MinimizeMaximize(x * (1+y))
-    # objective = MinimizeMaximize(x + Bilinear(x, y))
-    # objective = MinimizeMaximize(Bilinear(x, 1+y))
-
     objective = MinimizeMaximize(obj(x, y))
-
-    # TODO: why are these different? Optimal y only correct in second formulation
 
     constraints = [-1 <= x, x <= 1, -1.2 <= y, y <= -0.8]
     prob = SaddlePointProblem(objective, constraints, minimization_vars={x}, maximization_vars={y})
