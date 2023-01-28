@@ -51,21 +51,21 @@ y.value  # array([0.33333333, 0.66666667])
 In DSP, saddle functions are created from atoms. Each atom represents a saddle function, with the convention being
 that the first argument is the convex argument and the second argument is the concave argument.
 
-- `inner(x, y)`
+- `inner(x, y)`  
 The inner product $x^Ty$, with both arguments affine.
-- `saddle_innder(Fx, Gy)`
+- `saddle_innder(Fx, Gy)`  
 The inner product $F(x)^TG(y)$, with $F$ convex and nonnegative, and $G$ concave. If $G$ is not nonnegative, a constraint
 $G \geq 0$ is added.
-- `weighted_norm2(x, y)`
+- `weighted_norm2(x, y)`  
 The weighted $\ell_2$ norm $\left(\sum_i y_i x_i^2\right)^{1/2}$. Here too, a constraint $y \geq 0$ is added if $y$ is not
 nonnegative.
 - `weighted_log_sum_exp(x, y)`
 The weighted log-sum-exp function $\log\left(\sum_i y_i \exp(x_i)\right)$. Again a constraint $y \geq 0$ is added if $y$ is not
 nonnegative.
-- `quasidef_quad_form(x, y, P, Q, S)`
+- `quasidef_quad_form(x, y, P, Q, S)`  
 This atom represent the function $f(x, y) = \begin{bmatrix} x & y \end{bmatrix} \begin{bmatrix} P & S \\ S^T & Q \end{bmatrix} \begin{bmatrix} x \\ y \end{bmatrix}$,
 where $P$ is positive semidefinite and $S$ is negative semidefinite.
-- `saddle_quad_form(x, Y)`
+- `saddle_quad_form(x, Y)`  
 The quadratic form $x^TYx$, where $Y$ a positive semindefinite matrix.
 
 ## Calculus rules
