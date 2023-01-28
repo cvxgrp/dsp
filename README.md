@@ -8,7 +8,7 @@ convex optimization problems we refer to as _saddle problems_, which include the
 supremum or infimum of convex-concave saddle functions.
 Saddle functions are functions that are (jointly) convex in a subset of their
 arguments, and (jointly) concave in the remaining arguments.
-A forthcoming paper will describe the method in detail.
+A detailed description of the underlying method is given in our [accompanying paper](https://web.stanford.edu/~boyd/papers/dsp.html)
 
 ## Installation
 
@@ -22,7 +22,7 @@ The DSP package requires CVXPY 1.3 or later.
 ## Minimal example
 
 The following example creates and solves a simple saddle point problem known as a matrix game.
-A saddle point problem is created by specifying a `MinimizeMaximize` objective and a list of constraints.
+A saddle point problem is created by specifying an objective and a list of constraints.
 Here, the objective is $f(x, y) = x^TCy$, which is simultaneously minimized over $x$ and maximized over $y$.
 The resulting saddle point is an optimal mixed strategy for both players in the matrix game.
 
