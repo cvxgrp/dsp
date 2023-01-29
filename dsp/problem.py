@@ -113,6 +113,9 @@ class SaddlePointProblem(cp.Problem):
         assert isinstance(minmax_objective, MinimizeMaximize)
 
     def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> None:  # noqa
+        """
+        Solves the saddle point problem.
+        """
         self.x_prob.solve(*args, **kwargs)
         assert self.x_prob.status in {cp.OPTIMAL, cp.OPTIMAL_INACCURATE}, self.x_prob.status
 
@@ -138,6 +141,10 @@ class SaddlePointProblem(cp.Problem):
 
     @property
     def value(self) -> float | None:
+        """
+        Returns the value of the objective function at the solution, and None if the problem has not
+        been successfully solved.
+        """
         return self._value
 
     def is_dsp(self) -> bool:
