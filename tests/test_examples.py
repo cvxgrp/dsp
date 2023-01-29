@@ -239,7 +239,7 @@ def test_svm():
     train_port = ["Q"]  # C, Q, S: the port to use for training
     without_train = True  # Dont include training data in eval
 
-    df = pd.read_csv("https://bit.ly/bio304-titanic-data")
+    df = pd.read_csv("tests/example_data/robust_model_fitting/titanic.csv")
 
     df["sex"] = df["sex"] == "male"
 
@@ -254,7 +254,6 @@ def test_svm():
     age_bins = pd.get_dummies(pd.cut(df["age"], bins), prefix="age")
 
     df = pd.concat([df, class_hot, age_bins], axis=1)
-    # df = pd.concat([df, age_bins], axis=1)
 
     df["survived_bool"] = df["survived"].copy()
     df["survived"] = 2 * df["survived"] - 1
@@ -319,7 +318,7 @@ def test_svm():
         y = df["survived"].values.astype(float)
         A = df[features].values.astype(float)
 
-    print_results = True
+    print_results = False
     if print_results:
         print("Train accuracy nom.: ", accuracy(A_train @ nominal_theta, y_train))
         print("Train accuracy rob.: ", accuracy(A_train @ robust_theta, y_train))
@@ -360,10 +359,6 @@ def accuracy(scores, labels):
     scores[scores > 0] = 1
     scores[scores <= -0] = -1
     return np.mean(scores == labels)
-
-
-def avg_log_likelihood_numpy(y_hat, y):
-    return np.mean(y * y_hat - np.log(1 + np.exp(y_hat)))
 
 
 def avg_svm_loss_numpy(y_hat, y):

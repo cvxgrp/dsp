@@ -22,8 +22,8 @@ from dsp.saddle_extremum import SaddleExtremum
 
 class MinimizeMaximize:
     def __init__(self, expr: cp.Expression) -> None:
-        self.expr = Atom.cast_to_const(expr)
         self._validate_arguments(expr)
+        self.expr = Atom.cast_to_const(expr)
 
     @staticmethod
     def _validate_arguments(expr: cp.Expression | float | int) -> None:
@@ -248,13 +248,6 @@ def validate_all_saddle_extrema(problem: cp.Problem) -> None:
     SE_atoms = get_problem_SE_atoms(problem)
     for SE_atom in SE_atoms:
         validate_saddle_extremum(SE_atom, problem.constraints)
-
-
-def aux_prob_from_expr(obj: cp.Expression, min_vars: list[cp.Variable]) -> bool:
-    parser = initialize_parser(obj, min_vars, maximization_vars=[], constraints=[])
-    constraints = [y == 1 for y in parser.concave_vars]
-    new_prob = SaddlePointProblem(MinimizeMaximize(obj), constraints, min_vars, [])
-    return new_prob.is_dsp()
 
 
 def is_dsp_expr(obj: cp.Expression) -> bool:

@@ -8,7 +8,7 @@ convex optimization problems we refer to as _saddle problems_, which include the
 supremum or infimum of convex-concave saddle functions.
 Saddle functions are functions that are (jointly) convex in a subset of their
 arguments, and (jointly) concave in the remaining arguments.
-A detailed description of the underlying method is given in our [accompanying paper](https://web.stanford.edu/~boyd/papers/dsp.html)
+A detailed description of the underlying method is given in our [accompanying paper](https://web.stanford.edu/~boyd/papers/dsp.html).
 
 ## Installation
 
@@ -145,8 +145,6 @@ G = dsp.saddle_max(f, [y_loc >= 0, cp.sum(y_loc) == 1])
 A saddle problem is a convex optimization problem that involves saddle extremum functions. Any DCP convex optimization
 can include saddle extremum functions when they are DSP-compliant. Using the saddle extremum function `G` from above,
 we can solve the following problem:
-```python
-
 ```python
 prob = cp.Problem(cp.Minimize(G), [x >= 0, cp.sum(x) == 1])
 prob.solve() # solving the problem

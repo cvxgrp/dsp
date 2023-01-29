@@ -286,3 +286,7 @@ def test_saddle_extremum_non_dcp_constraint():
 
     with pytest.raises(cp.DCPError):
         cp.Problem(cp.Minimize(F), [x == 0]).solve()
+
+
+def test_unknown_type():
+    assert not is_dsp("Not a cvxpy expression")

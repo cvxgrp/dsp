@@ -523,6 +523,18 @@ def test_saddle_inner_neg():
         saddle_problem.solve()
 
 
+def test_scalar():
+    x = cp.Variable()
+    y = cp.Variable()
+    f = inner(x, y)
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [-1 <= x, x <= 1, -1 <= y, y <= 1])
+    prob.solve()
+    assert np.isclose(prob.value, 0)
+    assert np.isclose(x.value, 0)
+    assert np.isclose(y.value, 0)
+
+
 def test_non_local_variable():
     x = cp.Variable(1, name="x")
     y = cp.Variable(1, name="y")
