@@ -508,6 +508,20 @@ def test_unconstrained():
     assert np.isclose(saddle_problem.value, 0)
 
 
+def test_partially_constrained():
+    x = cp.Variable(2, name="x")
+    y1 = cp.Variable(2, name="y1")
+    y2 = cp.Variable(1, name="y2")
+    f = inner(x, y1) - cp.square(y2)
+    obj = MinimizeMaximize(f)
+
+    saddle_problem = SaddlePointProblem(obj, [x == 1, y1 == 1])
+    saddle_problem.is_dsp()
+
+    saddle_problem.solve()
+    assert np.isclose(saddle_problem.value, 1)
+
+
 def test_saddle_inner_neg():
     x = cp.Variable(1, name="x")
     y = cp.Variable(1, name="y", nonneg=True)
