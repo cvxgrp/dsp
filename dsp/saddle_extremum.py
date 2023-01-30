@@ -200,7 +200,7 @@ class saddle_min(SaddleExtremum):
         """
         neg_parser = initialize_parser(
             -self.f,
-            minimization_vars=[],
+            minimization_vars=self.concave_variables(),
             maximization_vars=self.convex_variables(),
             constraints=self.constraints,
         )

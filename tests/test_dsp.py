@@ -569,3 +569,11 @@ def test_pure_concave():
 
     saddle_problem.solve()
     assert np.isclose(saddle_problem.value, 0)
+
+
+def test_local_variable_setter():
+    x = LocalVariable(name="x")
+    y = cp.Variable(name="y")
+    se = saddle_min(y + x, [x <= 1])
+    x.value = 1
+    assert x.value == 1  # currently value only computes
