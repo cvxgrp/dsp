@@ -31,6 +31,7 @@ def test_quad_form_inequality():
     P = cp.Variable((n, n), name="P", PSD=True)
 
     f = saddle_quad_form(x, P)
+    assert f.value is None
 
     obj = MinimizeMaximize(f)
     P_val = np.eye(n)

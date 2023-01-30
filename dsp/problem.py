@@ -22,8 +22,8 @@ from dsp.saddle_extremum import SaddleExtremum
 
 class MinimizeMaximize:
     def __init__(self, expr: cp.Expression) -> None:
-        self.expr = Atom.cast_to_const(expr)
         self._validate_arguments(expr)
+        self.expr = Atom.cast_to_const(expr)
 
     @staticmethod
     def _validate_arguments(expr: cp.Expression | float | int) -> None:
@@ -113,6 +113,9 @@ class SaddlePointProblem(cp.Problem):
         assert isinstance(minmax_objective, MinimizeMaximize)
 
     def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> None:  # noqa
+        """
+        Solves the saddle point problem.
+        """
         self.x_prob.solve(*args, **kwargs)
         assert self.x_prob.status in {cp.OPTIMAL, cp.OPTIMAL_INACCURATE}, self.x_prob.status
 
@@ -138,6 +141,10 @@ class SaddlePointProblem(cp.Problem):
 
     @property
     def value(self) -> float | None:
+        """
+        Returns the value of the objective function at the solution, and None if the problem has not
+        been successfully solved.
+        """
         return self._value
 
     def is_dsp(self) -> bool:
@@ -248,13 +255,6 @@ def validate_all_saddle_extrema(problem: cp.Problem) -> None:
     SE_atoms = get_problem_SE_atoms(problem)
     for SE_atom in SE_atoms:
         validate_saddle_extremum(SE_atom, problem.constraints)
-
-
-def aux_prob_from_expr(obj: cp.Expression, min_vars: list[cp.Variable]) -> bool:
-    parser = initialize_parser(obj, min_vars, maximization_vars=[], constraints=[])
-    constraints = [y == 1 for y in parser.concave_vars]
-    new_prob = SaddlePointProblem(MinimizeMaximize(obj), constraints, min_vars, [])
-    return new_prob.is_dsp()
 
 
 def is_dsp_expr(obj: cp.Expression) -> bool:

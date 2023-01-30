@@ -324,6 +324,7 @@ def test_Gx_Fy():
 def test_robust_constraint():
     x = cp.Variable(name="x")
     y = LocalVariable(name="y", nonneg=True)
+    assert repr(y).startswith("LocalVariable")
 
     obj = MinimizeMaximize(cp.square(x))
 
@@ -522,9 +523,49 @@ def test_saddle_inner_neg():
         saddle_problem.solve()
 
 
+def test_scalar():
+    x = cp.Variable()
+    y = cp.Variable()
+    f = inner(x, y)
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [-1 <= x, x <= 1, -1 <= y, y <= 1])
+    prob.solve()
+    assert np.isclose(prob.value, 0)
+    assert np.isclose(x.value, 0)
+    assert np.isclose(y.value, 0)
+
+
 def test_non_local_variable():
     x = cp.Variable(1, name="x")
     y = cp.Variable(1, name="y")
 
     with pytest.raises(LocalVariableError):
         conjugate(inner(x, y))
+
+
+def test_pure_convex():
+    x = cp.Variable(name="x")
+    f = cp.square(x)
+    obj = MinimizeMaximize(f)
+
+    assert obj.is_dsp()
+
+    saddle_problem = SaddlePointProblem(obj)
+    assert saddle_problem.is_dsp()
+
+    saddle_problem.solve()
+    assert np.isclose(saddle_problem.value, 0)
+
+
+def test_pure_concave():
+    y = cp.Variable(name="y")
+    f = -cp.square(y)
+    obj = MinimizeMaximize(f)
+
+    assert obj.is_dsp()
+
+    saddle_problem = SaddlePointProblem(obj)
+    assert saddle_problem.is_dsp()
+
+    saddle_problem.solve()
+    assert np.isclose(saddle_problem.value, 0)
