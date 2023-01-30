@@ -100,3 +100,22 @@ def test_divide(divisor):
 
     prob.solve()
     assert np.isclose(prob.value, 1 / divisor)
+
+
+def test_overlapping_vars():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y", nonneg=True)
+    f = x + y
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(
+        obj, [y == 1, x == 1], minimization_vars=[x], maximization_vars=[x, y]
+    )
+    assert not prob.is_dsp()
+
+def test_unknown_curvature():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y", nonneg=True)
+    f = cp.square(cp.log(x))
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [y == 1, x == 1], minimization_vars=[x])
+    assert not prob.is_dsp()
