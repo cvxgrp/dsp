@@ -132,3 +132,12 @@ def test_parser_no_constraints():
 
     assert not parser.x_constraints
     assert not parser.y_constraints
+
+
+def test_no_mul_affine():
+    x = cp.Variable(2, name="x")
+    y = cp.Variable(2, name="y")
+    f = x @ y
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [y == 1, x == 1])
+    assert not prob.is_dsp()
