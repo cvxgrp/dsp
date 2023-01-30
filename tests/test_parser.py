@@ -120,3 +120,15 @@ def test_unknown_curvature():
     obj = MinimizeMaximize(f)
     prob = SaddlePointProblem(obj, [y == 1, x == 1], minimization_vars=[x])
     assert not prob.is_dsp()
+
+
+def test_parser_no_constraints():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y", nonneg=True)
+    f = 0
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj)
+    parser = Parser({x}, {y})
+
+    assert not parser.x_constraints
+    assert not parser.y_constraints
