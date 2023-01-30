@@ -112,6 +112,7 @@ def test_overlapping_vars():
     )
     assert not prob.is_dsp()
 
+
 def test_unknown_curvature():
     x = cp.Variable(name="x")
     y = cp.Variable(name="y", nonneg=True)
