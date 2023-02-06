@@ -54,7 +54,7 @@ that the first argument is the convex argument and the second argument is the co
 
 - `inner(x, y)`  
 The inner product $x^Ty$, with both arguments affine.
-- `saddle_innder(Fx, Gy)`  
+- `saddle_inner(Fx, Gy)`  
 The inner product $F(x)^TG(y)$, with $F$ convex and nonnegative, and $G$ concave. If $G$ is not nonnegative, a constraint
 $G \geq 0$ is added.
 - `weighted_norm2(x, y)`  
@@ -75,7 +75,7 @@ $$
 The quadratic form $x^TYx$, where $Y$ a positive semindefinite matrix.
 
 ## Calculus rules
-Saddle functions can scaled and composed by addition. DCP convex expressions are treated as saddle functions with
+Saddle functions can be scaled and composed by addition. DCP convex expressions are treated as saddle functions with
 no concave arguments, and DCP concave expressions are treated as saddle functions with no convex arguments.
 When adding two saddle functions, a variable may not appear as a convex variable in one expression and as a concave
 variable in the other expression.
