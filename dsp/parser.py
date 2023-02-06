@@ -232,7 +232,7 @@ class Parser:
         elif isinstance(expr, dsp.saddle_extremum.SaddleExtremum) and not expr.is_dsp():
             raise DSPError("Saddle min or max using non-DSP argument.")
         else:
-            raise ValueError
+            raise DSPError(f"Expression {expr} is not DSP.")
 
 
 def _split_constraints(

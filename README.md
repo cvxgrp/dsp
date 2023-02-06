@@ -8,7 +8,7 @@ convex optimization problems we refer to as _saddle problems_, which include the
 supremum or infimum of convex-concave saddle functions.
 Saddle functions are functions that are (jointly) convex in a subset of their
 arguments, and (jointly) concave in the remaining arguments.
-A detailed description of the underlying method is given in our [accompanying paper](https://web.stanford.edu/~boyd/papers/dsp.html).
+A detailed description of the underlying method is given in our [accompanying paper](https://arxiv.org/abs/2301.13427).
 
 ## Installation
 
@@ -158,9 +158,10 @@ If you want to reference DSP in your research, please consider citing us by usin
 
 ```BibTeX
 @misc{schiele2023dsp,
-  author = {Schiele, Philipp and Luxenberg, Eric and Boyd, Stephen},
-  title = {Disciplined Saddle Programming},
-  url = {https://web.stanford.edu/~boyd/papers/dsp.html},
-  year = {2023}
+  title={Disciplined Saddle Programming},
+  author= {Schiele*, Philipp and Luxenberg*, Eric and Boyd, Stephen},
+  year={2023},
+  selected={true},
+  journal={arXiv preprint arXiv:2301.13427},
 }
 ```

@@ -100,3 +100,44 @@ def test_divide(divisor):
 
     prob.solve()
     assert np.isclose(prob.value, 1 / divisor)
+
+
+def test_overlapping_vars():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y", nonneg=True)
+    f = x + y
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(
+        obj, [y == 1, x == 1], minimization_vars=[x], maximization_vars=[x, y]
+    )
+    assert not prob.is_dsp()
+
+
+def test_unknown_curvature():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y", nonneg=True)
+    f = cp.square(cp.log(x))
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [y == 1, x == 1], minimization_vars=[x])
+    assert not prob.is_dsp()
+
+
+def test_parser_no_constraints():
+    x = cp.Variable(name="x")
+    y = cp.Variable(name="y", nonneg=True)
+    f = 0
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj)
+    parser = Parser({x}, {y})
+
+    assert not parser.x_constraints
+    assert not parser.y_constraints
+
+
+def test_no_mul_affine():
+    x = cp.Variable(2, name="x")
+    y = cp.Variable(2, name="y")
+    f = x @ y
+    obj = MinimizeMaximize(f)
+    prob = SaddlePointProblem(obj, [y == 1, x == 1])
+    assert not prob.is_dsp()
