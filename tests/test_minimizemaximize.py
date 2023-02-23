@@ -1,6 +1,7 @@
 import cvxpy as cp
 import pytest
 
+import dsp
 from dsp.problem import MinimizeMaximize
 
 
@@ -17,3 +18,16 @@ def test_value():
 def test_invalid_argument():
     with pytest.raises(TypeError):
         MinimizeMaximize("hello")
+
+
+def test_properties():
+    x = cp.Variable()
+    y = cp.Variable()
+    f = dsp.saddle_inner(x, y)
+
+    obj = MinimizeMaximize(f)
+    assert obj.is_dsp()
+    assert obj.value is None
+    assert obj.variables() == [x, y]
+    assert obj.parameters() == []
+    assert obj.atoms() == [dsp.saddle_inner]

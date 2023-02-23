@@ -5,7 +5,6 @@ from typing import Iterable
 
 import cvxpy as cp
 import numpy as np
-from cvxpy.atoms.atom import Atom
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.problems.objective import Objective
 from cvxpy.utilities import Canonical
@@ -20,10 +19,10 @@ from dsp.parser import DSPError, Parser, initialize_parser
 from dsp.saddle_extremum import SaddleExtremum
 
 
-class MinimizeMaximize:
+class MinimizeMaximize(Canonical):
     def __init__(self, expr: cp.Expression) -> None:
         self._validate_arguments(expr)
-        self.expr = Atom.cast_to_const(expr)
+        self.args = [cp.Expression.cast_to_const(expr)]
 
     @staticmethod
     def _validate_arguments(expr: cp.Expression | float | int) -> None:
@@ -45,7 +44,7 @@ class MinimizeMaximize:
 class SaddlePointProblem(cp.Problem):
     def __init__(
         self,
-        minmax_objective: MinimizeMaximize | Objective,
+        minmax_objective: MinimizeMaximize,
         constraints: list[Constraint] | None = None,
         minimization_vars: Iterable[cp.Variable] | None = None,
         maximization_vars: Iterable[cp.Variable] | None = None,
