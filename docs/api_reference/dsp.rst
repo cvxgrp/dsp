@@ -6,3 +6,5 @@ Here goes the DSP API Documentation
    :maxdepth: 1
 
    Problems <dsp.problem>
+   Saddle Atoms <dsp.saddle_atoms>
+   Saddle Extremum <dsp.saddle_extremum>
