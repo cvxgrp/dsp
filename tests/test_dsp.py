@@ -520,7 +520,7 @@ def test_partially_constrained():
     saddle_problem.is_dsp()
 
     saddle_problem.solve()
-    assert np.isclose(saddle_problem.value, 1)
+    assert np.isclose(saddle_problem.value, 2)
 
 
 def test_saddle_inner_neg():

@@ -116,6 +116,12 @@ def minimax_to_min(
             constraints += [C.T @ lamb == K.f, *lamb_const]
 
             obj += lamb @ e
+
+            unconstrained_vars = [v for v in y_vars if v.id not in var_id_to_mat]
+            for v in unconstrained_vars:
+                start, end = local_to_glob.var_to_glob[v.id]
+                constraints.append(K.f[start:end] == 0)
+
         else:
             constraints.append(K.f == 0)
 
@@ -324,21 +330,11 @@ def K_repr_bilin(
     return KRepresentation(f=C.T @ Fx, t=Fx.T @ d, constraints=[])
 
 
-class NoYConstraintError(Exception):
-    pass
-
-
 def get_cone_repr(
-    const: list[Constraint], exprs: list[cp.Variable | cp.Expression]
+    const: list[Constraint], variables: list[cp.Variable]
 ) -> tuple[dict[int, np.ndarray], np.ndarray, ConeDims]:
-    if not {v for e in exprs for v in e.variables()} <= {v for c in const for v in c.variables()}:
-        if len(const) == 0:
-            raise NoYConstraintError(
-                "No y constraints in problem. Variables are "
-                + str([v.name() for e in exprs for v in e.variables()])
-            )
-        else:
-            raise ValueError("Not all variables in exprs are constrained by const")
+
+    assert all(isinstance(v, cp.Variable) for v in variables)
 
     # TODO: CVXPY does not have a stable API for getting the cone representation that is
     #  solver independent. We use SCS in line with the CVXPY documentation.
@@ -356,22 +352,20 @@ def get_cone_repr(
 
     unused_mask = np.ones(A.shape[1], dtype=bool)
     var_to_mat_mapping = {}
-    for e in exprs:
-        if not e.variables():
+
+    for v in variables:
+        if v.id not in var_id_to_col:
             continue
+        start_ind = var_id_to_col[v.id]
+        sz = (
+            v.size
+            if not (v.ndim > 1 and v.is_symmetric())
+            else (v.shape[0] * (v.shape[0] + 1) // 2)
+        )  # fix for symmetric variables
+        end_ind = start_ind + sz
+        original_cols = np.arange(start_ind, end_ind)
 
-        original_cols = np.array([], dtype=int)
-        for v in e.variables():
-            start_ind = var_id_to_col[v.id]
-            sz = (
-                v.size
-                if not (v.ndim > 1 and v.is_symmetric())
-                else (v.shape[0] * (v.shape[0] + 1) // 2)
-            )  # fix for symmetric variables
-            end_ind = start_ind + sz
-            original_cols = np.append(original_cols, np.arange(start_ind, end_ind))
-
-        var_to_mat_mapping[e.id] = A[:, original_cols]
+        var_to_mat_mapping[v.id] = A[:, original_cols]
         unused_mask[original_cols] = 0
 
     var_to_mat_mapping["eta"] = A[:, unused_mask]
@@ -519,13 +513,11 @@ def create_sparse_matrix_from_columns(
     mats_to_stack = []
     current_col = 0
     for start, end, v_id in cols:
-        if start == current_col:
-            mats_to_stack.append(var_to_mat_mapping[v_id])
-            current_col = end
-        else:
+        if start != current_col:
             mats_to_stack.append(sp.csc_matrix((shape[0], start - current_col), dtype=float))
-            mats_to_stack.append(var_to_mat_mapping[v_id])
-            current_col = end
+        mat = var_to_mat_mapping.get(v_id, sp.csc_matrix((shape[0], end - start), dtype=float))
+        mats_to_stack.append(mat)
+        current_col = end
     if current_col < shape[1]:
         mats_to_stack.append(sp.csc_matrix((shape[0], shape[1] - current_col)))
 
