@@ -48,8 +48,9 @@ def test_matrix_game_x_Gy():
 
     K = K_repr_x_Gy(F, x, ltg)
     prob = cp.Problem(*minimax_to_min(K, X_constraints, Y_constraints, [y, yy], ltg))
-    prob.solve(solver=cp.SCS)
+    optimal_value = prob.solve(solver=cp.SCS)
     assert np.isclose(prob.value, 0, atol=1e-4)
+    assert np.isclose(optimal_value, 0, atol=1e-4)
 
 
 @pytest.mark.parametrize("a,expected", [(cp.exp, np.exp(2)), (cp.square, 4)])

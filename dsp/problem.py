@@ -112,7 +112,7 @@ class SaddlePointProblem(cp.Problem):
     def _validate_arguments(minmax_objective: MinimizeMaximize) -> None:
         assert isinstance(minmax_objective, MinimizeMaximize)
 
-    def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> None:  # noqa
+    def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> float:  # noqa
         """
         Solves the saddle point problem.
         """
@@ -126,7 +126,6 @@ class SaddlePointProblem(cp.Problem):
         assert np.isclose(self.x_prob.value, -self.y_prob.value, atol=eps) and np.isclose(
             -self.y_prob.value, self.x_prob.value, atol=eps
         ), f"Difference between x and y problem is {diff}, (should be 0)."
-        # TODO: Does this guarantee that we found a saddle point?
 
         self._status = (
             cp.OPTIMAL_INACCURATE
@@ -134,6 +133,7 @@ class SaddlePointProblem(cp.Problem):
             else cp.OPTIMAL
         )
         self._value = self.x_prob.value
+        return self._value
 
     @property
     def status(self) -> str | None:
