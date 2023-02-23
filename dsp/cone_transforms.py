@@ -211,15 +211,13 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
 class LocalToGlob:
     def __init__(self, x_variables: list[cp.Variable], y_variables: list[cp.Variable]) -> None:
 
-        # self.y_size = sum(var.size for var in y_variables)
-        # self.x_size = sum(var.size for var in x_variables)
         self.outer_x_vars = x_variables
         self.var_to_glob: dict[int, tuple[int, int]] = {}
 
         self.x_size = self.add_vars_to_map(x_variables)
         self.y_size = self.add_vars_to_map(y_variables)
 
-    def add_vars_to_map(self, variables: list[cp.Variable]) -> None:
+    def add_vars_to_map(self, variables: list[cp.Variable]) -> int:
         offset = 0
         for var in variables:
             assert (

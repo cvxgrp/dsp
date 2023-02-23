@@ -28,10 +28,8 @@ class MinimizeMaximize(Canonical):
     def _validate_arguments(expr: cp.Expression | float | int) -> None:
         if isinstance(expr, cp.Expression):
             assert expr.size == 1
-        elif isinstance(expr, (float, int)):
-            pass
         else:
-            raise TypeError(f"Cannot parse {expr=}")
+            assert isinstance(expr, (float, int)), f"Cannot parse {expr=}"
 
     def is_dsp(self) -> bool:
         return self.expr.is_dsp()
@@ -147,13 +145,12 @@ class SaddlePointProblem(cp.Problem):
         return self._value
 
     def is_dsp(self) -> bool:
-        # try to form "x_prob = self.x_prob" and catch the exception
+        # try to form x_prob and catch the exception
         try:
             self.x_prob
             return True
         except DSPError:
             return False
-        # TODO: modify all internal DSP checking to raise DSPError's.
 
     def convex_variables(self) -> list[cp.Variable]:
         parser = initialize_parser(
@@ -191,9 +188,9 @@ def semi_infinite_epigraph(
     obj = prob.objective.expr
     aux_constraints = prob.constraints  # aux_constraints may not be canonicalized
 
-    vars = list(set(chain.from_iterable([c.variables() for c in aux_constraints])))
-    var_id_map = {v.id: v for v in vars}
-    var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(aux_constraints, vars)
+    variables = list(set(chain.from_iterable([c.variables() for c in aux_constraints])))
+    var_id_map = {v.id: v for v in variables}
+    var_to_mat_mapping, const_vec, cone_dims = get_cone_repr(aux_constraints, variables)
 
     # A @ [all variables]
     expr = 0

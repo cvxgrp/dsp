@@ -116,13 +116,17 @@ class Parser:
             raise ValueError
 
     def parse_known_curvature_vars(self, expr: cp.Expression, switched: bool) -> None:
-        vars = expr.variables()
+        variables = expr.variables()
         if expr.is_affine():
             self.affine_vars |= set(expr.variables()) - self.convex_vars - self.concave_vars
         elif expr.is_convex():
-            self.add_to_convex_vars(vars) if not switched else self.add_to_concave_vars(vars)
+            self.add_to_convex_vars(variables) if not switched else self.add_to_concave_vars(
+                variables
+            )
         elif expr.is_concave():
-            self.add_to_concave_vars(vars) if not switched else self.add_to_convex_vars(vars)
+            self.add_to_concave_vars(variables) if not switched else self.add_to_convex_vars(
+                variables
+            )
         else:
             raise ValueError(f"Cannot parse {expr=} with {expr.curvature=}.")
 
@@ -261,7 +265,7 @@ def _split_constraints(
 
         if con_len == len(constraints):
             raise DSPError(
-                "Cannot split constraints, specify minimization_vars and " "maximization_vars"
+                "Cannot split constraints, specify minimization_vars and maximization_vars"
             )
 
     assert len(x_constraints) + len(y_constraints) == n_constraints

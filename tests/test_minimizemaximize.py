@@ -16,7 +16,7 @@ def test_value():
 
 
 def test_invalid_argument():
-    with pytest.raises(TypeError):
+    with pytest.raises(AssertionError):
         MinimizeMaximize("hello")
 
 

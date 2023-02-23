@@ -9,8 +9,6 @@ from dsp.parser import DSPError
 from dsp.problem import semi_infinite_epigraph
 from dsp.saddle_extremum import saddle_max, saddle_min
 
-# TODO: handle arbitrary DSP expressions
-
 
 def saddle_max_canon(expr: saddle_max, _args: Any) -> tuple[cp.Expression, list[Constraint]]:
     if not expr.is_dsp():

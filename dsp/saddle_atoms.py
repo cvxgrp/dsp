@@ -100,12 +100,11 @@ class saddle_inner(SaddleAtom):
         assert isinstance(Gy, cp.Expression)
 
         self.bilinear = Fx.is_affine() and Gy.is_affine()
-        if not self.bilinear:
-            if not Gy.is_nonneg():
-                warnings.warn(
-                    "Gy is non-positive. The y domain of saddle_inner is Gy >="
-                    " 0. The implicit constraint Gy >= 0 will be added to the problem."
-                )
+        if (not self.bilinear) and (not Gy.is_nonneg()):
+            warnings.warn(
+                "Gy is non-positive. The y domain of saddle_inner is Gy >="
+                " 0. The implicit constraint Gy >= 0 will be added to the problem."
+            )
 
         self.Fx = Fx
         self.Gy = Gy
