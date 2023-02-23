@@ -550,6 +550,22 @@ def test_scalar():
     assert np.isclose(y.value, 0)
 
 
+def test_inner_properties():
+
+    x_nonneg = cp.Variable(nonneg=True)
+    x_nonpos = cp.Variable(nonpos=True)
+
+    y = cp.Variable()
+    y_nonneg = cp.Variable(nonneg=True)
+    y_nonpos = cp.Variable(nonpos=True)
+
+    assert inner(x_nonneg, y).is_incr(1)
+    assert inner(x_nonpos, y).is_decr(1)
+
+    assert inner(x_nonneg, y_nonneg).is_nonneg()
+    assert inner(x_nonneg, y_nonpos).is_nonpos()
+
+
 def test_non_local_variable():
     x = cp.Variable(1, name="x")
     y = cp.Variable(1, name="y")

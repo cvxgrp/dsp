@@ -7,6 +7,7 @@ import cvxpy as cp
 import numpy as np
 from cvxpy.atoms.atom import Atom
 from cvxpy.constraints import ExpCone
+from cvxpy.utilities.sign import mul_sign
 
 from dsp.cone_transforms import (
     K_repr_ax,
@@ -192,6 +193,15 @@ class inner(saddle_inner):
 
     def get_convex_expression(self) -> cp.Expression:
         return self.Fx @ self.Gy.value
+
+    def sign_from_args(self) -> tuple[bool, bool]:
+        return mul_sign(self.args[0], self.args[1])
+
+    def is_incr(self, idx: int) -> bool:
+        return self.args[1 - idx].is_nonneg()
+
+    def is_decr(self, idx: int) -> bool:
+        return self.args[1 - idx].is_nonpos()
 
 
 class weighted_log_sum_exp(SaddleAtom):
