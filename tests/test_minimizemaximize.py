@@ -31,3 +31,7 @@ def test_properties():
     assert obj.variables() == [x, y]
     assert obj.parameters() == []
     assert obj.atoms() == [dsp.saddle_inner]
+
+    x.value = 1
+    y.value = 2
+    assert obj.value == 2

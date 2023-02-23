@@ -98,15 +98,13 @@ class saddle_inner(SaddleAtom):
         assert isinstance(Fx, cp.Expression)
         assert isinstance(Gy, cp.Expression)
 
-        if not (Fx.is_affine() and Gy.is_affine()):
+        self.bilinear = Fx.is_affine() and Gy.is_affine()
+        if not self.bilinear:
             if not Gy.is_nonneg():
                 warnings.warn(
                     "Gy is non-positive. The y domain of saddle_inner is Gy >="
                     " 0. The implicit constraint Gy >= 0 will be added to the problem."
                 )
-            self.bilinear = False
-        else:
-            self.bilinear = True
 
         self.Fx = Fx
         self.Gy = Gy
@@ -158,7 +156,7 @@ class saddle_inner(SaddleAtom):
         return K_out
 
     def _numeric(self, values: list[np.ndarray]) -> np.ndarray:
-        return values[0] @ values[1]
+        return np_vec(values[0]) @ np_vec(values[1])
 
     def convex_variables(self) -> list[cp.Variable]:
         return self.Fx.variables()
