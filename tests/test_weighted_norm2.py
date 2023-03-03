@@ -41,7 +41,7 @@ def test_weighted_norm2(n):
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4, 5])
-def test_neg_weighted_norm2(n):
+def test_neg_weighted_norm2(n: int) -> None:
     x = cp.Variable(n, name="x", nonneg=True)
     y = cp.Variable(n, name="y", nonneg=True)
 
@@ -62,7 +62,7 @@ def test_neg_weighted_norm2(n):
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4, 5])
-def test_affine_precompositions(n):
+def test_affine_precompositions(n: int) -> None:
     x = cp.Variable(n, name="x", nonneg=True)
     y = cp.Variable(n, name="y", nonneg=True)
 
@@ -87,7 +87,7 @@ def test_affine_precompositions(n):
     "x_expr", [lambda x: cp.square(x), lambda x: cp.square(x) - 1, lambda x: cp.exp(x)]
 )
 @pytest.mark.parametrize("n", [1, 2, 3, 4, 5])
-def test_nonaffine_precompositions(x_val, x_expr, n):
+def test_nonaffine_precompositions(x_val, x_expr, n: int) -> None:
 
     x = cp.Variable(n, name="x")
     y = cp.Variable(n, name="y")
@@ -117,7 +117,7 @@ def test_nonaffine_precompositions(x_val, x_expr, n):
         assert not norm.is_dsp()
 
 
-def test_concave_composition():
+def test_concave_composition() -> None:
     n = 2
     x = cp.Variable(n, name="x")
     y = cp.Variable(n, name="y", nonneg=True)
@@ -139,7 +139,7 @@ def test_concave_composition():
     assert np.allclose(y.value, y_expected, atol=1e-5)
 
 
-def test_value():
+def test_value() -> None:
     n = 2
     x = cp.Variable(n)
     y = cp.Variable(n)

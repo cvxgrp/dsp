@@ -18,6 +18,10 @@ from cvxpy.problems.objective import Objective
 from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
 
 
+def return_zero() -> float:
+    return 0.0
+
+
 @dataclass
 class KRepresentation:
     f: cp.Expression | cp.Variable
@@ -25,7 +29,7 @@ class KRepresentation:
     constraints: list[Constraint]
     offset: float = 0.0
     y_constraints: list[Constraint] = field(default_factory=list)
-    concave_expr: callable = lambda x: 0
+    concave_expr: callable = return_zero
 
     @classmethod
     def sum_of_K_reprs(cls, reprs: list[KRepresentation]) -> KRepresentation:

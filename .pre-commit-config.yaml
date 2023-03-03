@@ -8,19 +8,13 @@ repos:
           - --markdown-linebreak-ext=md
       - id: check-merge-conflict
       - id: check-json
+      - id: check-yaml
 
-  # import sorting with isort
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: 'v0.0.253'
     hooks:
-      - id: isort
-        args: [--profile=black]
-
-  # enforcing the use of new python syntax with pyupgrade
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.2.2
-    hooks:
-      - id: pyupgrade
+      - id: ruff
+        args: [ --fix, --exit-non-zero-on-fix ]
 
   # code formatting with black
   - repo: https://github.com/psf/black
@@ -30,12 +24,3 @@ repos:
         language_version: python3
         args:
           - --line-length=100
-
-          # linting and code analysis with flake8
-  - repo: https://github.com/PyCQA/flake8
-    rev: 5.0.4
-    hooks:
-      - id: flake8
-        files: ^dsp/
-        args: [--max-line-length=100, --ignore=E800 N806 N802 ANN101 N801 N803 ANN102 E203 W503 ANN401 B028]
-        additional_dependencies: [flake8-bugbear, flake8-comprehensions, flake8-eradicate, pep8-naming, flake8-annotations]

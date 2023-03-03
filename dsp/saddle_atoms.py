@@ -73,9 +73,7 @@ class SaddleAtom(Atom, ABC):
     def is_atom_concave(self) -> bool:
         return False
 
-    def graph_implementation(
-        self, arg_objs: list, shape: tuple[int, ...], data=None  # noqa
-    ):  # noqa
+    def graph_implementation(self, arg_objs: list, shape: tuple[int, ...], data=None):  # noqa
         raise NotImplementedError
 
     def _grad(self, values: list):  # noqa

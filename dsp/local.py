@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Iterable
 
 import cvxpy as cp
 import numpy as np
@@ -18,7 +18,7 @@ class LocalVariable(cp.Variable):
         shape: int | Iterable[int, ...] = (),
         name: str | None = None,
         var_id: int | None = None,
-        **kwargs: Any,
+        **kwargs: dict,
     ) -> None:
         self._saddle_expr = None
         super().__init__(shape, name, var_id, **kwargs)
