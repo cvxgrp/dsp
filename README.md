@@ -14,9 +14,8 @@ A detailed description of the underlying method is given in our [accompanying pa
 
 The DSP package can be installed using pip as follows
 ```bash
-pip install git+https://github.com/cvxgrp/dsp.git
+pip install dsp
 ```
-A release to PyPI will follow shortly.
 The DSP package requires CVXPY 1.3 or later.
 
 ## Minimal example
