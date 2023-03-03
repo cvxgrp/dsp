@@ -157,10 +157,10 @@ If you want to reference DSP in your research, please consider citing us by usin
 
 ```BibTeX
 @misc{schiele2023dsp,
-  title={Disciplined Saddle Programming},
-  author= {Schiele*, Philipp and Luxenberg*, Eric and Boyd, Stephen},
-  year={2023},
-  selected={true},
-  journal={arXiv preprint arXiv:2301.13427},
+  title = {Disciplined Saddle Programming},
+  author = {Schiele, Philipp and Luxenberg, Eric and Boyd, Stephen},
+  year = {2023},
+  doi = {10.48550/arXiv.2301.13427},
+  url = {https://arxiv.org/abs/2301.13427},
 }
 ```
