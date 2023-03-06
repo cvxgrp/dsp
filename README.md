@@ -14,7 +14,7 @@ A detailed description of the underlying method is given in our [accompanying pa
 
 The DSP package can be installed using pip as follows
 ```bash
-pip install dsp
+pip install dsp-cvxpy
 ```
 The DSP package requires CVXPY 1.3 or later.
 
