@@ -9,8 +9,7 @@ import sys
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "dsp"
-copyright = "2023, Philipp Schiele, Eric Luxenberg, Stephen Boyd"
-author = "Philipp Schiele, Eric Luxenberg, Stephen Boyd"
+author = "anonymous"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

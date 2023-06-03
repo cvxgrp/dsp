@@ -1,6 +1,4 @@
 # DSP -  Disciplined Saddle Programming
-[![build](https://github.com/cvxgrp/dsp/actions/workflows/build.yml/badge.svg)](https://github.com/cvxgrp/dsp/actions/workflows/build.yml)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dsp&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dsp)
 
 A CVXPY extension for Disciplined Saddle Programming.
 DSP allows solving convex-concave saddle point problems, and more generally
@@ -8,7 +6,7 @@ convex optimization problems we refer to as _saddle problems_, which include the
 supremum or infimum of convex-concave saddle functions.
 Saddle functions are functions that are (jointly) convex in a subset of their
 arguments, and (jointly) concave in the remaining arguments.
-A detailed description of the underlying method is given in our [accompanying paper](https://arxiv.org/abs/2301.13427).
+A detailed description of the underlying method is given in our accompanying paper (link removed).
 
 ## Installation
 
@@ -158,17 +156,4 @@ prob.solve() # solving the problem
 
 prob.value # 1.6666666666666667
 x.value # array([0.66666667, 0.33333333])
-```
-
-## Citation
-If you want to reference DSP in your research, please consider citing us by using the following BibTeX:
-
-```BibTeX
-@misc{schiele2023dsp,
-  title = {Disciplined Saddle Programming},
-  author = {Schiele, Philipp and Luxenberg, Eric and Boyd, Stephen},
-  year = {2023},
-  doi = {10.48550/arXiv.2301.13427},
-  url = {https://arxiv.org/abs/2301.13427},
-}
 ```
