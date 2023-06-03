@@ -79,6 +79,14 @@ no concave arguments, and DCP concave expressions are treated as saddle function
 When adding two saddle functions, a variable may not appear as a convex variable in one expression and as a concave
 variable in the other expression.
 
+Note that negating a saddle function switches the roles of the convex and concave arguments.  
+For example, `-inner(x, y)` is equivalent to `inner(y, -x)`, not `inner(-x, y)`.
+This might seem counterintuitive, especially for bi-affine functions, where both are DSP-compliant, but it is consistent with the fact that
+
+$$
+-\min_x\max_y x^T y = \max_x\min_y -x^T y \neq \min_x\max_y - x^T y.
+$$
+
 ## Saddle point problems
 To create a saddle point problem, a `MinimizeMaximize` object is created first, which represents the objective function,
 using
