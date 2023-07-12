@@ -1,5 +1,6 @@
 [run]
-source = dsp
+parallel = true
+source = dsp, tests
 relative_files = True
 
 [report]
