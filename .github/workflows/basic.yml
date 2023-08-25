@@ -16,3 +16,6 @@ jobs:
 
     steps:
     - uses: cvxgrp/.github/actions/test@main
+      with:
+        source-folder: "dsp"
+
