@@ -14,19 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.8'
-      - name: Install pre-commit
-        run: |
-          pip install pre-commit
-      - name: Setup pre-commit hooks
-        run: |
-          pre-commit install
-      - name: Run pre-commit hooks
-        run: |
-          pre-commit run --all-files
+      - uses: pre-commit/action@v3.0.0
 
   build:
     runs-on: ubuntu-latest
@@ -37,7 +25,6 @@ jobs:
             3.11
             3.10
             3.9
-            #3.8
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0  # For sonar
