@@ -30,3 +30,9 @@ help:  ## Display this help screen
 .PHONY: test
 test: install ## Run tests
 	@poetry run pytest
+
+
+.PHONY: jupyter
+jupyter: install ## Start jupyter lab
+	@poetry run pip install jupyterlab
+	@poetry run jupyter lab
