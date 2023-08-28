@@ -1,6 +1,8 @@
 # DSP -  Disciplined Saddle Programming
+
 [![build](https://github.com/cvxgrp/dsp/actions/workflows/build.yml/badge.svg)](https://github.com/cvxgrp/dsp/actions/workflows/build.yml)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dsp&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dsp)
+[![Apache 2.0 License](https://img.shields.io/badge/License-APACHEv2-brightgreen.svg)](https://github.com/cvxgrp/dsp/blob/master/LICENSE)
 
 A CVXPY extension for Disciplined Saddle Programming.
 DSP allows solving convex-concave saddle point problems, and more generally
@@ -13,9 +15,11 @@ A detailed description of the underlying method is given in our [accompanying pa
 ## Installation
 
 The DSP package can be installed using pip as follows
+
 ```bash
 pip install dsp-cvxpy
 ```
+
 The DSP package requires CVXPY 1.3 or later.
 
 ## Minimal example
@@ -48,6 +52,7 @@ y.value  # array([0.33333333, 0.66666667])
 ```
 
 ## New atoms
+
 In DSP, saddle functions are created from atoms. Each atom represents a saddle function, with the convention being
 that the first argument is the convex argument and the second argument is the concave argument.
 
@@ -74,6 +79,7 @@ $$
 The quadratic form $x^TYx$, where $Y$ a positive semindefinite matrix.
 
 ## Calculus rules
+
 Saddle functions can be scaled and composed by addition. DCP convex expressions are treated as saddle functions with
 no concave arguments, and DCP concave expressions are treated as saddle functions with no convex arguments.
 When adding two saddle functions, a variable may not appear as a convex variable in one expression and as a concave
@@ -88,17 +94,22 @@ $$
 $$
 
 ## Saddle point problems
+
 To create a saddle point problem, a `MinimizeMaximize` object is created first, which represents the objective function,
 using
+
 ```python
 obj = dsp.MinimizeMaximize(f)
 ```
+
 where `f` is a DSP-compliant expression.
 
 The syntax for specifying saddle point problems is
+
 ```python
 problem = dsp.SaddlePointProblem(obj, constraints, cvx_vars, ccv_vars)
 ```
+
 where `obj` is the `MinimizeMaximize` object, `constraints` is a list of constraints, and `cvx_vars` and `ccv_vars` are
 lists of variables to be minimized and maximized over, respectively.
 
@@ -114,6 +125,7 @@ To solve the problem, call `problem.solve()`. This returns the optimal saddle va
 problem's `value` attribute. Further all `value` attribute of the variables are populated with their optimal values.
 
 ## Saddle extremum functions
+
 A saddle extremum function has one of the forms
 
 $$
@@ -125,15 +137,18 @@ where $f$ is a saddle function, and $\mathcal{X}$ and $\mathcal{Y}$ are convex.
 Since the functions only depend on $x$ or $y$, respectively, the other variables have to be declared as
 `LocalVariable`s. Any `LocalVariable` can only be used in one saddle extremum function. The syntax for
 creating a saddle extremum function is
+
 ```python
 dsp.saddle_max(f, constraints)
 dsp.saddle_min(f, constraints)
 ```
+
 where `f` is a DSP-compliant scalar saddle function, and `constraints` is a list of constraints, which can
 only involve `LocalVariable`s. DSP-compliant saddle extremum functions are DCP-convex or DCP-concave, respectively,
 and as such can be used in DCP optimization problems.
 
 An example of a saddle extremum function is
+
 ```python
 # Creating variables
 x = cp.Variable(2)
@@ -149,9 +164,11 @@ G = dsp.saddle_max(f, [y_loc >= 0, cp.sum(y_loc) == 1])
 ```
 
 ## Saddle problems
+
 A saddle problem is a convex optimization problem that involves saddle extremum functions. Any DCP convex optimization
 can include saddle extremum functions when they are DSP-compliant. Using the saddle extremum function `G` from above,
 we can solve the following problem:
+
 ```python
 prob = cp.Problem(cp.Minimize(G), [x >= 0, cp.sum(x) == 1])
 prob.solve() # solving the problem
@@ -161,6 +178,7 @@ x.value # array([0.66666667, 0.33333333])
 ```
 
 ## Citation
+
 If you want to reference DSP in your research, please consider citing us by using the following BibTeX:
 
 ```BibTeX
