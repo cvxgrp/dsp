@@ -1,5 +1,9 @@
 from cvxpy import Expression, Problem
-from cvxpy.reductions.dcp2cone.atom_canonicalizers import CANON_METHODS
+
+try:
+    from cvxpy.reductions.dcp2cone.canonicalizers import CANON_METHODS
+except ModuleNotFoundError:
+    from cvxpy.reductions.dcp2cone.atom_canonicalizers import CANON_METHODS
 
 from dsp.problem import is_dsp
 from dsp.saddle_extremum import conjugate, saddle_max, saddle_min
