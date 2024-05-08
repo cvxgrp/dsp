@@ -165,11 +165,11 @@ If you want to reference DSP in your research, please consider citing us by usin
 
 ```BibTeX
 @article{schiele2024dsp,
-  title={Disciplined Saddle Programming},
-  author={Philipp Schiele and Eric Sager Luxenberg and Stephen P. Boyd},
-  journal={Transactions on Machine Learning Research},
-  issn={2835-8856},
-  year={2024},
-  url={https://openreview.net/forum?id=KhMLfEIoUm},
+  title = {Disciplined Saddle Programming},
+  author = {Schiele, Philipp and Luxenberg, Eric and Boyd, Stephen},
+  journal = {Transactions on Machine Learning Research},
+  year = {2024},
+  pages = {1--25},
+  url = {https://openreview.net/forum?id=KhMLfEIoUm},
 }
 ```
