@@ -164,11 +164,12 @@ x.value # array([0.66666667, 0.33333333])
 If you want to reference DSP in your research, please consider citing us by using the following BibTeX:
 
 ```BibTeX
-@misc{schiele2023dsp,
-  title = {Disciplined Saddle Programming},
-  author = {Schiele, Philipp and Luxenberg, Eric and Boyd, Stephen},
-  year = {2023},
-  doi = {10.48550/arXiv.2301.13427},
-  url = {https://arxiv.org/abs/2301.13427},
+@article{schiele2024dsp,
+title={Disciplined Saddle Programming},
+author={Philipp Schiele and Eric Sager Luxenberg and Stephen P. Boyd},
+journal={Transactions on Machine Learning Research},
+issn={2835-8856},
+year={2024},
+url={https://openreview.net/forum?id=KhMLfEIoUm},
 }
 ```
