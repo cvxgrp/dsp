@@ -40,7 +40,6 @@ def affine_error_message(affine_vars: list[cp.Variable]) -> str:
 
 class Parser:
     def __init__(self, convex_vars: set[cp.Variable], concave_vars: set[cp.Variable]) -> None:
-
         self.convex_vars: set[cp.Variable] = convex_vars
         self.concave_vars: set[cp.Variable] = concave_vars
         if self.convex_vars & self.concave_vars:
@@ -170,7 +169,6 @@ class Parser:
     def parse_expr_repr(
         self, expr: cp.Expression, switched: bool, local_to_glob: LocalToGlob
     ) -> KRepresentation:
-
         K_repr = self._parse_expr(expr, switched, repr_parse=True, local_to_glob=local_to_glob)
         assert isinstance(K_repr, KRepresentation)
         return K_repr
@@ -192,7 +190,6 @@ class Parser:
     def _parse_expr(
         self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict
     ) -> KRepresentation | None:
-
         # constant
         if not expr.variables():
             assert expr.size == 1

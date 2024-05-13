@@ -88,7 +88,6 @@ class SaddlePointProblem(cp.Problem):
         minimization_vars: Iterable[cp.Variable],
         maximization_vars: Iterable[cp.Variable],
     ) -> tuple[list[Constraint], Objective]:
-
         parser = initialize_parser(obj_expr, minimization_vars, maximization_vars, constraints)
 
         local_to_glob_y = LocalToGlob(parser.convex_vars, parser.concave_vars)
@@ -147,7 +146,7 @@ class SaddlePointProblem(cp.Problem):
     def is_dsp(self) -> bool:
         # try to form x_prob and catch the exception
         try:
-            self.x_prob
+            self.x_prob  # noqa
             return True
         except DSPError:
             return False
@@ -269,7 +268,7 @@ def is_dsp(obj: cp.Problem | SaddlePointProblem | cp.Expression) -> bool:
         return obj.is_dsp()
     elif isinstance(obj, cp.Problem):
         all_SE_atoms = get_problem_SE_atoms(obj)
-        return obj.is_dcp() and all([atom.is_dsp() for atom in all_SE_atoms])
+        return obj.is_dcp() and all(atom.is_dsp() for atom in all_SE_atoms)
     elif isinstance(obj, cp.Expression):
         return is_dsp_expr(obj)
     else:

@@ -20,7 +20,6 @@ class SaddleExtremum(Atom):
         f: cp.Expression,
         constraints: Iterable[cp.Constraint],
     ) -> None:
-
         self.f = f
         self._parser = None
 
@@ -44,7 +43,7 @@ class SaddleExtremum(Atom):
     def is_dsp(self) -> bool:
         try:
             self.parser  # noqa
-            return all([c.is_dcp() for c in self.constraints])
+            return all(c.is_dcp() for c in self.constraints)
         except DSPError:
             return False
 
@@ -81,7 +80,6 @@ class saddle_max(SaddleExtremum):
         f: cp.Expression,
         constraints: Iterable[cp.Constraint],
     ) -> None:
-
         super().__init__(f, constraints)
 
         self._concave_vars = set(filter(lambda v: isinstance(v, dsp.LocalVariable), f.variables()))
@@ -99,7 +97,6 @@ class saddle_max(SaddleExtremum):
     @property
     def parser(self) -> Parser:
         if self._parser is None:
-
             parser = initialize_parser(
                 self.f,
                 minimization_vars=self.other_variables,
@@ -155,7 +152,6 @@ class saddle_min(SaddleExtremum):
         f: cp.Expression,
         constraints: Iterable[cp.Constraint],
     ) -> None:
-
         super().__init__(f, constraints)
 
         self._convex_vars = set(filter(lambda v: isinstance(v, dsp.LocalVariable), f.variables()))

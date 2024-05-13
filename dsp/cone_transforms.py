@@ -44,7 +44,7 @@ class KRepresentation:
         offset = np.sum([K.offset for K in reprs])
 
         def f_concave(x: np.ndarray) -> cp.Expression:
-            nones = any([K.concave_expr(x) is None for K in reprs])
+            nones = any(K.concave_expr(x) is None for K in reprs)
             return cp.sum([K.concave_expr(x) for K in reprs]) if not nones else None
 
         concave_expr = f_concave
@@ -214,7 +214,6 @@ def K_repr_ax(a: cp.Expression) -> KRepresentation:
 
 class LocalToGlob:
     def __init__(self, x_variables: list[cp.Variable], y_variables: list[cp.Variable]) -> None:
-
         self.outer_x_vars = x_variables
         self.var_to_glob: dict[int, tuple[int, int]] = {}
 
@@ -296,7 +295,6 @@ def K_repr_FxGy(
     local_to_glob: LocalToGlob,
     switched: bool = False,
 ) -> KRepresentation:
-
     z = cp.Variable(Fx.shape)
     constraints = [z >= Fx]
 
@@ -335,7 +333,6 @@ def K_repr_bilin(
 def get_cone_repr(
     const: list[Constraint], variables: list[cp.Variable]
 ) -> tuple[dict[int, np.ndarray], np.ndarray, ConeDims]:
-
     assert all(isinstance(v, cp.Variable) for v in variables)
 
     # TODO: CVXPY does not have a stable API for getting the cone representation that is
@@ -504,7 +501,6 @@ def create_sparse_matrix_from_columns(
     local_to_glob: LocalToGlob,
     var_to_mat_mapping: dict[int, sp.csc_matrix],
 ) -> sp.csc_matrix:
-
     cols = []
     for v in variables:
         start, end = local_to_glob.var_to_glob[v.id]

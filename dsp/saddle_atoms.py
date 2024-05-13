@@ -59,7 +59,7 @@ class SaddleAtom(Atom, ABC):
         raise NotImplementedError
 
     def numeric(self, values: list[np.ndarray | None]) -> np.ndarray | None:
-        if any([v is None for v in values]):
+        if any(v is None for v in values):
             return None
         return self._numeric(values)
 
@@ -101,7 +101,8 @@ class saddle_inner(SaddleAtom):
         if (not self.bilinear) and (not Gy.is_nonneg()):
             warnings.warn(
                 "Gy is non-positive. The y domain of saddle_inner is Gy >="
-                " 0. The implicit constraint Gy >= 0 will be added to the problem."
+                " 0. The implicit constraint Gy >= 0 will be added to the problem.",
+                stacklevel=1,
             )
 
         self.Fx = Fx
@@ -226,7 +227,8 @@ class weighted_log_sum_exp(SaddleAtom):
             warnings.warn(
                 "Weights are non-positive. The domain of weighted log-sum-exp is y >="
                 " 0. The implicit constraint y >= 0 will be added to"
-                " the problem."
+                " the problem.",
+                stacklevel=1,
             )
 
         self.concave_composition = not weights.is_affine()
@@ -560,7 +562,8 @@ class weighted_norm2(SaddleAtom):
             warnings.warn(
                 "Weights are non-positive. The domain of weighted_norm2 is y >="
                 " 0. The implicit constraint y >= 0 will be added to"
-                " the problem."
+                " the problem.",
+                stacklevel=1,
             )
 
         self.concave_composition = not y.is_affine()
