@@ -76,6 +76,7 @@ class KRepresentation:
     def constant_repr(cls, value: float | int) -> KRepresentation:
         if not isinstance(value, (float, int)):
             assert value.size == 1
+            assert isinstance(value, np.ndarray)
             value = np.squeeze(value)
 
         return KRepresentation(
