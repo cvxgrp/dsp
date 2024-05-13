@@ -10,17 +10,11 @@ repos:
       - id: check-json
       - id: check-yaml
 
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: 'v0.0.253'
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.4.4
     hooks:
+      # Run the linter.
       - id: ruff
-        args: [ --fix, --exit-non-zero-on-fix ]
-
-  # code formatting with black
-  - repo: https://github.com/psf/black
-    rev: 22.10.0
-    hooks:
-      - id: black
-        language_version: python3
-        args:
-          - --line-length=100
+      # Run the formatter.
+      - id: ruff-format
