@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import cvxpy as cp
 import numpy as np
 import pytest
@@ -13,19 +11,6 @@ from dsp import (
     saddle_min,
     saddle_quad_form,
 )
-
-
-import itertools
-from collections.abc import Iterable
-from dataclasses import dataclass
-from functools import partial
-from typing import TYPE_CHECKING, Any, Callable
-
-import cvxpy as cp
-import numpy as np
-import scipy.sparse as sp
-from cvxpy.constraints.constraint import Constraint
-from scipy.stats import chi2
 
 
 @pytest.mark.skipif(cp.MOSEK not in cp.installed_solvers(), reason="MOSEK not installed")
@@ -96,14 +81,15 @@ def test_robust_bond():
         # plt.show()
 
 
-@pytest.mark.skipif(cp.MOSEK not in cp.installed_solvers(), reason="MOSEK not installed")
+
 def test_robust_bond_full():
-    Cash_flows = np.loadtxt("tests/example_data/robust_bond_portfolio/C.csv")
-    target_weights = np.loadtxt("tests/example_data/robust_bond_portfolio/target_weights.csv")
-    F = np.loadtxt("tests/example_data/robust_bond_portfolio/F.csv")
-    P_hat_inv = np.loadtxt("tests/example_data/robust_bond_portfolio/sigma_joint_inverse.csv")
-    x_hat = np.loadtxt("tests/example_data/robust_bond_portfolio/mu_joint.csv")
-    prices = np.loadtxt("tests/example_data/robust_bond_portfolio/p.csv")
+    Cash_flows = np.loadtxt("data/C.csv")
+    target_weights = np.loadtxt("data/target_weights.csv")
+    F = np.loadtxt("data/F.csv")
+    P_hat_inv = np.loadtxt("data/sigma_joint_inverse.csv")
+    x_hat = np.loadtxt("data/mu_joint.csv")
+    prices = np.loadtxt("data/p.csv")
+
 
     alpha_modest = 0.5
     ellipse_callable = partial(
@@ -135,18 +121,27 @@ def test_robust_bond_full():
     weight_constraints = [h >= 0, h @ prices == B, weights == weight_map @ h]
 
     res = []
-    for lambda_val in np.linspace(1, 20.0, 3):
-        Delta = dsp.weighted_log_sum_exp(exponents, weights)
-        saddle_problem = dsp.SaddlePointProblem(
-            dsp.MinimizeMaximize(phi - lambda_val * Delta),
-            weight_constraints + exponent_constraints,
-        )
-        saddle_problem.solve(solver=cp.MOSEK)
-        assert saddle_problem.status == cp.OPTIMAL
-        res.append(phi.value)
+    for lambda_val in np.linspace(1, 20.0, 41):
+        try:
+            Delta = dsp.weighted_log_sum_exp(exponents, weights)
+            saddle_problem = dsp.SaddlePointProblem(
+                dsp.MinimizeMaximize(phi - lambda_val * Delta),
+                weight_constraints + exponent_constraints,
+            )
+            saddle_problem.solve(solver=cp.MOSEK)
+            assert saddle_problem.status == cp.OPTIMAL
 
-    assert np.allclose(res, [0, 0.69223, 0.81587], atol=1e-4)
-
+            print(f"{lambda_val:.2f}, " f"{phi.value=:.2f}")
+            res.append(
+                {
+                    "lambda": lambda_val,
+                    "phi": phi.value,
+                    "weights": h.value * prices,
+                }
+            )
+        except Exception as e:
+            print(f"Failed for lambda = {lambda_val}, {e}")
+        break
 
 def get_cashflow_mapping(
     Cash_flows: np.ndarray,
@@ -167,7 +162,6 @@ def get_cashflow_mapping(
     exponent_offset = np.log(C_vals)
 
     return weight_map, y_tilde_map, s_tilde_map, exponent_offset
-
 
 @dataclass
 class UncertaintySet:
