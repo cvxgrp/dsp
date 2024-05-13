@@ -74,6 +74,10 @@ class KRepresentation:
 
     @classmethod
     def constant_repr(cls, value: float | int) -> KRepresentation:
+        if not isinstance(value, (float, int)):
+            assert value.size == 1
+            value = np.squeeze(value)
+
         return KRepresentation(
             f=cp.Constant(0),
             t=cp.Constant(0),
