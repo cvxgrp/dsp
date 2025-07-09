@@ -13,7 +13,7 @@ from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.constraints.psd import PSD
 from cvxpy.expressions.constants import Constant
-from cvxpy.expressions.variable import upper_tri_to_full
+from cvxpy.atoms.affine.upper_tri import upper_tri_to_full
 from cvxpy.problems.objective import Objective
 from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
 
@@ -153,7 +153,7 @@ def scale_psd_dual(cone_dims: ConeDims, lamb: cp.Variable) -> cp.Variable:
         offset = n - n_psd_entries - exp_offset
         for psd_dim in cone_dims.psd:
             # scale_vec has sqrt(2) on entries corresponding to off-diagonal entries, 1 otherwise
-            scale_vec = upper_tri_to_full(psd_dim).A.sum(axis=0) ** 0.5
+            scale_vec = upper_tri_to_full(psd_dim).toarray().sum(axis=0) ** 0.5
             compressed_vars = len(scale_vec)
             scaling_mat_diag[offset : offset + compressed_vars] = scale_vec
             offset += compressed_vars
@@ -330,7 +330,7 @@ def K_repr_bilin(
     C, d = affine_to_canon(Gy, local_to_glob, switched=False)
 
     if Fx.shape == ():
-        Fx = cp.reshape(Fx, (1,))
+        Fx = cp.reshape(Fx, (1,), order="F")
 
     return KRepresentation(f=C.T @ Fx, t=Fx.T @ d, constraints=[])
 
@@ -383,7 +383,7 @@ def add_cone_constraints(
     s: cp.Expression, cone_dims: ConeDims, dual: bool
 ) -> tuple[list[Constraint], cp.Variable]:
     assert len(s.shape) == 1 or s.shape[1] == 1, "s must be a vector"
-    s = cp.reshape(s, (s.shape[0],))
+    s = cp.reshape(s, (s.shape[0],), order="F")
 
     s_const = []
 
@@ -415,7 +415,7 @@ def add_cone_constraints(
 
             fill_coeff = Constant(upper_tri_to_full(psd_dim))
             flat_mat = fill_coeff @ z
-            full_mat = reshape(flat_mat, (psd_dim, psd_dim))
+            full_mat = reshape(flat_mat, (psd_dim, psd_dim), order="F")
             s_const.append(PSD(full_mat))
             offset += m
 

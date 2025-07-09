@@ -71,6 +71,9 @@ class SaddleExtremum(Atom):
     def concave_variables(self) -> list[cp.Variable]:
         raise NotImplementedError
 
+    def _grad(self, values):
+        return None
+
 
 class saddle_max(SaddleExtremum):
     r"""sup_{y\in Y}f(x,y)"""
