@@ -72,7 +72,9 @@ class SaddleExtremum(Atom):
         raise NotImplementedError
 
     def _grad(self, values):
-        return None
+        # This is an abstract method in the `Atom` superclass but appears unused in the dsp library. Dummy
+        # implementation here to prevent `TypeError: Can't instantiate abstract class...`
+        raise NotImplementedError
 
 
 class saddle_max(SaddleExtremum):
