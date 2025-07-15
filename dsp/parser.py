@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import Iterable
+from collections.abc import Iterable
 
 import cvxpy as cp
 from cvxpy import multiply
@@ -173,8 +173,7 @@ class Parser:
         assert isinstance(K_repr, KRepresentation)
         return K_repr
 
-    @staticmethod
-    def contains_curvature_lumping(expr: cp.Expression) -> bool:
+    def contains_curvature_lumping(self, expr: cp.Expression) -> bool:
         """
         Recursively check if expression contains curvature lumping, i.e. assigning
         a non-affine curvature to an expression that contains a sum where some terms are affine.
@@ -185,7 +184,7 @@ class Parser:
             non_affine_term = any(not expr_arg.is_affine() for expr_arg in expr.args)
             return affine_term and non_affine_term
         else:
-            return any(Parser.contains_curvature_lumping(expr_arg) for expr_arg in expr.args)
+            return any(self.contains_curvature_lumping(expr_arg) for expr_arg in expr.args)
 
     def _parse_expr(
         self, expr: cp.Expression, switched: bool, repr_parse: bool, **kwargs: dict

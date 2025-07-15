@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from itertools import chain
-from typing import Iterable
 
 import cvxpy as cp
 import numpy as np
@@ -20,19 +20,17 @@ from dsp.saddle_extremum import SaddleExtremum
 
 
 class MinimizeMaximize(Canonical):
-
     NAME = "minimize-maximize"
 
     def __init__(self, expr: cp.Expression) -> None:
         self._validate_arguments(expr)
         self.args = [cp.Expression.cast_to_const(expr)]
 
-    @staticmethod
-    def _validate_arguments(expr: cp.Expression | float | int) -> None:
+    def _validate_arguments(self, expr: cp.Expression | float | int) -> None:
         if isinstance(expr, cp.Expression):
             assert expr.size == 1
         else:
-            assert isinstance(expr, (float, int)), f"Cannot parse {expr=}"
+            assert isinstance(expr, float | int), f"Cannot parse {expr=}"
 
     def is_dsp(self) -> bool:
         return self.expr.is_dsp()
@@ -42,7 +40,7 @@ class MinimizeMaximize(Canonical):
         return self.expr.value
 
     def __str__(self) -> str:
-        return ' '.join([self.NAME, self.args[0].name()])
+        return " ".join([self.NAME, self.args[0].name()])
 
 
 class SaddlePointProblem(cp.Problem):
@@ -110,8 +108,7 @@ class SaddlePointProblem(cp.Problem):
 
         return constraints, single_obj
 
-    @staticmethod
-    def _validate_arguments(minmax_objective: MinimizeMaximize) -> None:
+    def _validate_arguments(self, minmax_objective: MinimizeMaximize) -> None:
         assert isinstance(minmax_objective, MinimizeMaximize)
 
     def solve(self, eps: float = 1e-3, *args, **kwargs: dict) -> float:  # noqa

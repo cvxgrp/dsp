@@ -3,8 +3,8 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
-lint.select = ["E", "F", "I", "UP", "B", "ANN", "N", "C4"]
+lint.select = ["E", "F", "I", "UP", "B", "N", "C4"]
 line-length = 100
 target-version = "py310"
-lint.ignore = ["N806", "ANN101", "ANN102", "N801", "N802", "N803", "ANN401"]
+lint.ignore = ["N806", "N801", "N802", "N803", "ANN401"]
 exclude = ["tests"]

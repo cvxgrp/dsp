@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 import cvxpy as cp
 import numpy as np
@@ -26,12 +26,12 @@ class LocalVariable(cp.Variable):
     @property
     def expr(self) -> dsp.saddle_min | dsp.saddle_max:
         assert self._saddle_expr is not None, "Must be associated with an SE."
-        assert isinstance(self._saddle_expr, (dsp.saddle_min, dsp.saddle_max))
+        assert isinstance(self._saddle_expr, dsp.saddle_min | dsp.saddle_max)
         return self._saddle_expr
 
     @expr.setter
     def expr(self, new_value: dsp.saddle_min | dsp.saddle_max) -> None:
-        assert isinstance(new_value, (dsp.saddle_min, dsp.saddle_max))
+        assert isinstance(new_value, dsp.saddle_min | dsp.saddle_max)
         if self._saddle_expr is not None:
             if self._saddle_expr is not new_value:
                 raise LocalVariableError("Cannot assign a local variable to multiple SEs.")

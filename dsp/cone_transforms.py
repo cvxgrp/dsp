@@ -9,11 +9,11 @@ import numpy as np
 import scipy.sparse as sp
 from cvxpy import SOC
 from cvxpy.atoms import reshape
+from cvxpy.atoms.affine.upper_tri import upper_tri_to_full
 from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.constraints.psd import PSD
 from cvxpy.expressions.constants import Constant
-from cvxpy.atoms.affine.upper_tri import upper_tri_to_full
 from cvxpy.problems.objective import Objective
 from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
 
@@ -74,7 +74,7 @@ class KRepresentation:
 
     @classmethod
     def constant_repr(cls, value: float | int) -> KRepresentation:
-        if not isinstance(value, (float, int)):
+        if not isinstance(value, float | int):
             assert value.size == 1
             assert isinstance(value, np.ndarray)
             value = np.squeeze(value)
