@@ -14,16 +14,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v5
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.8'
+          python-version: '3.12'
+
+      # do better with 'uvx pre-commit run --all-files'
       - name: Install pre-commit
         run: |
           pip install pre-commit
+      
       - name: Setup pre-commit hooks
         run: |
           pre-commit install
+      
       - name: Run pre-commit hooks
         run: |
           pre-commit run --all-files
@@ -31,18 +36,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: |
+            3.13
+            3.12
             3.11
             3.10
-            3.9
-            3.8
+      
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # For sonar
+      
       - name: Install dependencies
         run: pip install tox
+      
       - name: Run tests
         run: tox
 
