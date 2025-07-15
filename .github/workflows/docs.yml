@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
 
+# todo: use pdoc instead
 
 jobs:
   doc_deploy:
