@@ -71,6 +71,11 @@ class SaddleExtremum(Atom):
     def concave_variables(self) -> list[cp.Variable]:
         raise NotImplementedError
 
+    def _grad(self, values):
+        # This is an abstract method in the `Atom` superclass but appears unused in the dsp library. Dummy
+        # implementation here to prevent `TypeError: Can't instantiate abstract class...`
+        raise NotImplementedError
+
 
 class saddle_max(SaddleExtremum):
     r"""sup_{y\in Y}f(x,y)"""

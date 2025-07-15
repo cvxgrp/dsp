@@ -20,6 +20,9 @@ from dsp.saddle_extremum import SaddleExtremum
 
 
 class MinimizeMaximize(Canonical):
+
+    NAME = "minimize-maximize"
+
     def __init__(self, expr: cp.Expression) -> None:
         self._validate_arguments(expr)
         self.args = [cp.Expression.cast_to_const(expr)]
@@ -37,6 +40,9 @@ class MinimizeMaximize(Canonical):
     @property
     def value(self) -> float:
         return self.expr.value
+
+    def __str__(self) -> str:
+        return ' '.join([self.NAME, self.args[0].name()])
 
 
 class SaddlePointProblem(cp.Problem):
