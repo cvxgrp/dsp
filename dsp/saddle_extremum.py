@@ -73,8 +73,7 @@ class SaddleExtremum(Atom):
         raise NotImplementedError
 
     def _grad(self, values) -> NoReturn:
-        # This is an abstract method in the `Atom` superclass but appears unused in the dsp library
-        # Implementation here to prevent `TypeError: Can't instantiate abstract class...`
+        # This is an abstract method in the `Atom` superclass but is unused in dsp
         raise NotImplementedError
 
 
@@ -243,7 +242,7 @@ class conjugate(saddle_max):
         y_vars = [cp.Variable(name=f"{x.name()}_conjugate", shape=x.shape) for x in x_vars]
 
         obj = -f
-        for x, y in zip(x_vars, y_vars, strict=False):
+        for x, y in zip(x_vars, y_vars, strict=True):
             obj += dsp.inner(cp.vec(y), cp.vec(x))
 
         super().__init__(obj, [])
