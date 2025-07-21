@@ -6,6 +6,8 @@ on:
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Permission to read repository contents
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +34,10 @@ jobs:
     #test:
     # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read  # Permission to read repository contents
+      security-events: write  # Permission to write security events (for SonarQube)
 
     strategy:
       matrix:
