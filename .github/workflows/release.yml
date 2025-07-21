@@ -27,6 +27,7 @@ jobs:
           git push origin ${{ github.event.inputs.tag }}
           
   build:
+    needs: tag
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Permission to write to repository contents (for creating releases)
@@ -51,8 +52,10 @@ jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: build
-
+    needs: 
+      - build
+      - tag
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
