@@ -22,11 +22,18 @@ jobs:
       - name: Checkout ${{ github.repository }}
         uses: actions/checkout@v4
 
+      # Step 2: Build the package
       - name: build
         run: |
           pip install --upgrade build
           python -m build
 
+      # Step 3: Upload artifact
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist  # This must match the name used in download step
+          path: dist/
 
   # Job to publish the built package to PyPI
   publish:
