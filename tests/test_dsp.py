@@ -123,7 +123,7 @@ def test_epigraph_exp(y_val):
     p_bar = var_to_mat_mapping[t_primal.id]
     Q_bar = var_to_mat_mapping["eta"]
 
-    s_bar = s_bar.reshape(-1, 1)
+    s_bar = s_bar.reshape(-1, 1, order="F")
     u_temp = cp.Variable((Q_bar.shape[1], 1))
 
     Ax_b = s_bar - (R_bar * y + t_primal * p_bar + Q_bar @ u_temp)

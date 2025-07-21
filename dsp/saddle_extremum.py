@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import itertools
 from abc import abstractmethod
-from typing import Iterable
+from collections.abc import Iterable
+from typing import NoReturn
 
 import cvxpy as cp
 import numpy as np
@@ -69,6 +70,10 @@ class SaddleExtremum(Atom):
 
     @abstractmethod
     def concave_variables(self) -> list[cp.Variable]:
+        raise NotImplementedError
+
+    def _grad(self, values) -> NoReturn:
+        # This is an abstract method in the `Atom` superclass but is unused in dsp
         raise NotImplementedError
 
 
@@ -237,8 +242,8 @@ class conjugate(saddle_max):
         y_vars = [cp.Variable(name=f"{x.name()}_conjugate", shape=x.shape) for x in x_vars]
 
         obj = -f
-        for x, y in zip(x_vars, y_vars):
-            obj += dsp.inner(cp.vec(y), cp.vec(x))
+        for x, y in zip(x_vars, y_vars, strict=True):
+            obj += dsp.inner(cp.vec(y, order="F"), cp.vec(x, order="F"))
 
         super().__init__(obj, [])
 

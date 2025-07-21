@@ -1,0 +1,56 @@
+name: test
+
+on:
+  push
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # do better with 'uvx pre-commit run --all-files'
+      - name: Install pre-commit
+        run: |
+          pip install pre-commit
+
+      - name: Setup pre-commit hooks
+        run: |
+          pre-commit install
+
+      - name: Run pre-commit hooks
+        run: |
+          pre-commit run --all-files
+
+  test:
+    #runs-on: ubuntu-latest
+    #test:
+    # The type of runner that the job will run on
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        python-version: [ '3.10', '3.11', '3.12', '3.13' ]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: pip install tox
+
+      - name: Run tests
+        run: tox
+

@@ -175,9 +175,9 @@ class inner(saddle_inner):
         assert isinstance(Fx, cp.Expression)
         assert isinstance(Gy, cp.Expression)
 
-        assert (
-            Fx.is_affine() and Gy.is_affine()
-        ), "inner must be affine. Use convex-concave-inner for non-affine bilinear terms."
+        assert Fx.is_affine() and Gy.is_affine(), (
+            "inner must be affine. Use convex-concave-inner for non-affine bilinear terms."
+        )
 
         super().__init__(Fx, Gy)
 
@@ -282,7 +282,9 @@ class weighted_log_sum_exp(SaddleAtom):
         epi_exp = cp.Variable(self.exponents.size, name="exp_epi")
         constraints = [
             epi_exp >= self.exponents,  # handles composition in exponent
-            ExpCone(cp.reshape(epi_exp + u, (f_local.size,)), np.ones(f_local.size), f_local),
+            ExpCone(
+                cp.reshape(epi_exp + u, (f_local.size,), order="F"), np.ones(f_local.size), f_local
+            ),
             t >= -u - 1,
         ]
 
@@ -430,7 +432,7 @@ class saddle_quad_form(SaddleAtom):
             local_to_glob.y_size if not switched else local_to_glob.x_size,
             name="f_global_saddle_quad_form",
         )
-        constraints += [F_global == B.T @ cp.vec(F_local)]
+        constraints += [F_global == B.T @ cp.vec(F_local, order="F")]
 
         K_repr = KRepresentation(
             f=F_global,
