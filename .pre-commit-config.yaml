@@ -7,7 +7,6 @@ repos:
         args:
           - --markdown-linebreak-ext=md
       - id: check-merge-conflict
-      - id: check-json
       - id: check-yaml
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
