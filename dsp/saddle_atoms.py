@@ -282,7 +282,9 @@ class weighted_log_sum_exp(SaddleAtom):
         epi_exp = cp.Variable(self.exponents.size, name="exp_epi")
         constraints = [
             epi_exp >= self.exponents,  # handles composition in exponent
-            ExpCone(cp.reshape(epi_exp + u, (f_local.size,), order="F"), np.ones(f_local.size), f_local),
+            ExpCone(
+                cp.reshape(epi_exp + u, (f_local.size,), order="F"), np.ones(f_local.size), f_local
+            ),
             t >= -u - 1,
         ]
 

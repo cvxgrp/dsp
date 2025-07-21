@@ -21,6 +21,7 @@ try:
 except ImportError:
     from cvxpy.atoms.affine.upper_tri import upper_tri_to_full
 
+
 def return_zero() -> float:
     return 0.0
 
