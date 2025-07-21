@@ -1,6 +1,6 @@
 # DSP -  Disciplined Saddle Programming
-[![build](https://github.com/cvxgrp/dsp/actions/workflows/build.yml/badge.svg)](https://github.com/cvxgrp/dsp/actions/workflows/build.yml)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dsp&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dsp)
+[![build](https://github.com/cvxgrp/dsp/actions/workflows/test.yml/badge.svg)](https://github.com/cvxgrp/dsp/actions/workflows/test.yml)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cvxgrp_dsp&metric=coverage)](https://sonarcloud.io/summary/new_code?id=cvxgrp_dsp)
 
 A CVXPY extension for Disciplined Saddle Programming.
 DSP allows solving convex-concave saddle point problems, and more generally
