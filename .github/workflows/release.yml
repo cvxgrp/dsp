@@ -79,7 +79,9 @@ jobs:
           
   # Job to publish the built package to PyPI
   publish:
-    needs: build  # This job depends on the tag job
+    needs: 
+      - build
+      - tag  # This job depends on the tag job
     runs-on: ubuntu-latest
     environment: release  # Use the release environment
 
