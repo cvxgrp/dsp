@@ -243,7 +243,7 @@ class conjugate(saddle_max):
 
         obj = -f
         for x, y in zip(x_vars, y_vars, strict=True):
-            obj += dsp.inner(cp.vec(y), cp.vec(x))
+            obj += dsp.inner(cp.vec(y, order="F"), cp.vec(x, order="F"))
 
         super().__init__(obj, [])
 

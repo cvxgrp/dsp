@@ -9,7 +9,6 @@ import numpy as np
 import scipy.sparse as sp
 from cvxpy import SOC
 from cvxpy.atoms import reshape
-from cvxpy.atoms.affine.upper_tri import upper_tri_to_full
 from cvxpy.constraints import ExpCone
 from cvxpy.constraints.constraint import Constraint
 from cvxpy.constraints.psd import PSD
@@ -17,6 +16,10 @@ from cvxpy.expressions.constants import Constant
 from cvxpy.problems.objective import Objective
 from cvxpy.reductions.dcp2cone.cone_matrix_stuffing import ConeDims
 
+try:
+    from cvxpy.expressions.variable import upper_tri_to_full
+except ImportError:
+    from cvxpy.atoms.affine.upper_tri import upper_tri_to_full
 
 def return_zero() -> float:
     return 0.0
@@ -493,9 +496,9 @@ def split_K_repr_affine(
     C = cp.Constant(0)
     D = cp.Constant(0)
     for v in convex_vars:
-        C += -var_to_mat_mapping.get(v.id, 0) @ cp.vec(v)
+        C += -var_to_mat_mapping.get(v.id, 0) @ cp.vec(v, order="F")
     for v in concave_vars:
-        D += -var_to_mat_mapping.get(v.id, 0) @ cp.vec(v)
+        D += -var_to_mat_mapping.get(v.id, 0) @ cp.vec(v, order="F")
 
     return C, D, cp.Constant(b)
 
@@ -579,6 +582,6 @@ def switch_convex_concave(
                 inds = np.triu_indices(n, k=0)  # includes diagonal
                 v = v[inds]
 
-            constraints += [(P.T @ u_bar)[start:end] + cp.vec(v) == 0]
+            constraints += [(P.T @ u_bar)[start:end] + cp.vec(v, order="F") == 0]
 
     return KRepresentation(f=f_bar, t=t_bar, constraints=constraints)

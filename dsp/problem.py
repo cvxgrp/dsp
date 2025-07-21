@@ -210,7 +210,7 @@ def semi_infinite_epigraph(
             inds = np.triu_indices(v.shape[0], k=0)  # includes diagonal
             expr += A_ @ v[inds]
         else:
-            expr += A_ @ cp.vec(v)
+            expr += A_ @ cp.vec(v, order="F")
 
     z = const_vec - expr  # Ax + b in K
 
