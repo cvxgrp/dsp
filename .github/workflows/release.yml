@@ -20,7 +20,7 @@ jobs:
     steps:
       # Step 1: Checkout the repository code
       - name: Checkout ${{ github.repository }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Step 2: Build the package
       - name: build
