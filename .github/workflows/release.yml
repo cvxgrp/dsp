@@ -46,7 +46,7 @@ jobs:
 
     steps:
       # Step 1: Download the built package artifact
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: dist  # Name of the artifact
           path: dist  # Path to download the artifact to
