@@ -30,7 +30,7 @@ jobs:
 
       # Step 3: Upload artifact
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dist  # This must match the name used in download step
           path: dist/
